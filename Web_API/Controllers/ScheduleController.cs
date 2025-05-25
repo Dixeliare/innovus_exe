@@ -31,10 +31,16 @@ namespace Web_API.Controllers
             return await _scheduleService.GetByIDAsync(id);
         }
 
-        [HttpGet("({id} / {note})")]
-        public async Task<IEnumerable<schedule>> SearchByIdOrNote(int id, string note)
+        [HttpGet("search_id_or_note")]
+        public async Task<IEnumerable<schedule>> SearchByIdOrNote([FromQuery] int? id,[FromQuery] string? note)
         {
             return await _scheduleService.SearchByIdOrNoteAsync(id, note);
+        }
+
+        [HttpGet("search_month_and_year")]
+        public async Task<IEnumerable<schedule>> SearchByMonthYearAsync([FromQuery]int month,[FromQuery] int year)
+        {
+            return await _scheduleService.SearchByMonthYearAsync(month, year);
         }
 
         [HttpPost]

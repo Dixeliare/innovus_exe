@@ -24,21 +24,37 @@ public class ScheduleRepository : GenericRepository<schedule>
         return item ?? new schedule();
     }
 
-    public async Task<List<schedule>> SearchByIdOrNoteAsync(int? id, string? note)
+    public async Task<List<schedule>> SearchByIdOrNoteAsync(int? id, string? note) // Thay đổi tham số thành nullable
     {
         var query = _context.schedules
             .Include(w => w.weeks)
-            .Include(u => u.user) 
+            .Include(u => u.user) // Giữ nguyên việc include user
             .AsQueryable(); // Bắt đầu xây dựng query
 
-        if (id.HasValue && id.Value > 0)
+        // Kiểm tra xem có bất kỳ tiêu chí tìm kiếm nào được cung cấp không
+        bool hasId = id.HasValue && id.Value > 0;
+        bool hasNote = !string.IsNullOrEmpty(note);
+
+        if (hasId && hasNote)
         {
+            // Nếu cả ID và Note đều được cung cấp, tìm những bản ghi thỏa mãn ID HOẶC Note
+            query = query.Where(s => s.schedule_id == id.Value || s.note.Contains(note));
+        }
+        else if (hasId)
+        {
+            // Chỉ tìm theo ID
             query = query.Where(s => s.schedule_id == id.Value);
         }
-
-        if (!string.IsNullOrEmpty(note))
+        else if (hasNote)
         {
+            // Chỉ tìm theo Note
             query = query.Where(s => s.note.Contains(note));
+        }
+        else
+        {
+            // Nếu không có ID và Note nào được cung cấp, trả về tất cả.
+            // Không cần thêm `.Where` nào vào query.
+            // query = query; // Không cần dòng này vì query đã là AsQueryable() mặc định
         }
 
         var searchResult = await query.ToListAsync();
