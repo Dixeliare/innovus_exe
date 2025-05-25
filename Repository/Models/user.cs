@@ -11,7 +11,7 @@ public partial class user
 
     public string? account_name { get; set; }
 
-    public string? password { get; set; }
+    public string password { get; set; } = null!;
 
     public string? address { get; set; }
 
@@ -21,7 +21,7 @@ public partial class user
 
     public DateTime? create_at { get; set; }
 
-    public string avatar_url { get; set; } = null!;
+    public string? avatar_url { get; set; }
 
     public DateOnly? birthday { get; set; }
 
@@ -31,11 +31,15 @@ public partial class user
 
     public int? opening_schedule_id { get; set; }
 
+    public int? schedule_id { get; set; }
+
     public virtual ICollection<attendance> attendances { get; set; } = new List<attendance>();
 
     public virtual opening_schedule? opening_schedule { get; set; }
 
     public virtual role? role { get; set; }
+
+    public virtual schedule? schedule { get; set; }
 
     public virtual statistic? statistic { get; set; }
 

@@ -7,7 +7,7 @@ public partial class statistic
 {
     public int statistic_id { get; set; }
 
-    public DateTime? date { get; set; }
+    public DateOnly? date { get; set; }
 
     public int? new_students { get; set; }
 

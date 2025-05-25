@@ -9,5 +9,5 @@ public partial class sheet
 
     public string sheet_url { get; set; } = null!;
 
-    public virtual ICollection<sheet_music> sheet_musics { get; set; } = new List<sheet_music>();
+    public virtual sheet_music? sheet_music { get; set; }
 }

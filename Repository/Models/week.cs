@@ -11,9 +11,9 @@ public partial class week
 
     public DateOnly? day_of_week { get; set; }
 
-    public int? schedule_id { get; set; }
+    public int schedule_id { get; set; }
 
     public virtual ICollection<class_session> class_sessions { get; set; } = new List<class_session>();
 
-    public virtual schedule? schedule { get; set; }
+    public virtual schedule schedule { get; set; } = null!;
 }

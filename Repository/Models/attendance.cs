@@ -11,13 +11,13 @@ public partial class attendance
 
     public DateTime? check_at { get; set; }
 
-    public string note { get; set; } = null!;
+    public string? note { get; set; }
 
-    public int? user_id { get; set; }
+    public int user_id { get; set; }
 
-    public int? class_session_id { get; set; }
+    public int class_session_id { get; set; }
 
-    public virtual class_session? class_session { get; set; }
+    public virtual class_session class_session { get; set; } = null!;
 
-    public virtual user? user { get; set; }
+    public virtual user user { get; set; } = null!;
 }

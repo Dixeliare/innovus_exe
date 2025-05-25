@@ -13,9 +13,9 @@ public partial class document
 
     public string link { get; set; } = null!;
 
-    public int? instrument_id { get; set; }
+    public int instrument_id { get; set; }
 
-    public virtual instrument? instrument { get; set; }
+    public virtual instrument instrument { get; set; } = null!;
 
     public virtual ICollection<user> users { get; set; } = new List<user>();
 }

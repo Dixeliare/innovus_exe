@@ -9,7 +9,7 @@ public partial class _class
 
     public string? class_code { get; set; }
 
-    public string? instrument { get; set; }
+    public int instrument_id { get; set; }
 
     public virtual ICollection<class_session> class_sessions { get; set; } = new List<class_session>();
 

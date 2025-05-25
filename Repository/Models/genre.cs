@@ -7,7 +7,7 @@ public partial class genre
 {
     public int genre_id { get; set; }
 
-    public string genre_name { get; set; } = null!;
+    public string? genre_name { get; set; }
 
     public virtual ICollection<sheet_music> sheet_musics { get; set; } = new List<sheet_music>();
 }

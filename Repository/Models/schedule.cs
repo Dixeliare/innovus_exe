@@ -9,7 +9,9 @@ public partial class schedule
 
     public DateOnly? month_year { get; set; }
 
-    public string note { get; set; } = null!;
+    public string? note { get; set; }
+
+    public virtual user? user { get; set; }
 
     public virtual ICollection<week> weeks { get; set; } = new List<week>();
 }
