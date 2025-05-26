@@ -106,7 +106,7 @@ public class ScheduleRepository : GenericRepository<schedule>
     {
         var item = await _context.schedules.FindAsync(schedule.schedule_id);
 
-        if (item != null)
+        if (item == null)
         {
             return 0;
         }
@@ -119,6 +119,12 @@ public class ScheduleRepository : GenericRepository<schedule>
     public async Task<bool> DeleteAsync(int scheduleId)
     {
         var item = await _context.schedules.FindAsync(scheduleId);
+
+        if (item == null)
+        {
+            return false;
+        }
+
         _context.schedules.Remove(item);
         
         int recordsAffected = await _context.SaveChangesAsync();
