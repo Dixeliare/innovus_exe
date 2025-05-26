@@ -62,7 +62,7 @@ public class TimeslotRepository : GenericRepository<timeslot>
         return await _context.SaveChangesAsync() > 0;
     }
 
-    public async Task<List<timeslot>> SearchTimeslotsAsync(TimeOnly? startTime, TimeOnly? endTime)
+    public async Task<List<timeslot>> SearchTimeslotsAsync(TimeOnly? startTime = null, TimeOnly? endTime = null)
     {
         IQueryable<timeslot> query = _context.timeslots;
 

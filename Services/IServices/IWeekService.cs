@@ -9,5 +9,5 @@ public interface IWeekService
     Task<int> CreateAsync(week week);
     Task<int> UpdateAsync(week week);
     Task<bool> DeleteAsync(int id);
-    Task<IEnumerable<week>> SearchWeeksAsync(DateOnly? dayOfWeek, int? scheduleId);
+    Task<IEnumerable<week>> SearchWeeksAsync(DateOnly? dayOfWeek = null, int? scheduleId = null);
 }

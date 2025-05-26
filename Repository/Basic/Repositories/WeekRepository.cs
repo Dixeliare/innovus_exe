@@ -66,7 +66,7 @@ public class WeekRepository : GenericRepository<week>
         return await _context.SaveChangesAsync() > 0;
     }
 
-    public async Task<IEnumerable<week>> SearchWeeksAsync(DateOnly? dayOfWeek, int? scheduleId)
+    public async Task<IEnumerable<week>> SearchWeeksAsync(DateOnly? dayOfWeek = null, int? scheduleId = null)
     {
         IQueryable<week> query = _context.weeks;
 

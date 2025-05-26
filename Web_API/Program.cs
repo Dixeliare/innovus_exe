@@ -15,6 +15,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<ScheduleRepository>();
 builder.Services.AddScoped<TimeslotRepository>();
 builder.Services.AddScoped<WeekRepository>();
+builder.Services.AddScoped<ClassSessionRepository>();
 #endregion
 
 #region Services
@@ -22,6 +23,7 @@ builder.Services.AddScoped<IScheduleService, ScheduleService>();
 builder.Services.AddHostedService<ScheduleCreationBackgroundService>();
 builder.Services.AddScoped<ITimeslotService, TimeslotService>();
 builder.Services.AddScoped<IWeekService, WeekService>();
+builder.Services.AddScoped<IClassSessionService, ClassSessionService>();
 #endregion
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

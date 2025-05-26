@@ -8,7 +8,7 @@ public interface ITimeslotService
 
     Task<timeslot> GetByIDAsync(int id);
 
-    Task<List<timeslot>> SearchByStartTimeOrEndTimeAsync(TimeOnly? startTime, TimeOnly? endTime);
+    Task<List<timeslot>> SearchByStartTimeOrEndTimeAsync(TimeOnly? startTime = null, TimeOnly? endTime = null);
 
     Task<int> CreateTimeslot(timeslot timeslot);
 

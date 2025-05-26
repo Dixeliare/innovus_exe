@@ -30,7 +30,7 @@ public class ScheduleRepository : GenericRepository<schedule>
         return item ?? new schedule();
     }
 
-    public async Task<List<schedule>> SearchByIdOrNoteAsync(int? id, string? note) // Thay đổi tham số thành nullable
+    public async Task<List<schedule>> SearchByIdOrNoteAsync(int? id = null, string? note = null) // Thay đổi tham số thành nullable
     {
         var query = _context.schedules
             .Include(w => w.weeks)
@@ -68,7 +68,7 @@ public class ScheduleRepository : GenericRepository<schedule>
         return searchResult ?? new List<schedule>();
     }
     
-    public async Task<List<schedule>> SearchByMonthYearAsync(int? month, int? year)
+    public async Task<List<schedule>> SearchByMonthYearAsync(int? month = null, int? year = null)
     {
         var query = _context.schedules
             .Include(w => w.weeks)

@@ -8,9 +8,9 @@ public interface IScheduleService
 
     Task<schedule> GetByIDAsync(int id);
 
-    Task<List<schedule>> SearchByIdOrNoteAsync(int? id, string? note);
+    Task<List<schedule>> SearchByIdOrNoteAsync(int? id = null, string? note = null);
 
-    Task<List<schedule>> SearchByMonthYearAsync(int? month, int? year);
+    Task<List<schedule>> SearchByMonthYearAsync(int? month = null, int? year = null);
 
     Task<int> CreateSchedule(schedule schedule);
 
