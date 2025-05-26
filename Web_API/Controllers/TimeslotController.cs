@@ -31,7 +31,7 @@ namespace Web_API.Controllers
             return await _timeslotService.GetByIDAsync(id);
         }
 
-        [HttpGet("search_by_start_time_and end_time")]
+        [HttpGet("search_by_start_time_or end_time")]
         public async Task<IEnumerable<timeslot>> SearchByStartTimeOrEndTimeAsync([FromQuery] TimeOnly? startTime,[FromQuery] TimeOnly? endTime)
         {
             return await _timeslotService.SearchByStartTimeOrEndTimeAsync(startTime, endTime);

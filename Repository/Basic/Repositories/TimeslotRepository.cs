@@ -14,13 +14,17 @@ public class TimeslotRepository : GenericRepository<timeslot>
 
     public async Task<List<timeslot>> GetAllAsync()
     {
-        var items = await _context.timeslots.Include(c => c.class_sessions).ToListAsync();
+        var items = await _context.timeslots
+            .Include(c => c.class_sessions)
+            .ToListAsync();
         return items ?? new List<timeslot>();
     }
 
     public async Task<timeslot> GetByIdAsync(int id)
     {
-        var item = await _context.timeslots.Include(c => c.class_sessions).FirstOrDefaultAsync(c => c.timeslot_id == id);
+        var item = await _context.timeslots
+            .Include(c => c.class_sessions)
+            .FirstOrDefaultAsync(c => c.timeslot_id == id);
         return item ?? new timeslot();
     }
 

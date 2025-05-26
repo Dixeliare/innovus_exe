@@ -11,14 +11,18 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 // Add services to the container.
+#region Repositories
 builder.Services.AddScoped<ScheduleRepository>();
 builder.Services.AddScoped<TimeslotRepository>();
+builder.Services.AddScoped<WeekRepository>();
+#endregion
 
-
+#region Services
 builder.Services.AddScoped<IScheduleService, ScheduleService>();
 builder.Services.AddHostedService<ScheduleCreationBackgroundService>();
 builder.Services.AddScoped<ITimeslotService, TimeslotService>();
-
+builder.Services.AddScoped<IWeekService, WeekService>();
+#endregion
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddControllers();

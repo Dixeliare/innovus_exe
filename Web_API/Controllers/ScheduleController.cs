@@ -37,7 +37,7 @@ namespace Web_API.Controllers
             return await _scheduleService.SearchByIdOrNoteAsync(id, note);
         }
 
-        [HttpGet("search_month_and_year")]
+        [HttpGet("search_month_or_year")]
         public async Task<IEnumerable<schedule>> SearchByMonthYearAsync([FromQuery]int month,[FromQuery] int year)
         {
             return await _scheduleService.SearchByMonthYearAsync(month, year);

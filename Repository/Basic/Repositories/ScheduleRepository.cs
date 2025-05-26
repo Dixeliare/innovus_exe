@@ -14,13 +14,19 @@ public class ScheduleRepository : GenericRepository<schedule>
 
     public async Task<List<schedule>> GetAllAsync()
     {
-        var items = await _context.schedules.Include(w => w.weeks).Include(u => u.user ).ToListAsync();
+        var items = await _context.schedules
+            .Include(w => w.weeks)
+            .Include(u => u.user )
+            .ToListAsync();
         return items ?? new List<schedule>();
     }
 
     public async Task<schedule> GetByIDAsync(int id)
     {
-        var item = await _context.schedules.Include(w => w.weeks).Include(u => u.user).FirstOrDefaultAsync(s => s.schedule_id == id);
+        var item = await _context.schedules
+            .Include(w => w.weeks)
+            .Include(u => u.user)
+            .FirstOrDefaultAsync(s => s.schedule_id == id);
         return item ?? new schedule();
     }
 
