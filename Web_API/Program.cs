@@ -18,6 +18,7 @@ builder.Services.AddScoped<WeekRepository>();
 builder.Services.AddScoped<ClassSessionRepository>();
 builder.Services.AddScoped<ClassRepository>();
 builder.Services.AddScoped<AttendanceRepository>();
+builder.Services.AddScoped<GenreRepository>();
 #endregion
 
 #region Services
@@ -28,6 +29,7 @@ builder.Services.AddScoped<IWeekService, WeekService>();
 builder.Services.AddScoped<IClassSessionService, ClassSessionService>();
 builder.Services.AddScoped<IClassService, ClassService>();
 builder.Services.AddScoped<IAttendanceService, AttendanceService>();
+builder.Services.AddScoped<IGenreService, GenreService>();
 #endregion
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
