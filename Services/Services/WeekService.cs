@@ -10,7 +10,7 @@ public class WeekService : IWeekService
     
     public WeekService(WeekRepository repository) => _repository = repository;
     
-    public async Task<List<week>> GetAll()
+    public async Task<IEnumerable<week>> GetAll()
     {
         return await _repository.GetAll();
     }

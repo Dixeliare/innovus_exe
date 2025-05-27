@@ -10,7 +10,7 @@ public class TimeslotService : ITimeslotService
     
     public TimeslotService(TimeslotRepository timeslotRepository) => _timeslotRepository = timeslotRepository;
     
-    public async Task<List<timeslot>> GetAllAsync()
+    public async Task<IEnumerable<timeslot>> GetAllAsync()
     {
         return await _timeslotRepository.GetAllAsync();
     }
@@ -20,7 +20,7 @@ public class TimeslotService : ITimeslotService
         return await _timeslotRepository.GetByIdAsync(id);
     }
 
-    public async Task<List<timeslot>> SearchByStartTimeOrEndTimeAsync(TimeOnly? startTime, TimeOnly? endTime)
+    public async Task<IEnumerable<timeslot>> SearchByStartTimeOrEndTimeAsync(TimeOnly? startTime, TimeOnly? endTime)
     {
         return await _timeslotRepository.SearchTimeslotsAsync(startTime, endTime);
     }

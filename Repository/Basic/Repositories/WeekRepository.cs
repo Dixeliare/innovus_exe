@@ -12,7 +12,7 @@ public class WeekRepository : GenericRepository<week>
 
     public WeekRepository(AppDbContext context) => _context = context;
 
-    public async Task<List<week>> GetAll()
+    public async Task<IEnumerable<week>> GetAll()
     {
         var items = await _context.weeks
             .Include(c => c.class_sessions)

@@ -12,7 +12,7 @@ public class TimeslotRepository : GenericRepository<timeslot>
     
     public TimeslotRepository(AppDbContext context) => _context = context;
 
-    public async Task<List<timeslot>> GetAllAsync()
+    public async Task<IEnumerable<timeslot>> GetAllAsync()
     {
         var items = await _context.timeslots
             .Include(c => c.class_sessions)
@@ -62,7 +62,7 @@ public class TimeslotRepository : GenericRepository<timeslot>
         return await _context.SaveChangesAsync() > 0;
     }
 
-    public async Task<List<timeslot>> SearchTimeslotsAsync(TimeOnly? startTime = null, TimeOnly? endTime = null)
+    public async Task<IEnumerable<timeslot>> SearchTimeslotsAsync(TimeOnly? startTime = null, TimeOnly? endTime = null)
     {
         IQueryable<timeslot> query = _context.timeslots;
 

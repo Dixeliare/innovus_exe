@@ -43,6 +43,12 @@ namespace Web_API.Controllers
             return await _classService.UpdateAsync(entity);
         }
 
+        [HttpDelete]
+        public async Task<bool> DeleteAsync(int id)
+        {
+            return await _classService.DeleteAsync(id);
+        }
+
         [HttpGet("search_by_instrumet_id_or_class_code")]
         public async Task<IEnumerable<_class>> SearchAsync(int? instrumentId = null, string? classCode = null)
         {

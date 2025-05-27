@@ -4,11 +4,11 @@ namespace Services.IServices;
 
 public interface ITimeslotService
 {
-    Task<List<timeslot>> GetAllAsync();
+    Task<IEnumerable<timeslot>> GetAllAsync();
 
     Task<timeslot> GetByIDAsync(int id);
 
-    Task<List<timeslot>> SearchByStartTimeOrEndTimeAsync(TimeOnly? startTime = null, TimeOnly? endTime = null);
+    Task<IEnumerable<timeslot>> SearchByStartTimeOrEndTimeAsync(TimeOnly? startTime = null, TimeOnly? endTime = null);
 
     Task<int> CreateTimeslot(timeslot timeslot);
 

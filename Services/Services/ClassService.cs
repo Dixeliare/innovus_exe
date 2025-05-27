@@ -10,7 +10,7 @@ public class ClassService : IClassService
     
     public ClassService (ClassRepository classRepository) => _classRepository = classRepository;
     
-    public async Task<List<_class>> GetAll()
+    public async Task<IEnumerable<_class>> GetAll()
     {
         return await _classRepository.GetAll();
     }
@@ -30,7 +30,7 @@ public class ClassService : IClassService
         return await _classRepository.UpdateAsync(entity);
     }
 
-    public async Task<int> DeleteAsync(int id)
+    public async Task<bool> DeleteAsync(int id)
     {
         return await _classRepository.DeleteAsync(id);
     }

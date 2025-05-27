@@ -12,7 +12,7 @@ public class ClassRepository : GenericRepository<_class>
     
     public ClassRepository(AppDbContext context) => _context = context;
 
-    public async Task<List<_class>> GetAll()
+    public async Task<IEnumerable<_class>> GetAll()
     {
         return await _context._classes
             .Include(c => c.class_sessions)
@@ -49,15 +49,15 @@ public class ClassRepository : GenericRepository<_class>
         return await _context.SaveChangesAsync();
     }
     
-    public async Task<int> DeleteAsync(int id)
+    public async Task<bool> DeleteAsync(int id)
     {
         var item = await _context._classes.FindAsync(id);
         if (item == null)
         {
-            return 0;
+            return false;
         }
         _context._classes.Remove(item);
-        return await _context.SaveChangesAsync();
+        return await _context.SaveChangesAsync() > 0;
     }
     
     public async Task<IEnumerable<_class>> SearchClassesAsync(int? instrumentId = null, string? classCode = null)
