@@ -22,6 +22,7 @@ builder.Services.AddScoped<GenreRepository>();
 builder.Services.AddScoped<SheetRepository>();
 builder.Services.AddScoped<InstrumentRepository>();
 builder.Services.AddScoped<ConsultationTopicRepository>();
+builder.Services.AddScoped<OpeningScheduleRepository>();
 #endregion
 
 #region Services
@@ -36,6 +37,7 @@ builder.Services.AddScoped<IGenreService, GenreService>();
 builder.Services.AddScoped<ISheetService, SheetService>();
 builder.Services.AddScoped<IInstrumentService, InstrumentService>();
 builder.Services.AddScoped<IConsultationTopicService, ConsultationTopicService>();
+builder.Services.AddScoped<IOpeningScheduleService, OpeningScheduleService>();
 #endregion
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
