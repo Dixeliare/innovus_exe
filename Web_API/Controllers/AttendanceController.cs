@@ -49,7 +49,7 @@ namespace Web_API.Controllers
             return await _attendanceService.UpdateAsync(attendance);
         }
 
-        [HttpDelete]
+        [HttpDelete("id")]
         public async Task<bool> Delete(int id)
         {
             return await _attendanceService.DeleteAsync(id);

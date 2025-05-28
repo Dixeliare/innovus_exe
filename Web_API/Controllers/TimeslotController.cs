@@ -49,7 +49,7 @@ namespace Web_API.Controllers
             return await _timeslotService.UpdateTimeSlot(timeslot);
         }
 
-        [HttpDelete]
+        [HttpDelete("{id}")]
         public async Task<bool> Delete(int id)
         {
             return await _timeslotService.DeleteAsync(id);

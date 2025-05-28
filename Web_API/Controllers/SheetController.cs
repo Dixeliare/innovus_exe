@@ -43,7 +43,7 @@ namespace Web_API.Controllers
             return await _sheetService.CreateAsync(sheet);
         }
 
-        [HttpDelete]
+        [HttpDelete("{id}")]
         public async Task<bool> DeleteAsync(int id)
         {
             return await _sheetService.DeleteAsync(id);
