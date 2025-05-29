@@ -16,6 +16,7 @@ public class OpeningScheduleRepository : GenericRepository<opening_schedule>
     {
         return await _context.opening_schedules
             .Include(u => u.users)
+            .AsSplitQuery()
             .ToListAsync();
     }
 
@@ -23,6 +24,7 @@ public class OpeningScheduleRepository : GenericRepository<opening_schedule>
     {
         return await _context.opening_schedules
             .Include(u => u.users)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(o => o.opening_schedule_id == id);
     }
 

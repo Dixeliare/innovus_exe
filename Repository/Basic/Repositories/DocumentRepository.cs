@@ -17,6 +17,7 @@ public class DocumentRepository : GenericRepository<document>
         return await _context.documents
             .Include(i => i.instrument)
             .Include(u => u.users)
+            .AsSplitQuery()
             .ToListAsync();
     }
 
@@ -25,6 +26,7 @@ public class DocumentRepository : GenericRepository<document>
         return await _context.documents
             .Include(i => i.instrument)
             .Include(u => u.users)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(i => i.document_id == id);
     }
 

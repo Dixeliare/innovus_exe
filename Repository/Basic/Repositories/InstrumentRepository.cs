@@ -14,12 +14,18 @@ public class InstrumentRepository : GenericRepository<instrument>
 
     public async Task<IEnumerable<instrument>> GetAllAsync()
     {
-        return await _context.instruments.Include(d => d.documents).ToListAsync();
+        return await _context.instruments
+            .Include(d => d.documents)
+            .AsSplitQuery()
+            .ToListAsync();
     }
 
     public async Task<instrument> GetByIdAsync(int id)
     {
-        return await _context.instruments.Include(d => d.documents).FirstOrDefaultAsync(d => d.instrument_id == id);
+        return await _context.instruments
+            .Include(d => d.documents)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(d => d.instrument_id == id);
     }
 
     public async Task<int> CreateAsync(instrument instrument)

@@ -19,6 +19,7 @@ public class ClassSessionRepository : GenericRepository<class_session>
             .Include(a => a.attendances)
             .Include(t => t.time_slot)
             .Include(w => w.week)
+            .AsSplitQuery()
             .ToListAsync();
         
         return items ?? new List<class_session>();
@@ -31,6 +32,7 @@ public class ClassSessionRepository : GenericRepository<class_session>
             .Include(a => a.attendances)
             .Include(t => t.time_slot)
             .Include(w => w.week)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(c => c.class_session_id == id);
         return item ?? new class_session();
     }

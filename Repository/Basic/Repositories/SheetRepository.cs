@@ -16,12 +16,18 @@ public class SheetRepository : GenericRepository<sheet>
 
     public async Task<IEnumerable<sheet>> GetAllAsync()
     {
-        return await _context.sheets.Include(s => s.sheet_music).ToListAsync();
+        return await _context.sheets
+            .Include(s => s.sheet_music)
+            .AsSplitQuery()
+            .ToListAsync();
     }
 
     public async Task<sheet> GetByIdAsync(int id)
     {
-        return await _context.sheets.Include(s => s.sheet_music).FirstOrDefaultAsync(s => s.sheet_id == id);
+        return await _context.sheets
+            .Include(s => s.sheet_music)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(s => s.sheet_id == id);
     }
 
     public async Task<int> CreateAsync(sheet sheet)

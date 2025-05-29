@@ -14,12 +14,18 @@ public class GenreRepository : GenericRepository<genre>
 
     public async Task<IEnumerable<genre>> GetAllAsync()
     {
-        return await _context.genres.Include(s => s.sheet_musics).ToListAsync();
+        return await _context.genres
+            .Include(s => s.sheet_musics)
+            .AsSplitQuery()
+            .ToListAsync();
     }
 
     public async Task<genre> GetByIdAsync(int id)
     {
-        return await _context.genres.Include(s => s.sheet_musics).FirstOrDefaultAsync(s => s.genre_id == id);
+        return await _context.genres
+            .Include(s => s.sheet_musics)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(s => s.genre_id == id);
     }
 
     public async Task<int> CreateAsync(genre genre)

@@ -19,6 +19,7 @@ public class SheetMusicRepository : GenericRepository<sheet_music>
             .Include(s => s.sheet)
             .Include(u => u.user_favorite_sheets)
             .Include(g => g.genres)
+            .AsSplitQuery()
             .ToListAsync();
     }
 
@@ -28,6 +29,7 @@ public class SheetMusicRepository : GenericRepository<sheet_music>
             .Include(s => s.sheet)
             .Include(u => u.user_favorite_sheets)
             .Include(g => g.genres)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(s => s.sheet_music_id == id);
     }
 

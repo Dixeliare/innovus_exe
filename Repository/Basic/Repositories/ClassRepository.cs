@@ -17,6 +17,7 @@ public class ClassRepository : GenericRepository<_class>
         return await _context._classes
             .Include(c => c.class_sessions)
             .Include(u => u.users)
+            .AsSplitQuery()
             .ToListAsync();
     }
 
@@ -25,6 +26,7 @@ public class ClassRepository : GenericRepository<_class>
         return await _context._classes
             .Include(c => c.class_sessions)
             .Include(u => u.users)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(c => c.class_id == id);
     }
 

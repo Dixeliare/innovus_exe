@@ -17,6 +17,7 @@ public class ConsultationRequestRepository : GenericRepository<consultation_requ
         return await _context.consultation_requests
             .Include(c => c.consultation_topic)
             .Include(s => s.statistic)
+            .AsSplitQuery()
             .ToListAsync();
     }
 
@@ -25,6 +26,7 @@ public class ConsultationRequestRepository : GenericRepository<consultation_requ
         return await _context.consultation_requests
             .Include(c => c.consultation_topic)
             .Include(s => s.statistic)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(s => s.consultation_request_id == id);
     }
 
