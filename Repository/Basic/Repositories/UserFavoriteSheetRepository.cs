@@ -4,13 +4,13 @@ using Repository.Models;
 
 namespace Repository.Basic.Repositories;
 
-public class UserFavoriteRepository : GenericRepository<user_favorite_sheet>
+public class UserFavoriteSheetRepository : GenericRepository<user_favorite_sheet>
 {
-    public UserFavoriteRepository()
+    public UserFavoriteSheetRepository()
     {
     }
     
-    public UserFavoriteRepository(AppDbContext context) => _context = context;
+    public UserFavoriteSheetRepository(AppDbContext context) => _context = context;
 
     public async Task<IEnumerable<user_favorite_sheet>> GetAllAsync()
     {
