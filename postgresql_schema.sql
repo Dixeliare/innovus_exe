@@ -264,3 +264,24 @@ ALTER TABLE "user"
 ADD CONSTRAINT fk_user_schedule_personal -- ĐÃ THÊM KHÓA NGOẠI CHO QUAN HỆ 1-1 VỚI "schedule"
     FOREIGN KEY("schedule_id") REFERENCES "schedule"("schedule_id")
     ON UPDATE CASCADE ON DELETE SET NULL; -- SET NULL nếu schedule bị xóa, hoặc RESTRICT
+
+
+
+
+
+-- Ví dụ nếu bạn muốn cascade delete cho attendance:
+ALTER TABLE attendance
+DROP CONSTRAINT fk_attendance_class_session;
+ALTER TABLE attendance
+ADD CONSTRAINT fk_attendance_class_session
+FOREIGN KEY (class_session_id)
+REFERENCES class_session (class_session_id)
+ON UPDATE CASCADE ON DELETE CASCADE;
+
+ALTER TABLE attendance
+DROP CONSTRAINT fk_attendance_user;
+ALTER TABLE attendance
+ADD CONSTRAINT fk_attendance_user
+FOREIGN KEY (user_id)
+REFERENCES "user" (user_id)
+ON UPDATE CASCADE ON DELETE CASCADE;
