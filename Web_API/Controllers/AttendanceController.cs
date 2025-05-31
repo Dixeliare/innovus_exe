@@ -20,7 +20,7 @@ namespace Web_API.Controllers
         public AttendanceController(IAttendanceService attendanceService) => _attendanceService = attendanceService;
 
         [HttpGet("search_by_status_or_note")]
-        public async Task<IEnumerable<attendance>> SearchAttendancesAsync(bool? status = null, string? note = null)
+        public async Task<IEnumerable<attendance>> SearchAttendancesAsync([FromQuery] bool? status = null,[FromQuery] string? note = null)
         {
             return await _attendanceService.SearchAttendancesAsync(status, note);
         }
@@ -49,7 +49,7 @@ namespace Web_API.Controllers
             return await _attendanceService.UpdateAsync(attendance);
         }
 
-        [HttpDelete]
+        [HttpDelete("id")]
         public async Task<bool> Delete(int id)
         {
             return await _attendanceService.DeleteAsync(id);

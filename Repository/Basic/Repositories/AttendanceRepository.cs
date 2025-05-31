@@ -17,6 +17,7 @@ public class AttendanceRepository : GenericRepository<attendance>
         return await _context.attendances
             .Include(c => c.class_session)
             .Include(u => u.user)
+            .AsSplitQuery()
             .ToListAsync();
     }
 
@@ -25,6 +26,7 @@ public class AttendanceRepository : GenericRepository<attendance>
         return await _context.attendances
             .Include(c => c.class_session)
             .Include(u => u.user)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(a => a.attendance_id == id);
     }
 

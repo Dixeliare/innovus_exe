@@ -17,6 +17,7 @@ public class WeekRepository : GenericRepository<week>
         var items = await _context.weeks
             .Include(c => c.class_sessions)
             .Include(s => s.schedule)
+            .AsSplitQuery()
             .ToListAsync();
         return items ?? new List<week>();
     }
@@ -26,6 +27,7 @@ public class WeekRepository : GenericRepository<week>
         var item = await _context.weeks
             .Include(c => c.class_sessions)
             .Include(s => s.schedule)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(s => s.week_id == id);
         return item ?? new week();
     }

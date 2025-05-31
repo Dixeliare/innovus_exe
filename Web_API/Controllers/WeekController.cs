@@ -49,7 +49,7 @@ namespace Web_API.Controllers
             return await _weekService.SearchWeeksAsync(dayOfWeek, scheduleId);
         }
 
-        [HttpDelete]
+        [HttpDelete("{id}")]
         public async Task<bool> Delete([FromBody] int id)
         {
             return await _weekService.DeleteAsync(id);

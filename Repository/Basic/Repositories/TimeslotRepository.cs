@@ -16,6 +16,7 @@ public class TimeslotRepository : GenericRepository<timeslot>
     {
         var items = await _context.timeslots
             .Include(c => c.class_sessions)
+            .AsSplitQuery()
             .ToListAsync();
         return items ?? new List<timeslot>();
     }
@@ -24,6 +25,7 @@ public class TimeslotRepository : GenericRepository<timeslot>
     {
         var item = await _context.timeslots
             .Include(c => c.class_sessions)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(c => c.timeslot_id == id);
         return item ?? new timeslot();
     }

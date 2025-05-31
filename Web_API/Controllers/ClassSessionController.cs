@@ -50,7 +50,7 @@ namespace Web_API.Controllers
             return await _classSessionService.UpdateAsync(value);
         }
 
-        [HttpDelete]
+        [HttpDelete("{id}")]
         public async Task<bool> DeleteAsync([FromBody] int value)
         {
             return await _classSessionService.DeleteAsync(value);
