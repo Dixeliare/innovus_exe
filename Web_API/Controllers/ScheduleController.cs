@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using DTOs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -24,13 +25,6 @@ namespace Web_API.Controllers
         {
             return await _scheduleService.GetAllAsync();
         }
-
-        [HttpGet("{id}")]
-        public async Task<schedule> GetById(int id)
-        {
-            return await _scheduleService.GetByIDAsync(id);
-        }
-
         [HttpGet("search_id_or_note")]
         public async Task<IEnumerable<schedule>> SearchByIdOrNote([FromQuery] int? id,[FromQuery] string? note)
         {
@@ -43,22 +37,77 @@ namespace Web_API.Controllers
             return await _scheduleService.SearchByMonthYearAsync(month, year);
         }
 
+        [HttpGet("{id}")]
+        public async Task<ActionResult<ScheduleDto>> GetScheduleById(int id)
+        {
+            var schedule = await _scheduleService.GetByIDAsync(id);
+            if (schedule == null)
+            {
+                return NotFound();
+            }
+            return Ok(schedule);
+        }
+
+        // POST: api/Schedules
         [HttpPost]
-        public async Task<int> Create(schedule schedule)
+        public async Task<ActionResult<ScheduleDto>> CreateSchedule([FromBody] CreateScheduleDto createScheduleDto)
         {
-            return await _scheduleService.CreateSchedule(schedule);
+            try
+            {
+                var createdSchedule = await _scheduleService.AddAsync(createScheduleDto);
+                return CreatedAtAction(nameof(GetScheduleById), new { id = createdSchedule.ScheduleId }, createdSchedule);
+            }
+            catch (KeyNotFoundException ex) // Giữ lại để bắt các lỗi khác nếu có
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while creating the schedule.", error = ex.Message });
+            }
         }
 
-        [HttpPut]
-        public async Task<int> Update(schedule schedule)
+        // PUT: api/Schedules/{id}
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateSchedule(int id, [FromBody] UpdateScheduleDto updateScheduleDto)
         {
-            return await _scheduleService.UpdateSchedule(schedule);
+            if (id != updateScheduleDto.ScheduleId)
+            {
+                return BadRequest(new { message = "Schedule ID in URL does not match ID in body." });
+            }
+
+            try
+            {
+                await _scheduleService.UpdateAsync(updateScheduleDto);
+                return NoContent();
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while updating the schedule.", error = ex.Message });
+            }
         }
 
+        // DELETE: api/Schedules/{id}
         [HttpDelete("{id}")]
-        public async Task<bool> Delete(int id)
+        public async Task<IActionResult> DeleteSchedule(int id)
         {
-            return await _scheduleService.DeleteAsync(id);
+            try
+            {
+                await _scheduleService.DeleteAsync(id);
+                return NoContent();
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while deleting the schedule.", error = ex.Message });
+            }
         }
     }
 }

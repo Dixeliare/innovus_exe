@@ -28,27 +28,17 @@ public class OpeningScheduleRepository : GenericRepository<opening_schedule>
             .FirstOrDefaultAsync(o => o.opening_schedule_id == id);
     }
 
-    public async Task<int> CreateAsync(opening_schedule opening_schedule)
+    public async Task<opening_schedule> AddAsync(opening_schedule entity)
     {
-        await _context.opening_schedules.AddAsync(opening_schedule);
-        return await _context.SaveChangesAsync();
+        _context.opening_schedules.Add(entity);
+        await _context.SaveChangesAsync();
+        return entity;
     }
 
-    public async Task<int> UpdateAsync(opening_schedule opening_schedule)
+    public async Task UpdateAsync(opening_schedule entity)
     {
-        var item = await _context.opening_schedules.FindAsync(opening_schedule.opening_schedule_id);
-        
-        if (item == null) return 0;
-        
-        item.subject = opening_schedule.subject;
-        item.class_code = opening_schedule.class_code;
-        item.opening_day = opening_schedule.opening_day;
-        item.end_date = opening_schedule.end_date;
-        item.schedule = opening_schedule.schedule;
-        item.student_quantity = opening_schedule.student_quantity;
-        item.is_advanced_class = opening_schedule.is_advanced_class;
-        
-        return await _context.SaveChangesAsync();
+        _context.opening_schedules.Update(entity);
+        await _context.SaveChangesAsync();
     }
 
     public async Task<bool> DeleteAsync(int id)

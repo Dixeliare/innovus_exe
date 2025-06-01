@@ -1,3 +1,4 @@
+using DTOs;
 using Repository.Models;
 
 namespace Services.IServices;
@@ -5,9 +6,9 @@ namespace Services.IServices;
 public interface IClassSessionService
 {
     Task<IEnumerable<class_session>> GetAll();
-    Task<class_session> GetById(int id);
-    Task<int> CreateAsync(class_session item);
-    Task<int> UpdateAsync(class_session item);
+    Task<ClassSessionDto> GetByIdAsync(int id);
+    Task<ClassSessionDto> AddAsync(CreateClassSessionDto createClassSessionDto);
+    Task UpdateAsync(UpdateClassSessionDto updateClassSessionDto);
     Task<bool> DeleteAsync(int id);
 
     Task<IEnumerable<class_session>> SearchClassSessionsAsync(

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using DTOs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -26,42 +27,97 @@ namespace Web_API.Controllers
         }
 
         [HttpGet("{id}")]
-        public async Task<user> GetByIdAsync(int id)
+        public async Task<ActionResult<UserDto>> GetUserById(int id)
         {
-            return await _userService.GetByIdAsync(id);
+            var user = await _userService.GetByIdAsync(id);
+            if (user == null)
+            {
+                return NotFound();
+            }
+            return Ok(user);
         }
 
-        [HttpGet("search_by")]
-        public async Task<IEnumerable<user>> SearchByUserAsync(
-            [FromQuery] string? username = null,
-            [FromQuery] string? accountName = null,
-            [FromQuery] string? password = null,
-            [FromQuery] string? address = null,
-            [FromQuery] string? phoneNumber = null,
-            [FromQuery] bool? isDisabled = null,
-            [FromQuery] DateTime? createAt = null,
-            [FromQuery] DateOnly? birthday = null,
-            [FromQuery] int? roleId = null)
+        // GET: api/Users/username/{username}
+        [HttpGet("username/{username}")]
+        public async Task<ActionResult<UserDto>> GetUserByUsername(string username)
         {
-            return await _userService.SearchUsersAsync(username, accountName, password, address, phoneNumber, isDisabled, createAt, birthday, roleId);
+            var user = await _userService.GetByUsernameAsync(username);
+            if (user == null)
+            {
+                return NotFound();
+            }
+            return Ok(user);
         }
 
+
+        // POST: api/Users
         [HttpPost]
-        public async Task<int> PostAsync(user user)
+        public async Task<ActionResult<UserDto>> CreateUser([FromBody] CreateUserDto createUserDto)
         {
-            return await _userService.CreateAsync(user);
+            try
+            {
+                var createdUser = await _userService.AddAsync(createUserDto);
+                return CreatedAtAction(nameof(GetUserById), new { id = createdUser.UserId }, createdUser);
+            }
+            catch (ArgumentException ex) // Bắt lỗi trùng lặp username
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (KeyNotFoundException ex) // Bắt lỗi khóa ngoại
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while creating the user.", error = ex.Message });
+            }
         }
 
-        [HttpPut]
-        public async Task<int> PutAsync(user user)
+        // PUT: api/Users/{id}
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateUser(int id, [FromBody] UpdateUserDto updateUserDto)
         {
-            return await _userService.UpdateAsync(user);
+            if (id != updateUserDto.UserId)
+            {
+                return BadRequest(new { message = "User ID in URL does not match ID in body." });
+            }
+
+            try
+            {
+                await _userService.UpdateAsync(updateUserDto);
+                return NoContent();
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ArgumentException ex) // Bắt lỗi trùng lặp username
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while updating the user.", error = ex.Message });
+            }
         }
 
+        // DELETE: api/Users/{id}
         [HttpDelete("{id}")]
-        public async Task<bool> DeleteAsync(int id)
+        public async Task<IActionResult> DeleteUser(int id)
         {
-            return await _userService.DeleteAsync(id);
+            try
+            {
+                await _userService.DeleteAsync(id);
+                return NoContent();
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while deleting the user.", error = ex.Message });
+            }
         }
     }
 }

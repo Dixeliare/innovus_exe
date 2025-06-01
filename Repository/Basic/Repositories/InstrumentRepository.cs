@@ -28,10 +28,17 @@ public class InstrumentRepository : GenericRepository<instrument>
             .FirstOrDefaultAsync(d => d.instrument_id == id);
     }
 
-    public async Task<int> CreateAsync(instrument instrument)
+    public async Task<instrument> AddAsync(instrument entity)
     {
-        await _context.instruments.AddAsync(instrument);
-        return await _context.SaveChangesAsync();
+        _context.instruments.Add(entity);
+        await _context.SaveChangesAsync();
+        return entity;
+    }
+
+    public async Task UpdateAsync(instrument entity)
+    {
+        _context.instruments.Update(entity);
+        await _context.SaveChangesAsync();
     }
 
     public async Task<bool> DeleteAsync(int id)
@@ -45,20 +52,6 @@ public class InstrumentRepository : GenericRepository<instrument>
         
         _context.instruments.Remove(item);
         return await _context.SaveChangesAsync() > 0;
-    }
-
-    public async Task<int> UpdateAsync(instrument instrument)
-    {
-        var item = await _context.instruments.FindAsync(instrument.instrument_id);
-
-        if (item == null)
-        {
-            return 0;
-        }
-        
-        item.instrument_name = instrument.instrument_name;
-        
-        return await _context.SaveChangesAsync();
     }
     
     public async Task<IEnumerable<instrument>> SearchInstrumentsAsync(string? instrumentName = null)

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using DTOs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -26,27 +27,76 @@ namespace Web_API.Controllers
         }
 
         [HttpGet("{id}")]
-        public async Task<sheet> CreateAsync(int id)
+        public async Task<ActionResult<SheetDto>> GetSheetById(int id)
         {
-            return await _sheetService.GetByIdAsync(id);
+            var sheet = await _sheetService.GetByIdAsync(id);
+            if (sheet == null)
+            {
+                return NotFound();
+            }
+            return Ok(sheet);
         }
 
-        [HttpPut]
-        public async Task<int> UpdateAsync(sheet sheet)
-        {
-            return await _sheetService.UpdateAsync(sheet);
-        }
-
+        // POST: api/Sheets
         [HttpPost]
-        public async Task<int> CreateAsync(sheet sheet)
+        public async Task<ActionResult<SheetDto>> CreateSheet([FromBody] CreateSheetDto createSheetDto)
         {
-            return await _sheetService.CreateAsync(sheet);
+            try
+            {
+                var createdSheet = await _sheetService.AddAsync(createSheetDto);
+                return CreatedAtAction(nameof(GetSheetById), new { id = createdSheet.SheetId }, createdSheet);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while creating the sheet.", error = ex.Message });
+            }
         }
 
-        [HttpDelete("{id}")]
-        public async Task<bool> DeleteAsync(int id)
+        // PUT: api/Sheets/{id}
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateSheet(int id, [FromBody] UpdateSheetDto updateSheetDto)
         {
-            return await _sheetService.DeleteAsync(id);
+            if (id != updateSheetDto.SheetId)
+            {
+                return BadRequest(new { message = "Sheet ID in URL does not match ID in body." });
+            }
+
+            try
+            {
+                await _sheetService.UpdateAsync(updateSheetDto);
+                return NoContent();
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while updating the sheet.", error = ex.Message });
+            }
+        }
+
+        // DELETE: api/Sheets/{id}
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteSheet(int id)
+        {
+            try
+            {
+                await _sheetService.DeleteAsync(id);
+                return NoContent();
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while deleting the sheet.", error = ex.Message });
+            }
         }
     }
 }

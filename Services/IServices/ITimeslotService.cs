@@ -1,3 +1,4 @@
+using DTOs;
 using Repository.Models;
 
 namespace Services.IServices;
@@ -10,9 +11,8 @@ public interface ITimeslotService
 
     Task<IEnumerable<timeslot>> SearchByStartTimeOrEndTimeAsync(TimeOnly? startTime = null, TimeOnly? endTime = null);
 
-    Task<int> CreateTimeslot(timeslot timeslot);
-
-    Task<int> UpdateTimeSlot(timeslot timeslot);
+    Task<TimeslotDto> AddAsync(CreateTimeslotDto createTimeslotDto);
+    Task UpdateAsync(UpdateTimeslotDto updateTimeslotDto);
 
     Task<bool> DeleteAsync(int timeslotId);
 }

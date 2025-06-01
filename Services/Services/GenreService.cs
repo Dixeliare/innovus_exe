@@ -1,3 +1,4 @@
+using DTOs;
 using Repository.Basic.Repositories;
 using Repository.Models;
 using Services.IServices;
@@ -6,37 +7,71 @@ namespace Services.Services;
 
 public class GenreService : IGenreService
 {
-    private readonly GenreRepository _genreService;
+    private readonly GenreRepository _genreRepository;
     
-    public GenreService(GenreRepository genreService) => _genreService = genreService;
+    public GenreService(GenreRepository genreService) => _genreRepository = genreService;
     
     public async Task<IEnumerable<genre>> GetAllAsync()
     {
-        return await _genreService.GetAllAsync();
+        return await _genreRepository.GetAllAsync();
     }
 
     public async Task<genre> GetByIdAsync(int id)
     {
-        return await _genreService.GetByIdAsync(id);
+        return await _genreRepository.GetByIdAsync(id);
     }
 
-    public async Task<int> CreateAsync(genre genre)
+    public async Task<GenreDto> AddAsync(CreateGenreDto createGenreDto)
     {
-        return await _genreService.CreateAsync(genre);
+        var genreEntity = new genre
+        {
+            genre_name = createGenreDto.GenreName
+        };
+
+        var addedGenre = await _genreRepository.AddAsync(genreEntity);
+        return MapToGenreDto(addedGenre);
     }
 
-    public async Task<int> UpdateAsync(genre genre)
+    // UPDATE Genre
+    public async Task UpdateAsync(UpdateGenreDto updateGenreDto)
     {
-        return await _genreService.UpdateAsync(genre);
+        var existingGenre = await _genreRepository.GetByIdAsync(updateGenreDto.GenreId);
+
+        if (existingGenre == null)
+        {
+            throw new KeyNotFoundException($"Genre with ID {updateGenreDto.GenreId} not found.");
+        }
+
+        // Cập nhật tên nếu có giá trị được cung cấp
+        if (!string.IsNullOrEmpty(updateGenreDto.GenreName))
+        {
+            existingGenre.genre_name = updateGenreDto.GenreName;
+        }
+        // Nếu bạn muốn cho phép gán null cho tên thể loại (nếu DB cho phép), bạn có thể thêm:
+        // else if (updateGenreDto.GenreName == null)
+        // {
+        //     existingGenre.genre_name = null;
+        // }
+
+        await _genreRepository.UpdateAsync(existingGenre);
     }
 
     public async Task<bool> DeleteAsync(int id)
     {
-        return await _genreService.DeleteAsync(id);
+        return await _genreRepository.DeleteAsync(id);
     }
 
     public async Task<IEnumerable<genre>> SearchGenresAsync(string? genreName = null)
     {
-        return await _genreService.SearchGenresAsync(genreName);
+        return await _genreRepository.SearchGenresAsync(genreName);
+    }
+    
+    private GenreDto MapToGenreDto(genre model)
+    {
+        return new GenreDto
+        {
+            GenreId = model.genre_id,
+            GenreName = model.genre_name
+        };
     }
 }

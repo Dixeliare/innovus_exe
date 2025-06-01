@@ -43,29 +43,23 @@ public class UserRepository: GenericRepository<user>
             .AsSplitQuery()
             .FirstOrDefaultAsync(u => u.user_id == id);
     }
-
-    public async Task<int> CreateAsync(user user)
+    
+    public async Task<user?> GetByUsernameAsync(string username)
     {
-        await _context.users.AddAsync(user);
-        return await _context.SaveChangesAsync();
+        return await _context.users.AsNoTracking().FirstOrDefaultAsync(u => u.username == username);
     }
 
-    public async Task<int> UpdateAsync(user user)
+    public async Task<user> AddAsync(user entity)
     {
-        var item = await _context.users.FindAsync(user.user_id);
-        if (item == null) return 0;
+        _context.users.Add(entity);
+        await _context.SaveChangesAsync();
+        return entity;
+    }
 
-        item.username = user.username;
-        item.account_name = user.account_name;
-        item.password = user.password;
-        item.address = user.address;
-        item.phone_number = user.phone_number;
-        item.is_disabled = user.is_disabled;
-        item.avatar_url = user.avatar_url;
-        item.birthday = user.birthday;
-        item.role_id = user.role_id;
-        
-        return await _context.SaveChangesAsync();
+    public async Task UpdateAsync(user entity)
+    {
+        _context.Entry(entity).State = EntityState.Modified;
+        await _context.SaveChangesAsync();
     }
 
     public async Task<bool> DeleteAsync(int id)

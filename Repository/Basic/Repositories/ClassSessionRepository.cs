@@ -37,29 +37,17 @@ public class ClassSessionRepository : GenericRepository<class_session>
         return item ?? new class_session();
     }
 
-    public async Task<int> CreateAsync(class_session item)
+    public async Task<class_session> AddAsync(class_session entity)
     {
-        await _context.class_sessions.AddAsync(item);
-        return await _context.SaveChangesAsync();
+        _context.class_sessions.Add(entity);
+        await _context.SaveChangesAsync();
+        return entity;
     }
 
-    public async Task<int> UpdateAsync(class_session entity)
+    public async Task UpdateAsync(class_session entity)
     {
-        var item = await _context.class_sessions.FindAsync(entity.class_session_id);
-
-        if (item == null)
-        {
-            return 0;
-        }
-        
-        item.session_number = entity.session_number;
-        item.date = entity.date;
-        item.room_code = entity.room_code;
-        item.time_slot_id = entity.time_slot_id;
-        item.week_id = entity.week_id;
-        item.class_id = entity.class_id;
-        
-        return await _context.SaveChangesAsync();
+        _context.class_sessions.Update(entity);
+        await _context.SaveChangesAsync();
     }
 
     public async Task<bool> DeleteAsync(int id)

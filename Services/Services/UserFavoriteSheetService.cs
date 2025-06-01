@@ -1,3 +1,4 @@
+using DTOs;
 using Repository.Basic.Repositories;
 using Repository.Models;
 using Services.IServices;
@@ -21,55 +22,63 @@ public class UserFavoriteSheetService : IUserFavoriteSheetService
         }
 
         // Phương thức thêm bản nhạc yêu thích
-        public async Task<bool> AddUserFavoriteSheetAsync(int userId, int sheetMusicId, bool isFavorite = true)
+        public async Task<UserFavoriteSheetDto> AddUserFavoriteSheetAsync(CreateUserFavoriteSheetDto createDto)
         {
-            // Kiểm tra xem user và sheet_music có tồn tại không
-            var userExists = await _userRepository.GetByIdAsync(userId) != null;
-            var sheetExists = await _sheetMusicRepository.GetByIdAsync(sheetMusicId) != null;
-
-            if (!userExists || !sheetExists)
+            // Kiểm tra sự tồn tại của User và SheetMusic
+            var userExists = await _userRepository.GetByIdAsync(createDto.UserId);
+            if (userExists == null)
             {
-                // Xử lý lỗi: User hoặc SheetMusic không tồn tại
-                return false;
+                throw new KeyNotFoundException($"User with ID {createDto.UserId} not found.");
             }
 
-            var existingEntry = await _userFavoriteSheetRepository.GetByUserAndSheetMusicIdAsync(userId, sheetMusicId);
-            if (existingEntry != null)
+            var sheetMusicExists = await _sheetMusicRepository.GetByIdAsync(createDto.SheetMusicId);
+            if (sheetMusicExists == null)
             {
-                // Nếu đã tồn tại, cập nhật trạng thái
-                existingEntry.is_favorite = isFavorite;
-                return await _userFavoriteSheetRepository.UpdateAsync(existingEntry) > 0;
+                throw new KeyNotFoundException($"Sheet Music with ID {createDto.SheetMusicId} not found.");
             }
-            else
+
+            // Kiểm tra xem cặp đã tồn tại chưa
+            if (await _userFavoriteSheetRepository.IsSheetFavoriteForUserAsync(createDto.UserId, createDto.SheetMusicId))
             {
-                // Nếu chưa tồn tại, thêm mới
-                var newEntry = new user_favorite_sheet
-                {
-                    user_id = userId,
-                    sheet_music_id = sheetMusicId,
-                    is_favorite = isFavorite
-                };
-                return await _userFavoriteSheetRepository.AddAsync(newEntry) > 0;
+                throw new InvalidOperationException($"User {createDto.UserId} has already favorited Sheet Music {createDto.SheetMusicId}.");
             }
+
+            var entity = new user_favorite_sheet
+            {
+                user_id = createDto.UserId,
+                sheet_music_id = createDto.SheetMusicId,
+                is_favorite = createDto.IsFavorite ?? true // Mặc định là true nếu không cung cấp
+            };
+
+            var addedEntity = await _userFavoriteSheetRepository.AddAsync(entity);
+            return MapToUserFavoriteSheetDto(addedEntity);
         }
 
-        // Phương thức cập nhật trạng thái yêu thích
-        public async Task<bool> UpdateUserFavoriteSheetAsync(int userId, int sheetMusicId, bool isFavorite)
+        // Update User Favorite Sheet (primarily for is_favorite status)
+        public async Task UpdateUserFavoriteSheetAsync(UpdateUserFavoriteSheetDto updateDto)
         {
-            var existingEntry = await _userFavoriteSheetRepository.GetByUserAndSheetMusicIdAsync(userId, sheetMusicId);
-            if (existingEntry == null)
+            var existingEntity = await _userFavoriteSheetRepository.GetByIdAsync(updateDto.UserId, updateDto.SheetMusicId);
+
+            if (existingEntity == null)
             {
-                // Không tìm thấy mối quan hệ để cập nhật
-                return false;
+                throw new KeyNotFoundException($"User Favorite Sheet with User ID {updateDto.UserId} and Sheet Music ID {updateDto.SheetMusicId} not found.");
             }
-            existingEntry.is_favorite = isFavorite;
-            return await _userFavoriteSheetRepository.UpdateAsync(existingEntry) > 0;
+
+            existingEntity.is_favorite = updateDto.IsFavorite;
+
+            await _userFavoriteSheetRepository.UpdateAsync(existingEntity);
         }
 
         // Phương thức xóa bản ghi yêu thích
         public async Task<bool> DeleteUserFavoriteSheetAsync(int userId, int sheetMusicId)
         {
             return await _userFavoriteSheetRepository.DeleteAsync(userId, sheetMusicId) > 0;
+        }
+        
+        public async Task<UserFavoriteSheetDto?> GetByIdAsync(int userId, int sheetMusicId)
+        {
+            var userFavoriteSheet = await _userFavoriteSheetRepository.GetByIdAsync(userId, sheetMusicId);
+            return userFavoriteSheet != null ? MapToUserFavoriteSheetDto(userFavoriteSheet) : null;
         }
 
         // Lấy một bản ghi user_favorite_sheet cụ thể
@@ -98,5 +107,15 @@ public class UserFavoriteSheetService : IUserFavoriteSheetService
         public async Task<bool> CheckIfSheetIsFavoriteForUserAsync(int userId, int sheetMusicId)
         {
             return await _userFavoriteSheetRepository.IsSheetFavoriteForUserAsync(userId, sheetMusicId);
+        }
+        
+        private UserFavoriteSheetDto MapToUserFavoriteSheetDto(user_favorite_sheet model)
+        {
+            return new UserFavoriteSheetDto
+            {
+                UserId = model.user_id,
+                SheetMusicId = model.sheet_music_id,
+                IsFavorite = model.is_favorite
+            };
         }
     }

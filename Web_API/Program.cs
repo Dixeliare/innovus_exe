@@ -27,6 +27,8 @@ builder.Services.AddScoped<ConsultationRequestRepository>();
 builder.Services.AddScoped<DocumentRepository>();
 builder.Services.AddScoped<SheetMusicRepository>();
 builder.Services.AddScoped<UserRepository>();
+builder.Services.AddScoped<StatisticRepository>();
+builder.Services.AddScoped<RoleRepository>();
 #endregion
 
 #region Services
@@ -46,6 +48,8 @@ builder.Services.AddScoped<IConsultationRequestService, ConsultationRequestServi
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddScoped<ISheetMusicService, SheetMusicService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IStatisticService, StatisticService>();
+builder.Services.AddScoped<IRoleService, RoleService>();
 #endregion
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

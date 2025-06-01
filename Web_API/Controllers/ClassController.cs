@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using DTOs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -32,15 +33,34 @@ namespace Web_API.Controllers
         }
 
         [HttpPost]
-        public async Task<int> CreateAsync(_class entity)
+        public async Task<ActionResult<ClassDto>> Add(CreateClassDto createClassDto)
         {
-            return await _classService.CreateAsync(entity);
+            var newClass = await _classService.AddAsync(createClassDto);
+            // Trả về 201 CreatedAtAction nếu thành công
+            return CreatedAtAction(nameof(GetById), new { id = newClass.ClassId }, newClass);
         }
 
-        [HttpPut]
-        public async Task<int> UpdateAsync(_class entity)
+        [HttpPut("{id}")]
+        public async Task<IActionResult> Update(int id, UpdateClassDto updateClassDto)
         {
-            return await _classService.UpdateAsync(entity);
+            if (id != updateClassDto.ClassId)
+            {
+                return BadRequest("Class ID in URL does not match ID in request body.");
+            }
+
+            try
+            {
+                await _classService.UpdateAsync(updateClassDto);
+                return NoContent(); // 204 No Content cho cập nhật thành công
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ex.Message); // Trả về 404 nếu không tìm thấy lớp học
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
         }
 
         [HttpDelete("id")]

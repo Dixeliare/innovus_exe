@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using DTOs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -38,15 +39,41 @@ namespace Web_API.Controllers
         }
 
         [HttpPost]
-        public async Task<int> Post(attendance attendance)
+        public async Task<ActionResult<AttendanceDto>> Add(CreateAttendanceDto createAttendanceDto)
         {
-            return await _attendanceService.CreateAsync(attendance);
+            try
+            {
+                var newAttendance = await _attendanceService.AddAsync(createAttendanceDto);
+                return CreatedAtAction(nameof(GetById), new { id = newAttendance.AttendanceId }, newAttendance);
+            }
+            catch (Exception ex)
+            {
+                // Xử lý các lỗi khác, ví dụ: khóa ngoại không tồn tại
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
         }
 
-        [HttpPut]
-        public async Task<int> Put(attendance attendance)
+        [HttpPut("{id}")]
+        public async Task<IActionResult> Update(int id, UpdateAttendanceDto updateAttendanceDto)
         {
-            return await _attendanceService.UpdateAsync(attendance);
+            if (id != updateAttendanceDto.AttendanceId)
+            {
+                return BadRequest("Attendance ID in URL does not match ID in request body.");
+            }
+
+            try
+            {
+                await _attendanceService.UpdateAsync(updateAttendanceDto);
+                return NoContent();
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
         }
 
         [HttpDelete("id")]

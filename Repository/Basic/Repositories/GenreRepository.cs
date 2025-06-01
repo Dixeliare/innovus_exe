@@ -28,24 +28,17 @@ public class GenreRepository : GenericRepository<genre>
             .FirstOrDefaultAsync(s => s.genre_id == id);
     }
 
-    public async Task<int> CreateAsync(genre genre)
+    public async Task<genre> AddAsync(genre entity)
     {
-        await _context.genres.AddAsync(genre);
-        return await _context.SaveChangesAsync();
+        _context.genres.Add(entity);
+        await _context.SaveChangesAsync();
+        return entity;
     }
 
-    public async Task<int> UpdateAsync(genre genre)
+    public async Task UpdateAsync(genre entity)
     {
-        var item = await _context.genres.FindAsync(genre.genre_id);
-
-        if (item == null)
-        {
-            return 0;
-        }
-        
-        item.genre_name = genre.genre_name;
-        
-        return await _context.SaveChangesAsync();
+        _context.genres.Update(entity);
+        await _context.SaveChangesAsync();
     }
 
     public async Task<bool> DeleteAsync(int id)

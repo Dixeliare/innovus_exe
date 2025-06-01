@@ -33,27 +33,17 @@ public class SheetMusicRepository : GenericRepository<sheet_music>
             .FirstOrDefaultAsync(s => s.sheet_music_id == id);
     }
 
-    public async Task<int> CreateAsync(sheet_music entity)
+    public async Task<sheet_music> AddAsync(sheet_music entity)
     {
-        await _context.sheet_musics.AddAsync(entity);
-        return await _context.SaveChangesAsync();
+        _context.sheet_musics.Add(entity);
+        await _context.SaveChangesAsync();
+        return entity;
     }
 
-    public async Task<int> UpdateAsync(sheet_music entity)
+    public async Task UpdateAsync(sheet_music entity)
     {
-        var item = await _context.sheet_musics.FindAsync(entity.sheet_music_id);
-        
-        if (item == null) return 0;
-        
-        item.number = entity.number;
-        item.music_name = entity.music_name;
-        item.composer = entity.composer;
-        item.cover_url = entity.cover_url;
-        item.sheet_quantity = entity.sheet_quantity;
-        item.favorite_count = entity.favorite_count;
-        item.sheet_id = entity.sheet_id;
-        
-        return await _context.SaveChangesAsync();
+        _context.Entry(entity).State = EntityState.Modified;
+        await _context.SaveChangesAsync();
     }
 
     public async Task<bool> DeleteAsync(int id)
@@ -131,4 +121,35 @@ public class SheetMusicRepository : GenericRepository<sheet_music>
 
             return await query.ToListAsync();
         }
+    
+    public async Task AddGenreToSheetMusicAsync(int sheetMusicId, int genreId)
+    {
+        var sheetMusic = await _context.sheet_musics
+            .Include(sm => sm.genres)
+            .FirstOrDefaultAsync(sm => sm.sheet_music_id == sheetMusicId);
+        var genre = await _context.genres.FindAsync(genreId);
+
+        if (sheetMusic == null) throw new KeyNotFoundException($"Sheet Music with ID {sheetMusicId} not found.");
+        if (genre == null) throw new KeyNotFoundException($"Genre with ID {genreId} not found.");
+
+        if (!sheetMusic.genres.Any(g => g.genre_id == genreId))
+        {
+            sheetMusic.genres.Add(genre);
+            await _context.SaveChangesAsync();
+        }
+    }
+
+    public async Task RemoveGenreFromSheetMusicAsync(int sheetMusicId, int genreId)
+    {
+        var sheetMusic = await _context.sheet_musics
+            .Include(sm => sm.genres)
+            .FirstOrDefaultAsync(sm => sm.sheet_music_id == sheetMusicId);
+        var genreToRemove = sheetMusic?.genres.FirstOrDefault(g => g.genre_id == genreId);
+
+        if (sheetMusic == null) throw new KeyNotFoundException($"Sheet Music with ID {sheetMusicId} not found.");
+        if (genreToRemove == null) throw new KeyNotFoundException($"Genre with ID {genreId} not found in Sheet Music {sheetMusicId}.");
+
+        sheetMusic.genres.Remove(genreToRemove);
+        await _context.SaveChangesAsync();
+    }
 }

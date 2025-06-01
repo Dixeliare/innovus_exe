@@ -30,25 +30,17 @@ public class ConsultationRequestRepository : GenericRepository<consultation_requ
             .FirstOrDefaultAsync(s => s.consultation_request_id == id);
     }
 
-    public async Task<int> CreateAsync(consultation_request entity)
+    public async Task<consultation_request> AddAsync(consultation_request entity)
     {
-        await _context.consultation_requests.AddAsync(entity);
-        return await _context.SaveChangesAsync();
+        _context.consultation_requests.Add(entity);
+        await _context.SaveChangesAsync();
+        return entity;
     }
 
-    public async Task<int> UpdateAsync(consultation_request entity)
+    public async Task UpdateAsync(consultation_request entity)
     {
-        var item = await _context.consultation_requests.FindAsync(entity.consultation_request_id);
-        
-        if (item == null) return 0;
-        
-        item.fullname = entity.fullname;
-        item.contact_number = entity.contact_number;
-        item.email = entity.email;
-        item.note = entity.note;
-        item.has_contact = entity.has_contact;
-        
-        return await _context.SaveChangesAsync();
+        _context.consultation_requests.Update(entity);
+        await _context.SaveChangesAsync();
     }
 
     public async Task<bool> DeleteAsync(int id)
