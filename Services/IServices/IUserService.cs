@@ -5,6 +5,8 @@ namespace Services.IServices;
 
 public interface IUserService
 {
+
+    Task<user> GetUserAccount(string username, string password);
     Task<IEnumerable<user>> GetAllAsync();
     Task<user> GetByIdAsync(int id);
     Task<UserDto?> GetByUsernameAsync(string username); 

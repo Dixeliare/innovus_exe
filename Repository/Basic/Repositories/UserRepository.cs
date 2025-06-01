@@ -14,6 +14,11 @@ public class UserRepository: GenericRepository<user>
 
     public UserRepository(AppDbContext context) => _context = context;
 
+    public async Task<user> GetUserAccount(string username, string password)
+    {
+        return await _context.users.FirstOrDefaultAsync(x => x.username == username && x.password == password);
+    }
+
     public async Task<IEnumerable<user>> GetAllAsync()
     {
         return await _context.users

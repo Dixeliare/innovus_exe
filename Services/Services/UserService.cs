@@ -25,7 +25,12 @@ public class UserService : IUserService
         _openingScheduleRepository = openingScheduleRepository;
         _scheduleRepository = scheduleRepository;
     }
-    
+
+    public async Task<user> GetUserAccount(string username, string password)
+    {
+        return await _userRepository.GetUserAccount(username, password);
+    }
+
     public async Task<IEnumerable<user>> GetAllAsync()
     {
         return await _userRepository.GetAllAsync();

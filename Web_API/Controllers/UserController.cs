@@ -1,11 +1,16 @@
 using System;
 using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
+using System.Security.Claims;
+using System.Text;
 using System.Threading.Tasks;
 using DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Repository.Data;
 using Repository.Models;
 using Services.IServices;
@@ -17,16 +22,60 @@ namespace Web_API.Controllers
     public class UserController : ControllerBase
     {
         private readonly IUserService _userService;
+        private readonly IConfiguration _config;
+
+        public UserController(IUserService userService, IConfiguration config)
+        {
+            _userService = userService;
+            _config = config;
+        }
         
-        public UserController(IUserService userService) => _userService = userService;
+        [HttpPost("Login")]
+        public IActionResult Login([FromBody] LoginRequest request)
+        {
+            var user = _userService.GetUserAccount(request.UserName, request.Password);
+
+            if (user == null || user.Result == null)
+                return Unauthorized();
+
+            var token = GenerateJSONWebToken(user.Result);
+
+            return Ok(token);
+        }
+
+        private string GenerateJSONWebToken(user systemUserAccount)
+        {
+            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
+            var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
+            var token = new JwtSecurityToken(_config["Jwt:Issuer"]
+                , _config["Jwt:Audience"]
+                , new Claim[]
+                {
+                    new(ClaimTypes.Name, systemUserAccount.username),
+                    //new(ClaimTypes.Email, systemUserAccount.Email),
+                    new(ClaimTypes.Role, systemUserAccount.role_id.ToString()),
+                },
+                expires: DateTime.Now.AddMinutes(120),
+                signingCredentials: credentials
+            );
+
+            var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
+
+            return tokenString;
+        }
+
+        public sealed record LoginRequest(string UserName, string Password);
 
         [HttpGet]
+        [Authorize(Roles = "2")]
         public async Task<IEnumerable<user>> GetAllAsync()
         {
             return await _userService.GetAllAsync();
         }
 
         [HttpGet("{id}")]
+        [Authorize(Roles = "1")]
         public async Task<ActionResult<UserDto>> GetUserById(int id)
         {
             var user = await _userService.GetByIdAsync(id);
@@ -39,6 +88,7 @@ namespace Web_API.Controllers
 
         // GET: api/Users/username/{username}
         [HttpGet("username/{username}")]
+        [Authorize(Roles = "1")]
         public async Task<ActionResult<UserDto>> GetUserByUsername(string username)
         {
             var user = await _userService.GetByUsernameAsync(username);
@@ -52,6 +102,7 @@ namespace Web_API.Controllers
 
         // POST: api/Users
         [HttpPost]
+        [Authorize(Roles = "1")]
         public async Task<ActionResult<UserDto>> CreateUser([FromBody] CreateUserDto createUserDto)
         {
             try
@@ -75,6 +126,7 @@ namespace Web_API.Controllers
 
         // PUT: api/Users/{id}
         [HttpPut("{id}")]
+        [Authorize(Roles = "2")]
         public async Task<IActionResult> UpdateUser(int id, [FromBody] UpdateUserDto updateUserDto)
         {
             if (id != updateUserDto.UserId)
@@ -103,6 +155,7 @@ namespace Web_API.Controllers
 
         // DELETE: api/Users/{id}
         [HttpDelete("{id}")]
+        [Authorize(Roles = "2")]
         public async Task<IActionResult> DeleteUser(int id)
         {
             try
