@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using DTOs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -32,27 +33,73 @@ namespace Web_API.Controllers
         }
 
         [HttpGet("{id}")]
-        public async Task<instrument> GetAsync(int id)
+        public async Task<ActionResult<InstrumentDto>> GetInstrumentById(int id)
         {
-            return await _instrumentService.GetByIdAsync(id);
+            var instrument = await _instrumentService.GetByIdAsync(id);
+            if (instrument == null)
+            {
+                return NotFound();
+            }
+            return Ok(instrument);
         }
 
+        // POST: api/Instruments
         [HttpPost]
-        public async Task<int> AddAsync(instrument instrument)
+        public async Task<ActionResult<InstrumentDto>> CreateInstrument([FromBody] CreateInstrumentDto createInstrumentDto)
         {
-            return await _instrumentService.CreateAsync(instrument);
+            try
+            {
+                var createdInstrument = await _instrumentService.AddAsync(createInstrumentDto);
+                return CreatedAtAction(nameof(GetInstrumentById), new { id = createdInstrument.InstrumentId }, createdInstrument);
+            }
+            catch (Exception ex)
+            {
+                // Vì không có khóa ngoại, lỗi thường là do validation hoặc DB
+                return StatusCode(500, new { message = "An error occurred while creating the instrument.", error = ex.Message });
+            }
         }
 
-        [HttpPut]
-        public async Task<int> UpdateAsync(instrument instrument)
+        // PUT: api/Instruments/{id}
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateInstrument(int id, [FromBody] UpdateInstrumentDto updateInstrumentDto)
         {
-            return await _instrumentService.UpdateAsync(instrument);
+            if (id != updateInstrumentDto.InstrumentId)
+            {
+                return BadRequest(new { message = "Instrument ID in URL does not match ID in body." });
+            }
+
+            try
+            {
+                await _instrumentService.UpdateAsync(updateInstrumentDto);
+                return NoContent();
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while updating the instrument.", error = ex.Message });
+            }
         }
 
+        // DELETE: api/Instruments/{id}
         [HttpDelete("{id}")]
-        public async Task<bool> DeleteAsync(int id)
+        public async Task<IActionResult> DeleteInstrument(int id)
         {
-            return await _instrumentService.DeleteAsync(id);
+            try
+            {
+                await _instrumentService.DeleteAsync(id);
+                return NoContent();
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while deleting the instrument.", error = ex.Message });
+            }
         }
     }
 }

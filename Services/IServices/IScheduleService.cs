@@ -1,3 +1,4 @@
+using DTOs;
 using Repository.Models;
 
 namespace Services.IServices;
@@ -12,9 +13,8 @@ public interface IScheduleService
 
     Task<List<schedule>> SearchByMonthYearAsync(int? month, int? year);
 
-    Task<int> CreateSchedule(schedule schedule);
-
-    Task<int> UpdateSchedule(schedule schedule);
+    Task<ScheduleDto> AddAsync(CreateScheduleDto createScheduleDto);
+    Task UpdateAsync(UpdateScheduleDto updateScheduleDto);
 
     Task<bool> DeleteAsync(int scheduleId);
 

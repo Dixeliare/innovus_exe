@@ -32,27 +32,17 @@ public class WeekRepository : GenericRepository<week>
         return item ?? new week();
     }
 
-    public async Task<int> CreateAsync(week week)
+    public async Task<week> AddAsync(week entity)
     {
-        await _context.weeks.AddAsync(week);
-        return await _context.SaveChangesAsync();
+        _context.weeks.Add(entity);
+        await _context.SaveChangesAsync();
+        return entity;
     }
 
-    public async Task<int> UpdateAsync(week week)
+    public async Task UpdateAsync(week entity)
     {
-        var item = await _context.weeks.FindAsync(week.week_id);
-
-        if (item == null)
-        {
-            return 0;
-        }
-
-        item.week_number = week.week_number;
-        item.class_sessions = week.class_sessions;
-        item.day_of_week = week.day_of_week;
-        item.schedule_id = week.schedule_id;
-
-        return await _context.SaveChangesAsync();
+        _context.Entry(entity).State = EntityState.Modified;
+        await _context.SaveChangesAsync();
     }
 
     public async Task<bool> DeleteAsync(int id)
@@ -66,6 +56,14 @@ public class WeekRepository : GenericRepository<week>
         
         _context.weeks.Remove(item);
         return await _context.SaveChangesAsync() > 0;
+    }
+    
+    public async Task<IEnumerable<week>> GetWeeksByScheduleIdAsync(int scheduleId)
+    {
+        return await _context.weeks
+            .Where(w => w.schedule_id == scheduleId)
+            .Include(w => w.schedule)
+            .ToListAsync();
     }
 
     public async Task<IEnumerable<week>> SearchWeeksAsync(DateOnly? dayOfWeek = null, int? scheduleId = null)

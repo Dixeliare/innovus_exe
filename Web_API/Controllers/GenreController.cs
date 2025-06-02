@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using DTOs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -32,27 +33,74 @@ namespace Web_API.Controllers
         }
 
         [HttpGet("{id}")]
-        public async Task<genre> GetById(int id)
+        public async Task<ActionResult<GenreDto>> GetGenreById(int id)
         {
-            return await _genreService.GetByIdAsync(id);
+            var genre = await _genreService.GetByIdAsync(id);
+            if (genre == null)
+            {
+                return NotFound();
+            }
+            return Ok(genre);
         }
 
+        // POST: api/Genres
         [HttpPost]
-        public async Task<int> Post([FromBody] genre genre)
+        public async Task<ActionResult<GenreDto>> CreateGenre([FromBody] CreateGenreDto createGenreDto)
         {
-            return await _genreService.CreateAsync(genre);
+            try
+            {
+                var createdGenre = await _genreService.AddAsync(createGenreDto);
+                return CreatedAtAction(nameof(GetGenreById), new { id = createdGenre.GenreId }, createdGenre);
+            }
+            catch (Exception ex)
+            {
+                // Vì không có khóa ngoại, lỗi thường là do validation hoặc DB
+                return StatusCode(500, new { message = "An error occurred while creating the genre.", error = ex.Message });
+            }
         }
 
-        [HttpPut]
-        public async Task<int> Put([FromBody] genre genre)
+        // PUT: api/Genres/{id}
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateGenre(int id, [FromBody] UpdateGenreDto updateGenreDto)
         {
-            return await _genreService.UpdateAsync(genre);
+            if (id != updateGenreDto.GenreId)
+            {
+                return BadRequest(new { message = "Genre ID in URL does not match ID in body." });
+            }
+
+            try
+            {
+                await _genreService.UpdateAsync(updateGenreDto);
+                return NoContent();
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while updating the genre.", error = ex.Message });
+            }
         }
 
+        // DELETE: api/Genres/{id}
         [HttpDelete("{id}")]
-        public async Task<bool> Delete([FromBody] int id)
+        public async Task<IActionResult> DeleteGenre(int id)
         {
-            return await _genreService.DeleteAsync(id);
+            try
+            {
+                await _genreService.DeleteAsync(id);
+                return NoContent();
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while deleting the genre.", error = ex.Message });
+            }
         }
+
     }
 }

@@ -30,24 +30,17 @@ public class DocumentRepository : GenericRepository<document>
             .FirstOrDefaultAsync(i => i.document_id == id);
     }
 
-    public async Task<int> CreateAsync(document document)
+    public async Task<document> AddAsync(document entity)
     {
-        await _context.documents.AddAsync(document);
-        return await _context.SaveChangesAsync();
+        _context.documents.Add(entity);
+        await _context.SaveChangesAsync();
+        return entity;
     }
 
-    public async Task<int> UpdateAsync(document document)
+    public async Task UpdateAsync(document entity)
     {
-        var item = await _context.documents.FindAsync(document.document_id);
-        
-        if (item == null) return 0;
-        
-        item.lesson = document.lesson;
-        item.lesson_name = document.lesson_name;
-        item.link = document.link;
-        item.instrument_id = document.instrument_id;
-        
-        return await _context.SaveChangesAsync();
+        _context.documents.Update(entity);
+        await _context.SaveChangesAsync();
     }
 
     public async Task<bool> DeleteAsync(int id)

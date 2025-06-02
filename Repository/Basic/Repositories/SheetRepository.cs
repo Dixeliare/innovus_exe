@@ -30,23 +30,17 @@ public class SheetRepository : GenericRepository<sheet>
             .FirstOrDefaultAsync(s => s.sheet_id == id);
     }
 
-    public async Task<int> CreateAsync(sheet sheet)
+    public async Task<sheet> AddAsync(sheet entity)
     {
-        await _context.sheets.AddAsync(sheet);
-        return await _context.SaveChangesAsync();
+        _context.sheets.Add(entity);
+        await _context.SaveChangesAsync();
+        return entity;
     }
 
-    public async Task<int> UpdateAsync(sheet sheet)
+    public async Task UpdateAsync(sheet entity)
     {
-        var item = await _context.sheets.FindAsync(sheet.sheet_id);
-
-        if (item == null)
-        {
-            return 0;
-        }
-        
-        item.sheet_url = sheet.sheet_url;
-        return await _context.SaveChangesAsync();
+        _context.Entry(entity).State = EntityState.Modified;
+        await _context.SaveChangesAsync();
     }
 
     public async Task<bool> DeleteAsync(int id)

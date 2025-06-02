@@ -30,25 +30,17 @@ public class TimeslotRepository : GenericRepository<timeslot>
         return item ?? new timeslot();
     }
 
-    public async Task<int> CreateAsync(timeslot timeslot)
+    public async Task<timeslot> AddAsync(timeslot entity)
     {
-        await _context.timeslots.AddAsync(timeslot);
-        return await _context.SaveChangesAsync();
+        _context.timeslots.Add(entity);
+        await _context.SaveChangesAsync();
+        return entity;
     }
 
-    public async Task<int> UpdateAsync(timeslot timeslot)
+    public async Task UpdateAsync(timeslot entity)
     {
-        var item = await _context.timeslots.FindAsync(timeslot.timeslot_id);
-
-        if (item == null)
-        {
-            return 0; //throw new NotFoundException("Timeslot not found");
-        }
-        
-        item.start_time = timeslot.start_time;
-        item.end_time = timeslot.end_time;
-
-        return await _context.SaveChangesAsync();
+        _context.Entry(entity).State = EntityState.Modified;
+        await _context.SaveChangesAsync();
     }
 
     public async Task<bool> DeleteAsync(int timeslotId)

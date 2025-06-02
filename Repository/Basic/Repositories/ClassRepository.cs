@@ -30,25 +30,17 @@ public class ClassRepository : GenericRepository<_class>
             .FirstOrDefaultAsync(c => c.class_id == id);
     }
 
-    public async Task<int> CreateAsync(_class entity)
+    public async Task<_class> AddAsync(_class entity)
     {
-        await _context._classes.AddAsync(entity);
-        return await _context.SaveChangesAsync();
+        _context._classes.Add(entity);
+        await _context.SaveChangesAsync();
+        return entity;
     }
 
-    public async Task<int> UpdateAsync(_class entity)
+    public async Task UpdateAsync(_class entity)
     {
-        var item = await _context._classes.FirstOrDefaultAsync(c => c.class_id == entity.class_id);
-
-        if (item == null)
-        {
-            return 0;
-        }
-        
-        item.instrument_id = entity.instrument_id;
-        item.class_code = entity.class_code;
-        
-        return await _context.SaveChangesAsync();
+        _context._classes.Update(entity);
+        await _context.SaveChangesAsync();
     }
     
     public async Task<bool> DeleteAsync(int id)

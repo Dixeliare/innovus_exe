@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using DTOs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -25,12 +26,6 @@ namespace Web_API.Controllers
             return await _openingScheduleService.GetAllAsync();
         }
 
-        [HttpGet("{id}")]
-        public async Task<opening_schedule> GetByIdAsync(int id)
-        {
-            return await _openingScheduleService.GetByIdAsync(id);
-        }
-
         [HttpGet("search_by")]
         public async Task<IEnumerable<opening_schedule>> SearchByAsync([FromQuery] string? subject = null,
             [FromQuery] string? classCode = null, [FromQuery] DateOnly? openingDay = null,
@@ -40,22 +35,74 @@ namespace Web_API.Controllers
             return await _openingScheduleService.SearchOpeningSchedulesAsync(subject, classCode, openingDay, endDate, schedule, studentQuantity, isAdvancedClass);
         }
 
+        [HttpGet("{id}")]
+        public async Task<ActionResult<OpeningScheduleDto>> GetOpeningScheduleById(int id)
+        {
+            var schedule = await _openingScheduleService.GetByIdAsync(id);
+            if (schedule == null)
+            {
+                return NotFound();
+            }
+            return Ok(schedule);
+        }
+
+        // POST: api/OpeningSchedules
         [HttpPost]
-        public async Task<int> CreateAsync([FromBody] opening_schedule openingSchedule)
+        public async Task<ActionResult<OpeningScheduleDto>> CreateOpeningSchedule([FromBody] CreateOpeningScheduleDto createOpeningScheduleDto)
         {
-            return await _openingScheduleService.CreateAsync(openingSchedule);
+            try
+            {
+                var createdSchedule = await _openingScheduleService.AddAsync(createOpeningScheduleDto);
+                return CreatedAtAction(nameof(GetOpeningScheduleById), new { id = createdSchedule.OpeningScheduleId }, createdSchedule);
+            }
+            catch (Exception ex)
+            {
+                // Vì không có khóa ngoại, lỗi thường là do validation hoặc DB
+                return StatusCode(500, new { message = "An error occurred while creating the opening schedule.", error = ex.Message });
+            }
         }
 
-        [HttpPut]
-        public async Task<int> UpdateAsync([FromBody] opening_schedule openingSchedule)
+        // PUT: api/OpeningSchedules/{id}
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateOpeningSchedule(int id, [FromBody] UpdateOpeningScheduleDto updateOpeningScheduleDto)
         {
-            return await _openingScheduleService.UpdateAsync(openingSchedule);
+            if (id != updateOpeningScheduleDto.OpeningScheduleId)
+            {
+                return BadRequest(new { message = "Opening Schedule ID in URL does not match ID in body." });
+            }
+
+            try
+            {
+                await _openingScheduleService.UpdateAsync(updateOpeningScheduleDto);
+                return NoContent();
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while updating the opening schedule.", error = ex.Message });
+            }
         }
 
+        // DELETE: api/OpeningSchedules/{id}
         [HttpDelete("{id}")]
-        public async Task<bool> DeleteAsync(int id)
+        public async Task<IActionResult> DeleteOpeningSchedule(int id)
         {
-            return await _openingScheduleService.DeleteAsync(id);
+            try
+            {
+                await _openingScheduleService.DeleteAsync(id);
+                return NoContent();
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while deleting the opening schedule.", error = ex.Message });
+            }
         }
     }
 }

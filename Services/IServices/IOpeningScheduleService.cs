@@ -1,3 +1,4 @@
+using DTOs;
 using Repository.Models;
 
 namespace Services.IServices;
@@ -6,8 +7,8 @@ public interface IOpeningScheduleService
 {
     Task<IEnumerable<opening_schedule>> GetAllAsync();
     Task<opening_schedule> GetByIdAsync(int id);
-    Task<int> CreateAsync(opening_schedule opening_schedule);
-    Task<int> UpdateAsync(opening_schedule opening_schedule);
+    Task<OpeningScheduleDto> AddAsync(CreateOpeningScheduleDto createOpeningScheduleDto);
+    Task UpdateAsync(UpdateOpeningScheduleDto updateOpeningScheduleDto);
     Task<bool> DeleteAsync(int id);
 
     Task<IEnumerable<opening_schedule>> SearchOpeningSchedulesAsync(

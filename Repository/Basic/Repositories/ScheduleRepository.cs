@@ -106,24 +106,18 @@ public class ScheduleRepository : GenericRepository<schedule>
         return searchResult ?? new List<schedule>();
     }
 
-    public async Task<int> CreateSchedule(schedule schedule)
+    public async Task<schedule> AddAsync(schedule entity)
     {
-         await _context.schedules.AddAsync(schedule);
-         return await _context.SaveChangesAsync();
+        _context.schedules.Add(entity);
+        await _context.SaveChangesAsync();
+        return entity;
     }
 
-    public async Task<int> UpdateSchedule(schedule schedule)
+    public async Task UpdateAsync(schedule entity)
     {
-        var item = await _context.schedules.FindAsync(schedule.schedule_id);
-
-        if (item == null)
-        {
-            return 0;
-        }
-        
-        item.note = schedule.note;
-        
-        return await _context.SaveChangesAsync();
+        // Attach và Mark as Modified nếu đối tượng không được theo dõi
+        _context.Entry(entity).State = EntityState.Modified;
+        await _context.SaveChangesAsync();
     }
 
     public async Task<bool> DeleteAsync(int scheduleId)

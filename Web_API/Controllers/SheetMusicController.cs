@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using DTOs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -26,39 +27,113 @@ namespace Web_API.Controllers
         }
 
         [HttpGet("{id}")]
-        public async Task<sheet_music> GetByIdAsync(int id)
+        public async Task<ActionResult<SheetMusicDto>> GetSheetMusicById(int id)
         {
-            return await _sheetMusicService.GetByIdAsync(id);
+            var sheetMusic = await _sheetMusicService.GetByIdAsync(id);
+            if (sheetMusic == null)
+            {
+                return NotFound();
+            }
+            return Ok(sheetMusic);
         }
 
-        [HttpGet("search_by")]
-        public async Task<IEnumerable<sheet_music>> SeachBySheetMusicAsync(
-            int? number = null,
-            string? musicName = null,
-            string? composer = null,
-            int? sheetQuantity = null,
-            int? favoriteCount = null)
-        {
-            return await _sheetMusicService.SearchSheetMusicAsync(number, musicName, composer, sheetQuantity,
-                favoriteCount);
-        }
-
+        // POST: api/SheetMusics
         [HttpPost]
-        public async Task<int> PostAsync([FromBody] sheet_music value)
+        public async Task<ActionResult<SheetMusicDto>> CreateSheetMusic([FromBody] CreateSheetMusicDto createSheetMusicDto)
         {
-            return await _sheetMusicService.CreateAsync(value);
+            try
+            {
+                var createdSheetMusic = await _sheetMusicService.AddAsync(createSheetMusicDto);
+                return CreatedAtAction(nameof(GetSheetMusicById), new { id = createdSheetMusic.SheetMusicId }, createdSheetMusic);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while creating the sheet music.", error = ex.Message });
+            }
         }
 
-        [HttpPut]
-        public async Task<int> PutAsync([FromBody] sheet_music value)
+        // PUT: api/SheetMusics/{id}
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateSheetMusic(int id, [FromBody] UpdateSheetMusicDto updateSheetMusicDto)
         {
-            return await _sheetMusicService.UpdateAsync(value);
+            if (id != updateSheetMusicDto.SheetMusicId)
+            {
+                return BadRequest(new { message = "Sheet Music ID in URL does not match ID in body." });
+            }
+
+            try
+            {
+                await _sheetMusicService.UpdateAsync(updateSheetMusicDto);
+                return NoContent();
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while updating the sheet music.", error = ex.Message });
+            }
         }
 
-        [HttpDelete]
-        public async Task<bool> DeleteAsync([FromBody] int id)
+        // DELETE: api/SheetMusics/{id}
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteSheetMusic(int id)
         {
-            return await _sheetMusicService.DeleteAsync(id);
+            try
+            {
+                await _sheetMusicService.DeleteAsync(id);
+                return NoContent();
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while deleting the sheet music.", error = ex.Message });
+            }
+        }
+        
+        [HttpPost("{sheetMusicId}/genres/{genreId}")]
+        public async Task<IActionResult> AddGenreToSheetMusic(int sheetMusicId, int genreId)
+        {
+            try
+            {
+                await _sheetMusicService.AddGenreToSheetMusicAsync(sheetMusicId, genreId);
+                return NoContent(); // 204 No Content for successful operation without return value
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while adding genre to sheet music.", error = ex.Message });
+            }
+        }
+
+        // DELETE: api/SheetMusics/{sheetMusicId}/genres/{genreId} - Remove a genre from sheet music
+        [HttpDelete("{sheetMusicId}/genres/{genreId}")]
+        public async Task<IActionResult> RemoveGenreFromSheetMusic(int sheetMusicId, int genreId)
+        {
+            try
+            {
+                await _sheetMusicService.RemoveGenreFromSheetMusicAsync(sheetMusicId, genreId);
+                return NoContent();
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while removing genre from sheet music.", error = ex.Message });
+            }
         }
     }
 }

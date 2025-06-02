@@ -30,26 +30,17 @@ public class AttendanceRepository : GenericRepository<attendance>
             .FirstOrDefaultAsync(a => a.attendance_id == id);
     }
 
-    public async Task<int> CreateAsync(attendance attendanceEntity)
+    public async Task<attendance> AddAsync(attendance entity)
     {
-        await _context.attendances.AddAsync(attendanceEntity);
-        return await _context.SaveChangesAsync();
+        _context.attendances.Add(entity);
+        await _context.SaveChangesAsync();
+        return entity;
     }
-    
-    public async Task<int> UpdateAsync(attendance attendanceEntity)
+
+    public async Task UpdateAsync(attendance entity)
     {
-        var item = await _context.attendances.FindAsync(attendanceEntity.attendance_id);
-
-        if (item == null)
-        {
-            return 0; 
-        }
-
-        item.status = attendanceEntity.status;
-        item.check_at = attendanceEntity.check_at;
-        item.note = attendanceEntity.note;
-
-        return await _context.SaveChangesAsync();
+        _context.attendances.Update(entity);
+        await _context.SaveChangesAsync();
     }
     
     public async Task<bool> DeleteAsync(int id)

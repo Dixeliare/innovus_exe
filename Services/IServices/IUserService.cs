@@ -1,13 +1,17 @@
+using DTOs;
 using Repository.Models;
 
 namespace Services.IServices;
 
 public interface IUserService
 {
+
+    Task<user> GetUserAccount(string username, string password);
     Task<IEnumerable<user>> GetAllAsync();
     Task<user> GetByIdAsync(int id);
-    Task<int> CreateAsync(user user);
-    Task<int> UpdateAsync(user user);
+    Task<UserDto?> GetByUsernameAsync(string username); 
+    Task<UserDto> AddAsync(CreateUserDto createUserDto);
+    Task UpdateAsync(UpdateUserDto updateUserDto);
     Task<bool> DeleteAsync(int id);
 
     Task<IEnumerable<user>> SearchUsersAsync(
