@@ -1,13 +1,17 @@
-version: '3.8' # Phiên bản của Docker Compose file format
+version: '3.8' 
+# Phiên bản của Docker Compose file format
 
 services:
   # Dịch vụ cho API .NET (Web_API project)
   api:
     build:
-      context: . # Context là thư mục gốc của solution (nơi có innovus_api.sln và docker-compose.yml)
-      dockerfile: Web_API/Dockerfile # Chỉ rõ đường dẫn đến Dockerfile của project Web_API
+      context: . 
+      # Context là thư mục gốc của solution (nơi có innovus_api.sln và docker-compose.yml)
+      dockerfile: Web_API/Dockerfile 
+      # Chỉ rõ đường dẫn đến Dockerfile của project Web_API
     ports:
-      - "5000:8080" # Ánh xạ cổng 5000 của máy host tới cổng 8080 của container API
+      - "5000:8080"
+       # Ánh xạ cổng 5000 của máy host tới cổng 8080 của container API
                     # API của bạn sẽ có thể truy cập qua http://localhost:5000
     environment:
       # Định nghĩa biến môi trường cho ASP.NET Core để nó lắng nghe đúng cổng
@@ -21,19 +25,27 @@ services:
       # - Jwt__Issuer=http://localhost:5000
       # - Jwt__Audience=http://localhost:5000
     depends_on:
-      - db # Dịch vụ API phụ thuộc vào cơ sở dữ liệu để khởi động
+      - db 
+      # Dịch vụ API phụ thuộc vào cơ sở dữ liệu để khởi động
 
   # Dịch vụ cho PostgreSQL Database
   db:
-    image: postgres:15-alpine # Sử dụng image PostgreSQL ổn định và nhỏ gọn
-    restart: always # Tự động khởi động lại nếu có lỗi
+    image: postgres:15-alpine
+     # Sử dụng image PostgreSQL ổn định và nhỏ gọn
+    restart: always 
+    # Tự động khởi động lại nếu có lỗi
     environment:
-      POSTGRES_DB: innovus_db      # Tên cơ sở dữ liệu (phải khớp với ConnectionStrings của API)
-      POSTGRES_USER: postgres      # Tên người dùng (phải khớp với ConnectionStrings của API)
-      POSTGRES_PASSWORD: 12345     # Mật khẩu (phải khớp với ConnectionStrings của API)
+      POSTGRES_DB: innovus_db      
+      # Tên cơ sở dữ liệu (phải khớp với ConnectionStrings của API)
+      POSTGRES_USER: postgres      
+      # Tên người dùng (phải khớp với ConnectionStrings của API)
+      POSTGRES_PASSWORD: 12345     
+      # Mật khẩu (phải khớp với ConnectionStrings của API)
     volumes:
-      - pgdata:/var/lib/postgresql/data # Gắn kết volume để lưu trữ dữ liệu bền vững
-      # - ./init.sql:/docker-entrypoint-initdb.d/init.sql # Tùy chọn: Nếu bạn có file SQL để khởi tạo DB
+      - pgdata:/var/lib/postgresql/data 
+      # Gắn kết volume để lưu trữ dữ liệu bền vững
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql 
+      # Tùy chọn: Nếu bạn có file SQL để khởi tạo DB
     # ports:
     #   - "5432:5432" # Tùy chọn: Mở cổng 5432 của DB ra máy host nếu bạn muốn truy cập DB từ bên ngoài Docker (vd: dùng DBeaver)
 
