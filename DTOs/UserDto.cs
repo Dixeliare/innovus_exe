@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Http;
 
 namespace DTOs;
 
@@ -37,7 +38,7 @@ public class UserDto
 
         [Required(ErrorMessage = "Password is required.")]
         [MinLength(6, ErrorMessage = "Password must be at least 6 characters long.")]
-        [StringLength(255, ErrorMessage = "Password cannot exceed 255 characters.")] // Mật khẩu sau khi hash có thể dài
+        [StringLength(255, ErrorMessage = "Password cannot exceed 255 characters.")]
         public string Password { get; set; } = null!;
 
         [StringLength(200, ErrorMessage = "Address cannot exceed 200 characters.")]
@@ -47,15 +48,16 @@ public class UserDto
         [StringLength(15, ErrorMessage = "Phone number cannot exceed 15 characters.")]
         public string? PhoneNumber { get; set; }
 
-        public bool? IsDisabled { get; set; } = false; // Mặc định là false
+        public bool? IsDisabled { get; set; } = false;
 
-        [Url(ErrorMessage = "Invalid URL format for Avatar URL.")]
-        [StringLength(500, ErrorMessage = "Avatar URL cannot exceed 500 characters.")]
-        public string? AvatarUrl { get; set; }
+        // [Url(ErrorMessage = "Invalid URL format for Avatar URL.")] // Bỏ validation này
+        // [StringLength(500, ErrorMessage = "Avatar URL cannot exceed 500 characters.")]
+        // public string? AvatarUrl { get; set; } // Bỏ thuộc tính này
+
+        public IFormFile? AvatarImageFile { get; set; } // Thêm thuộc tính này để nhận file (có thể là null)
 
         public DateOnly? Birthday { get; set; }
 
-        // Khóa ngoại (nullable)
         public int? RoleId { get; set; }
         public int? StatisticId { get; set; }
         public int? OpeningScheduleId { get; set; }
@@ -74,11 +76,9 @@ public class UserDto
         [StringLength(100, ErrorMessage = "Account Name cannot exceed 100 characters.")]
         public string? AccountName { get; set; }
 
-        // Không bao gồm mật khẩu ở đây nếu bạn muốn có một endpoint riêng để thay đổi mật khẩu
-        // Hoặc cho phép cập nhật mật khẩu nếu client cung cấp nó (sẽ cần hash lại)
         [MinLength(6, ErrorMessage = "Password must be at least 6 characters long.")]
         [StringLength(255, ErrorMessage = "Password cannot exceed 255 characters.")]
-        public string? NewPassword { get; set; } // Dùng tên khác để tránh nhầm lẫn với password cũ
+        public string? NewPassword { get; set; }
 
         [StringLength(200, ErrorMessage = "Address cannot exceed 200 characters.")]
         public string? Address { get; set; }
@@ -89,13 +89,14 @@ public class UserDto
 
         public bool? IsDisabled { get; set; }
 
-        [Url(ErrorMessage = "Invalid URL format for Avatar URL.")]
-        [StringLength(500, ErrorMessage = "Avatar URL cannot exceed 500 characters.")]
-        public string? AvatarUrl { get; set; }
+        // [Url(ErrorMessage = "Invalid URL format for Avatar URL.")] // Bỏ validation này
+        // [StringLength(500, ErrorMessage = "Avatar URL cannot exceed 500 characters.")]
+        // public string? AvatarUrl { get; set; } // Bỏ thuộc tính này
+
+        public IFormFile? AvatarImageFile { get; set; } // Thêm thuộc tính này để nhận file (có thể là null)
 
         public DateOnly? Birthday { get; set; }
 
-        // Khóa ngoại (nullable)
         public int? RoleId { get; set; }
         public int? StatisticId { get; set; }
         public int? OpeningScheduleId { get; set; }

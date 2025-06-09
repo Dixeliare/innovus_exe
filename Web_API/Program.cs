@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Repository.Basic.Repositories;
 using Repository.Data;
+using Services.Configurations;
 using Services.IServices;
 using Services.Services;
 using Web_API.BackgroundServices;
@@ -56,6 +57,13 @@ builder.Services.AddScoped<IStatisticService, StatisticService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
 #endregion
 
+#region Azure service
+// 1. Cấu hình Azure Blob Storage để đọc từ appsettings.json
+builder.Services.Configure<AzureBlobStorageConfig>(builder.Configuration.GetSection("AzureBlobStorage"));
+// 2. Đăng ký AzureBlobFileStorageService là triển khai của IFileStorageService
+builder.Services.AddScoped<IFileStorageService, AzureBlobFileStorageService>();
+#endregion
+
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -74,12 +82,12 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 //     // options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.Never; // Dòng này thường không cần thiết
 // });
 
-builder.Services.AddControllers().AddJsonOptions(options =>
-{
-    options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
-    options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.Never;
-    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.Preserve;
-});
+// builder.Services.AddControllers().AddJsonOptions(options =>
+// {
+//     options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+//     options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.Never;
+//     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.Preserve;
+// });
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>

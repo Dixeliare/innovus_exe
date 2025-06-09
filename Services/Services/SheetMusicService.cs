@@ -1,4 +1,5 @@
 using DTOs;
+using Microsoft.AspNetCore.Http;
 using Repository.Basic.Repositories;
 using Repository.Models;
 using Services.IServices;
@@ -8,18 +9,21 @@ namespace Services.Services;
 public class SheetMusicService : ISheetMusicService
 {
     private readonly SheetMusicRepository _sheetMusicRepository;
-    private readonly SheetRepository _sheetRepository; // Để kiểm tra khóa ngoại sheet_id
-    private readonly GenreRepository _genreRepository; // Để kiểm tra khóa ngoại genre_id
+    private readonly SheetRepository _sheetRepository;
+    private readonly GenreRepository _genreRepository;
+    private readonly IFileStorageService _fileStorageService; // Inject IFileStorageService
 
     public SheetMusicService(SheetMusicRepository sheetMusicRepository,
-        SheetRepository sheetRepository,
-        GenreRepository genreRepository)
+                             SheetRepository sheetRepository,
+                             GenreRepository genreRepository,
+                             IFileStorageService fileStorageService) // Thêm IFileStorageService vào constructor
     {
         _sheetMusicRepository = sheetMusicRepository;
         _sheetRepository = sheetRepository;
         _genreRepository = genreRepository;
+        _fileStorageService = fileStorageService; // Khởi tạo
     }
-    
+
     public async Task<IEnumerable<sheet_music>> GetAllAsync()
     {
         return await _sheetMusicRepository.GetAllAsync();
@@ -30,99 +34,143 @@ public class SheetMusicService : ISheetMusicService
         return await _sheetMusicRepository.GetByIdAsync(id);
     }
 
-    public async Task<SheetMusicDto> AddAsync(CreateSheetMusicDto createSheetMusicDto)
+    // Add Sheet Music với file ảnh bìa
+    public async Task<SheetMusicDto> AddAsync(IFormFile coverImageFile, int? number, string? musicName, string composer, int? sheetQuantity, int? favoriteCount, int? sheetId)
+    {
+        // Kiểm tra sự tồn tại của khóa ngoại SheetId nếu được cung cấp
+        if (sheetId.HasValue)
         {
-            // Kiểm tra sự tồn tại của khóa ngoại SheetId nếu được cung cấp
-            if (createSheetMusicDto.SheetId.HasValue)
+            var sheetExists = await _sheetRepository.GetByIdAsync(sheetId.Value);
+            if (sheetExists == null)
             {
-                var sheetExists = await _sheetRepository.GetByIdAsync(createSheetMusicDto.SheetId.Value);
+                throw new KeyNotFoundException($"Sheet with ID {sheetId.Value} not found.");
+            }
+        }
+
+        string coverUrl = string.Empty;
+        if (coverImageFile == null || coverImageFile.Length == 0)
+        {
+            // Vì cover_url là null! trong model, nó không thể là null trong DB.
+            // Nếu bạn không muốn người dùng upload ảnh, bạn phải có một URL mặc định.
+            // Ở đây, tôi sẽ ném lỗi nếu không có file, bạn có thể thay đổi để gán URL mặc định.
+            throw new ArgumentException("Cover image file is required.");
+        }
+
+        // Lưu file vào Azure Blob Storage
+        // Sử dụng "cover-images" làm folder logic trong container
+        coverUrl = await _fileStorageService.SaveFileAsync(coverImageFile, "cover-images");
+
+        var sheetMusicEntity = new sheet_music
+        {
+            number = number,
+            music_name = musicName,
+            composer = composer,
+            cover_url = coverUrl, // Gán URL từ Azure Blob
+            sheet_quantity = sheetQuantity,
+            favorite_count = favoriteCount ?? 0,
+            sheet_id = sheetId
+        };
+
+        var addedSheetMusic = await _sheetMusicRepository.AddAsync(sheetMusicEntity);
+        return MapToSheetMusicDto(addedSheetMusic);
+    }
+
+    // UPDATE Sheet Music với file ảnh bìa
+    public async Task UpdateAsync(int sheetMusicId, IFormFile? coverImageFile, int? number, string? musicName, string? composer, int? sheetQuantity, int? favoriteCount, int? sheetId)
+    {
+        var existingSheetMusic = await _sheetMusicRepository.GetByIdAsync(sheetMusicId);
+
+        if (existingSheetMusic == null)
+        {
+            throw new KeyNotFoundException($"Sheet Music with ID {sheetMusicId} not found.");
+        }
+
+        // Xử lý file ảnh mới nếu có
+        if (coverImageFile != null && coverImageFile.Length > 0)
+        {
+            // 1. Xóa ảnh cũ (nếu có và không rỗng)
+            if (!string.IsNullOrEmpty(existingSheetMusic.cover_url))
+            {
+                await _fileStorageService.DeleteFileAsync(existingSheetMusic.cover_url);
+            }
+
+            // 2. Lưu ảnh mới
+            string newCoverUrl = await _fileStorageService.SaveFileAsync(coverImageFile, "cover-images");
+            existingSheetMusic.cover_url = newCoverUrl; // Cập nhật URL mới
+        }
+        // Nếu coverImageFile là null, giữ nguyên cover_url hiện có.
+        // Điều này hợp lý vì cover_url là NOT NULL trong DB.
+
+        // Cập nhật các trường khác nếu có giá trị được cung cấp
+        if (number.HasValue)
+        {
+            existingSheetMusic.number = number.Value;
+        }
+        if (!string.IsNullOrEmpty(musicName))
+        {
+            existingSheetMusic.music_name = musicName;
+        }
+        if (!string.IsNullOrEmpty(composer))
+        {
+            existingSheetMusic.composer = composer;
+        }
+        // cover_url đã được xử lý ở trên
+        if (sheetQuantity.HasValue)
+        {
+            existingSheetMusic.sheet_quantity = sheetQuantity.Value;
+        }
+        if (favoriteCount.HasValue)
+        {
+            existingSheetMusic.favorite_count = favoriteCount.Value;
+        }
+
+        // Cập nhật khóa ngoại SheetId nếu có giá trị mới được cung cấp
+        if (sheetId.HasValue)
+        {
+            if (existingSheetMusic.sheet_id != sheetId.Value)
+            {
+                var sheetExists = await _sheetRepository.GetByIdAsync(sheetId.Value);
                 if (sheetExists == null)
                 {
-                    throw new KeyNotFoundException($"Sheet with ID {createSheetMusicDto.SheetId} not found.");
+                    throw new KeyNotFoundException($"Sheet with ID {sheetId.Value} not found for update.");
                 }
+                existingSheetMusic.sheet_id = sheetId.Value;
             }
-
-            var sheetMusicEntity = new sheet_music
-            {
-                number = createSheetMusicDto.Number,
-                music_name = createSheetMusicDto.MusicName,
-                composer = createSheetMusicDto.Composer,
-                cover_url = createSheetMusicDto.CoverUrl,
-                sheet_quantity = createSheetMusicDto.SheetQuantity,
-                favorite_count = createSheetMusicDto.FavoriteCount ?? 0, // Đảm bảo có giá trị mặc định
-                sheet_id = createSheetMusicDto.SheetId
-            };
-
-            var addedSheetMusic = await _sheetMusicRepository.AddAsync(sheetMusicEntity);
-            return MapToSheetMusicDto(addedSheetMusic);
         }
-
-        // UPDATE Sheet Music
-        public async Task UpdateAsync(UpdateSheetMusicDto updateSheetMusicDto)
+        else if (sheetId == null)
         {
-            var existingSheetMusic = await _sheetMusicRepository.GetByIdAsync(updateSheetMusicDto.SheetMusicId);
-
-            if (existingSheetMusic == null)
-            {
-                throw new KeyNotFoundException($"Sheet Music with ID {updateSheetMusicDto.SheetMusicId} not found.");
-            }
-
-            // Cập nhật các trường nếu có giá trị được cung cấp
-            if (updateSheetMusicDto.Number.HasValue)
-            {
-                existingSheetMusic.number = updateSheetMusicDto.Number.Value;
-            }
-            if (!string.IsNullOrEmpty(updateSheetMusicDto.MusicName))
-            {
-                existingSheetMusic.music_name = updateSheetMusicDto.MusicName;
-            }
-            if (!string.IsNullOrEmpty(updateSheetMusicDto.Composer))
-            {
-                existingSheetMusic.composer = updateSheetMusicDto.Composer;
-            }
-            if (!string.IsNullOrEmpty(updateSheetMusicDto.CoverUrl))
-            {
-                existingSheetMusic.cover_url = updateSheetMusicDto.CoverUrl;
-            }
-            if (updateSheetMusicDto.SheetQuantity.HasValue)
-            {
-                existingSheetMusic.sheet_quantity = updateSheetMusicDto.SheetQuantity.Value;
-            }
-            if (updateSheetMusicDto.FavoriteCount.HasValue)
-            {
-                existingSheetMusic.favorite_count = updateSheetMusicDto.FavoriteCount.Value;
-            }
-
-            // Cập nhật khóa ngoại SheetId nếu có giá trị mới được cung cấp
-            if (updateSheetMusicDto.SheetId.HasValue)
-            {
-                if (existingSheetMusic.sheet_id != updateSheetMusicDto.SheetId.Value) // Chỉ cập nhật nếu thay đổi
-                {
-                    var sheetExists = await _sheetRepository.GetByIdAsync(updateSheetMusicDto.SheetId.Value);
-                    if (sheetExists == null)
-                    {
-                        throw new KeyNotFoundException($"Sheet with ID {updateSheetMusicDto.SheetId} not found for update.");
-                    }
-                    existingSheetMusic.sheet_id = updateSheetMusicDto.SheetId.Value;
-                }
-            }
-            else if (updateSheetMusicDto.SheetId == null) // Nếu gán null, xóa liên kết
-            {
-                existingSheetMusic.sheet_id = null;
-            }
-
-
-            await _sheetMusicRepository.UpdateAsync(existingSheetMusic);
+            existingSheetMusic.sheet_id = null;
         }
+
+        await _sheetMusicRepository.UpdateAsync(existingSheetMusic);
+    }
 
     public async Task<bool> DeleteAsync(int id)
     {
+        var sheetMusicToDelete = await _sheetMusicRepository.GetByIdAsync(id);
+        if (sheetMusicToDelete == null)
+        {
+            return false;
+        }
+
+        // Xóa file ảnh bìa liên quan khỏi Azure Blob trước
+        if (!string.IsNullOrEmpty(sheetMusicToDelete.cover_url))
+        {
+            try
+            {
+                await _fileStorageService.DeleteFileAsync(sheetMusicToDelete.cover_url);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deleting blob for sheet music {id}: {ex.Message}");
+            }
+        }
+
         return await _sheetMusicRepository.DeleteAsync(id);
     }
-    
+
     public async Task AddGenreToSheetMusicAsync(int sheetMusicId, int genreId)
     {
-        // Kiểm tra sự tồn tại của Genre
         var genreExists = await _genreRepository.GetByIdAsync(genreId);
         if (genreExists == null)
         {
@@ -141,7 +189,7 @@ public class SheetMusicService : ISheetMusicService
     {
         return await _sheetMusicRepository.SearchSheetMusicAsync(number, musicName, composer, sheetQuantity, favoriteCount);
     }
-    
+
     private SheetMusicDto MapToSheetMusicDto(sheet_music model)
     {
         return new SheetMusicDto
@@ -153,7 +201,7 @@ public class SheetMusicService : ISheetMusicService
             CoverUrl = model.cover_url,
             SheetQuantity = model.sheet_quantity,
             FavoriteCount = model.favorite_count,
-            SheetId = model.sheet_id // Bao gồm khóa ngoại
+            SheetId = model.sheet_id
         };
     }
 }

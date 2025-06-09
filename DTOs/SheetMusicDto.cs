@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Http;
 
 namespace DTOs;
 
@@ -33,22 +34,21 @@ public class SheetMusicDto
         [StringLength(100, ErrorMessage = "Composer name cannot exceed 100 characters.")]
         public string Composer { get; set; } = null!;
 
-        [Required(ErrorMessage = "Cover URL is required.")]
-        [Url(ErrorMessage = "Invalid URL format for Cover URL.")]
-        [StringLength(500, ErrorMessage = "Cover URL cannot exceed 500 characters.")]
-        public string CoverUrl { get; set; } = null!;
+        // [Required(ErrorMessage = "Cover URL is required.")] // Bỏ validation này vì sẽ nhận file
+        // [Url(ErrorMessage = "Invalid URL format for Cover URL.")]
+        // [StringLength(500, ErrorMessage = "Cover URL cannot exceed 500 characters.")]
+        // public string CoverUrl { get; set; } = null!; // Bỏ thuộc tính này
+
+        [Required(ErrorMessage = "Cover Image File is required.")] // Thêm validation cho file
+        public IFormFile CoverImageFile { get; set; } = null!; // Thêm thuộc tính này để nhận file
 
         [Range(1, int.MaxValue, ErrorMessage = "Sheet Quantity must be a positive number.")]
         public int? SheetQuantity { get; set; }
 
         [Range(0, int.MaxValue, ErrorMessage = "Favorite Count cannot be negative.")]
-        public int? FavoriteCount { get; set; } = 0; // Mặc định là 0 khi tạo mới
+        public int? FavoriteCount { get; set; } = 0;
 
-        // Khóa ngoại đến Sheet (nếu có, và có thể nullable)
         public int? SheetId { get; set; }
-
-        // KHÔNG BAO GỒM CÁC LIST CHO MANY-TO-MANY TẠI ĐÂY ĐỂ ĐƠN GIẢN HÓA
-        // public ICollection<int>? GenreIds { get; set; }
     }
 
     // DTO dùng làm input khi cập nhật Bản nhạc (PUT request body)
@@ -65,9 +65,11 @@ public class SheetMusicDto
         [StringLength(100, ErrorMessage = "Composer name cannot exceed 100 characters.")]
         public string? Composer { get; set; }
 
-        [Url(ErrorMessage = "Invalid URL format for Cover URL.")]
-        [StringLength(500, ErrorMessage = "Cover URL cannot exceed 500 characters.")]
-        public string? CoverUrl { get; set; }
+        // [Url(ErrorMessage = "Invalid URL format for Cover URL.")]
+        // [StringLength(500, ErrorMessage = "Cover URL cannot exceed 500 characters.")]
+        // public string? CoverUrl { get; set; } // Bỏ thuộc tính này
+
+        public IFormFile? CoverImageFile { get; set; } // Thêm thuộc tính này để nhận file (có thể là null)
 
         [Range(1, int.MaxValue, ErrorMessage = "Sheet Quantity must be a positive number.")]
         public int? SheetQuantity { get; set; }
@@ -75,5 +77,5 @@ public class SheetMusicDto
         [Range(0, int.MaxValue, ErrorMessage = "Favorite Count cannot be negative.")]
         public int? FavoriteCount { get; set; }
 
-        public int? SheetId { get; set; } // Có thể cập nhật khóa ngoại sheet_id
+        public int? SheetId { get; set; }
     }

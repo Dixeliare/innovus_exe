@@ -29,18 +29,20 @@ namespace Web_API.Controllers
             _userService = userService;
             _config = config;
         }
-        
+
         [HttpPost("Login")]
-        public IActionResult Login([FromBody] LoginRequest request)
+        // Không cần thay đổi ở đây, vì login request chỉ cần username và password
+        public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
-            var user = _userService.GetUserAccount(request.UserName, request.Password);
+            // Gọi service để xác thực, service đã hash/verify password
+            var user = await _userService.GetUserAccount(request.UserName, request.Password);
 
-            if (user == null || user.Result == null)
-                return Unauthorized();
+            if (user == null)
+                return Unauthorized(new { message = "Invalid username or password." });
 
-            var token = GenerateJSONWebToken(user.Result);
+            var token = GenerateJSONWebToken(user);
 
-            return Ok(token);
+            return Ok(new { token });
         }
 
         private string GenerateJSONWebToken(user systemUserAccount)
@@ -48,16 +50,21 @@ namespace Web_API.Controllers
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
             var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.Name, systemUserAccount.username ?? systemUserAccount.user_id.ToString()), // Sử dụng username hoặc ID
+                new(ClaimTypes.NameIdentifier, systemUserAccount.user_id.ToString()) // ID của người dùng
+            };
+            if (systemUserAccount.role != null) // Đảm bảo role đã được load
+            {
+                claims.Add(new(ClaimTypes.Role, systemUserAccount.role.role_id.ToString())); // Lấy role_id từ navigation property
+            }
+
             var token = new JwtSecurityToken(_config["Jwt:Issuer"]
                 , _config["Jwt:Audience"]
-                , new Claim[]
-                {
-                    new(ClaimTypes.Name, systemUserAccount.username),
-                    //new(ClaimTypes.Email, systemUserAccount.Email),
-                    new(ClaimTypes.Role, systemUserAccount.role_id.ToString()),
-                },
-                expires: DateTime.Now.AddMinutes(120),
-                signingCredentials: credentials
+                , claims
+                , expires: DateTime.Now.AddMinutes(120)
+                , signingCredentials: credentials
             );
 
             var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
@@ -68,14 +75,15 @@ namespace Web_API.Controllers
         public sealed record LoginRequest(string UserName, string Password);
 
         [HttpGet]
-        [Authorize(Roles = "2")]
-        public async Task<IEnumerable<user>> GetAllAsync()
+        [Authorize(Roles = "1,2")] // Cho phép cả role 1 và 2 xem danh sách users
+        public async Task<ActionResult<IEnumerable<UserDto>>> GetAllAsync()
         {
-            return await _userService.GetAllAsync();
+            var users = await _userService.GetAllAsync();
+            return Ok(users); // Service đã trả về UserDto
         }
 
         [HttpGet("{id}")]
-        [Authorize(Roles = "1")]
+        [Authorize(Roles = "1,2")] // Cho phép cả role 1 và 2 xem user theo ID
         public async Task<ActionResult<UserDto>> GetUserById(int id)
         {
             var user = await _userService.GetByIdAsync(id);
@@ -88,7 +96,7 @@ namespace Web_API.Controllers
 
         // GET: api/Users/username/{username}
         [HttpGet("username/{username}")]
-        [Authorize(Roles = "1")]
+        [Authorize(Roles = "1,2")] // Cho phép cả role 1 và 2 xem user theo username
         public async Task<ActionResult<UserDto>> GetUserByUsername(string username)
         {
             var user = await _userService.GetByUsernameAsync(username);
@@ -101,13 +109,32 @@ namespace Web_API.Controllers
 
 
         // POST: api/Users
-        [HttpPost]
-        [Authorize(Roles = "1")]
-        public async Task<ActionResult<UserDto>> CreateUser([FromBody] CreateUserDto createUserDto)
+        [HttpPost]// Chỉ role 1 được tạo user mới
+        // Nhận file từ Form-data. Các thuộc tính khác cũng đi kèm trong form-data.
+        public async Task<ActionResult<UserDto>> CreateUser([FromForm] CreateUserDto createUserDto)
         {
+            // Kiểm tra validation cho Password nếu nó là Required trong DTO
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
             try
             {
-                var createdUser = await _userService.AddAsync(createUserDto);
+                var createdUser = await _userService.AddAsync(
+                    createUserDto.Username,
+                    createUserDto.AccountName,
+                    createUserDto.Password, // Mật khẩu thô
+                    createUserDto.Address,
+                    createUserDto.PhoneNumber,
+                    createUserDto.IsDisabled,
+                    createUserDto.AvatarImageFile, // File avatar (có thể null)
+                    createUserDto.Birthday,
+                    createUserDto.RoleId,
+                    createUserDto.StatisticId,
+                    createUserDto.OpeningScheduleId,
+                    createUserDto.ScheduleId
+                );
                 return CreatedAtAction(nameof(GetUserById), new { id = createdUser.UserId }, createdUser);
             }
             catch (ArgumentException ex) // Bắt lỗi trùng lặp username
@@ -126,17 +153,38 @@ namespace Web_API.Controllers
 
         // PUT: api/Users/{id}
         [HttpPut("{id}")]
-        [Authorize(Roles = "2")]
-        public async Task<IActionResult> UpdateUser(int id, [FromBody] UpdateUserDto updateUserDto)
+        [Authorize(Roles = "1,2")] // Cho phép cả role 1 và 2 cập nhật user
+        // Nhận file từ Form-data
+        public async Task<IActionResult> UpdateUser(int id, [FromForm] UpdateUserDto updateUserDto)
         {
             if (id != updateUserDto.UserId)
             {
                 return BadRequest(new { message = "User ID in URL does not match ID in body." });
             }
 
+            // Kiểm tra validation cho NewPassword nếu nó là Required trong DTO và được cung cấp
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
             try
             {
-                await _userService.UpdateAsync(updateUserDto);
+                await _userService.UpdateAsync(
+                    updateUserDto.UserId,
+                    updateUserDto.Username,
+                    updateUserDto.AccountName,
+                    updateUserDto.NewPassword, // Mật khẩu mới (có thể null)
+                    updateUserDto.Address,
+                    updateUserDto.PhoneNumber,
+                    updateUserDto.IsDisabled,
+                    updateUserDto.AvatarImageFile, // File avatar (có thể null)
+                    updateUserDto.Birthday,
+                    updateUserDto.RoleId,
+                    updateUserDto.StatisticId,
+                    updateUserDto.OpeningScheduleId,
+                    updateUserDto.ScheduleId
+                );
                 return NoContent();
             }
             catch (KeyNotFoundException ex)
@@ -155,22 +203,41 @@ namespace Web_API.Controllers
 
         // DELETE: api/Users/{id}
         [HttpDelete("{id}")]
-        [Authorize(Roles = "2")]
+        [Authorize(Roles = "1")] // Chỉ role 1 được xóa user
         public async Task<IActionResult> DeleteUser(int id)
         {
             try
             {
-                await _userService.DeleteAsync(id);
+                var result = await _userService.DeleteAsync(id);
+                if (!result)
+                {
+                    return NotFound(new { message = $"User with ID {id} not found or could not be deleted." });
+                }
                 return NoContent();
-            }
-            catch (KeyNotFoundException)
-            {
-                return NotFound();
             }
             catch (Exception ex)
             {
                 return StatusCode(500, new { message = "An error occurred while deleting the user.", error = ex.Message });
             }
         }
+
+        // GET: api/Users/search
+        [HttpGet("search")]
+        [Authorize(Roles = "1,2")] // Cho phép cả role 1 và 2 tìm kiếm user
+        public async Task<ActionResult<IEnumerable<UserDto>>> SearchUsers(
+            [FromQuery] string? username,
+            [FromQuery] string? accountName,
+            [FromQuery] string? password, // Parameter này vẫn có ở đây, nhưng service sẽ bỏ qua nó
+            [FromQuery] string? address,
+            [FromQuery] string? phoneNumber,
+            [FromQuery] bool? isDisabled,
+            [FromQuery] DateTime? createAt,
+            [FromQuery] DateOnly? birthday,
+            [FromQuery] int? roleId)
+        {
+            var users = await _userService.SearchUsersAsync(username, accountName, password, address, phoneNumber, isDisabled, createAt, birthday, roleId);
+            return Ok(users); // Service đã trả về UserDto
+        }
+
     }
 }
