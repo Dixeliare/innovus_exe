@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Repository.Basic.IRepositories;
 using Repository.Data;
 using Repository.Models;
 
 namespace Repository.Basic.Repositories;
 
-public class ConsultationTopicRepository : GenericRepository<consultation_topic>
+public class ConsultationTopicRepository : GenericRepository<consultation_topic>, IConsultationTopicRepository
 {
     public ConsultationTopicRepository()
     {

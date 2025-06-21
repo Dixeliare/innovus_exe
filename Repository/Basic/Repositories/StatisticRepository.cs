@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Repository.Basic.IRepositories;
 using Repository.Data;
 using Repository.Models;
 
 namespace Repository.Basic.Repositories;
 
-public class StatisticRepository : GenericRepository<statistic>
+public class StatisticRepository : GenericRepository<statistic>, IStatisticRepository
 {
     public StatisticRepository(AppDbContext context)
     {

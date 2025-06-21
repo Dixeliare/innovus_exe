@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Repository.Basic.IRepositories;
 using Repository.Data;
 using Repository.Models;
 
 namespace Repository.Basic.Repositories;
 
-public class DocumentRepository : GenericRepository<document>
+public class DocumentRepository : GenericRepository<document>, IDocumentRepository
 {
     public DocumentRepository()
     {

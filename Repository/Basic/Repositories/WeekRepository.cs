@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Repository.Basic.IRepositories;
 using Repository.Data;
 using Repository.Models;
 
 namespace Repository.Basic.Repositories;
 
-public class WeekRepository : GenericRepository<week>
+public class WeekRepository : GenericRepository<week>, IWeekRepository
 {
     public WeekRepository()
     {

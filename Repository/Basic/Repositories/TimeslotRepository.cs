@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Repository.Basic.IRepositories;
 using Repository.Data;
 using Repository.Models;
 
 namespace Repository.Basic.Repositories;
 
-public class TimeslotRepository : GenericRepository<timeslot>
+public class TimeslotRepository : GenericRepository<timeslot>, ITimeslotRepository
 {
     public TimeslotRepository()
     {

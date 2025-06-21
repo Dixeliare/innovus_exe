@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Repository.Basic.IRepositories;
 using Repository.Data;
 using Repository.Models;
 
 namespace Repository.Basic.Repositories;
 
-public class InstrumentRepository : GenericRepository<instrument>
+public class InstrumentRepository : GenericRepository<instrument>, IInstrumentRepository
 {
     public InstrumentRepository()
     {

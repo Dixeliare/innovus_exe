@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Repository.Basic.IRepositories;
 using Repository.Data;
 using Repository.Models;
 
 namespace Repository.Basic.Repositories;
 
-public class SheetRepository : GenericRepository<sheet>
+public class SheetRepository : GenericRepository<sheet>, ISheetRepository
 {
     private readonly AppDbContext _context;
 

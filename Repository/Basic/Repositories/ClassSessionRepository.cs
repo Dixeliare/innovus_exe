@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Repository.Basic.IRepositories;
 using Repository.Data;
 using Repository.Models;
 
 namespace Repository.Basic.Repositories;
 
-public class ClassSessionRepository : GenericRepository<class_session>
+public class ClassSessionRepository : GenericRepository<class_session>, IClassSessionRepository
 {
     public ClassSessionRepository()
     {

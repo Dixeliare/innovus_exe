@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Repository.Basic.IRepositories;
 using Repository.Data;
 using Repository.Models;
 
 namespace Repository.Basic.Repositories;
 
-public class RoleRepository : GenericRepository<role>
+public class RoleRepository : GenericRepository<role>, IRoleRepository
 {
     public RoleRepository(AppDbContext context)
     {

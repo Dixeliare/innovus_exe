@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Repository.Basic.IRepositories;
 using Repository.Data;
 using Repository.Models;
 
 namespace Repository.Basic.Repositories;
 
-public class UserFavoriteSheetRepository : GenericRepository<user_favorite_sheet>
+public class UserFavoriteSheetRepository : GenericRepository<user_favorite_sheet>, IUserFavoriteSheetRepository
 {
     public UserFavoriteSheetRepository()
     {

@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Repository.Basic.IRepositories;
 using Repository.Data;
 using Repository.Models;
 
 namespace Repository.Basic.Repositories;
 
-public class ScheduleRepository : GenericRepository<schedule>
+public class ScheduleRepository : GenericRepository<schedule>, IScheduleRepository
 {
     public ScheduleRepository()
     {

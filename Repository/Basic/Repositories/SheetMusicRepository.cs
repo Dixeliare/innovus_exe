@@ -1,11 +1,12 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
+using Repository.Basic.IRepositories;
 using Repository.Data;
 using Repository.Models;
 
 namespace Repository.Basic.Repositories;
 
-public class SheetMusicRepository : GenericRepository<sheet_music>
+public class SheetMusicRepository : GenericRepository<sheet_music>, ISheetMusicRepository
 {
     public SheetMusicRepository()
     {

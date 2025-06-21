@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Repository.Basic.IRepositories;
 using Repository.Data;
 using Repository.Models;
 
 namespace Repository.Basic.Repositories;
 
-public class ClassRepository : GenericRepository<_class>
+public class ClassRepository : GenericRepository<_class>, IClassRepository
 {
     public ClassRepository()
     {

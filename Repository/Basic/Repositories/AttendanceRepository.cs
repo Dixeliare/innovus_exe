@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Repository.Basic.IRepositories;
 using Repository.Data;
 using Repository.Models;
 
 namespace Repository.Basic.Repositories;
 
-public class AttendanceRepository : GenericRepository<attendance>
+public class AttendanceRepository : GenericRepository<attendance>, IAttendanceRepository
 {
     public AttendanceRepository()
     {
