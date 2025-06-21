@@ -1,4 +1,5 @@
 using DTOs;
+using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Models;
 using Services.IServices;
@@ -7,9 +8,9 @@ namespace Services.Services;
 
 public class RoleService : IRoleService
     {
-        private readonly RoleRepository _roleRepository;
+        private readonly IRoleRepository _roleRepository;
 
-        public RoleService(RoleRepository roleRepository)
+        public RoleService(IRoleRepository roleRepository)
         {
             _roleRepository = roleRepository;
         }

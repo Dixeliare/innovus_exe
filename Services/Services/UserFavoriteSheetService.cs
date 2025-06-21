@@ -1,4 +1,5 @@
 using DTOs;
+using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Models;
 using Services.IServices;
@@ -7,14 +8,14 @@ namespace Services.Services;
 
 public class UserFavoriteSheetService : IUserFavoriteSheetService
     {
-        private readonly UserFavoriteSheetRepository _userFavoriteSheetRepository;
-        private readonly SheetMusicRepository _sheetMusicRepository; // Có thể cần để lấy SheetMusic chi tiết
-        private readonly UserRepository _userRepository; // Có thể cần để lấy User chi tiết
+        private readonly IUserFavoriteSheetRepository _userFavoriteSheetRepository;
+        private readonly ISheetMusicRepository _sheetMusicRepository; // Có thể cần để lấy SheetMusic chi tiết
+        private readonly IUserRepository _userRepository; // Có thể cần để lấy User chi tiết
 
         public UserFavoriteSheetService(
-            UserFavoriteSheetRepository userFavoriteSheetRepository,
-            SheetMusicRepository sheetMusicRepository, // Inject if needed
-            UserRepository userRepository) // Inject if needed
+            IUserFavoriteSheetRepository userFavoriteSheetRepository,
+            ISheetMusicRepository sheetMusicRepository, // Inject if needed
+            IUserRepository userRepository) // Inject if needed
         {
             _userFavoriteSheetRepository = userFavoriteSheetRepository;
             _sheetMusicRepository = sheetMusicRepository;
@@ -72,7 +73,7 @@ public class UserFavoriteSheetService : IUserFavoriteSheetService
         // Phương thức xóa bản ghi yêu thích
         public async Task<bool> DeleteUserFavoriteSheetAsync(int userId, int sheetMusicId)
         {
-            return await _userFavoriteSheetRepository.DeleteAsync(userId, sheetMusicId) > 0;
+            return await _userFavoriteSheetRepository.Delete2ArgumentsAsync(userId, sheetMusicId) > 0;
         }
         
         public async Task<UserFavoriteSheetDto?> GetByIdAsync(int userId, int sheetMusicId)

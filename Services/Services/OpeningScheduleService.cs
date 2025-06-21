@@ -1,4 +1,5 @@
 using DTOs;
+using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Models;
 using Services.IServices;
@@ -7,9 +8,9 @@ namespace Services.Services;
 
 public class OpeningScheduleService : IOpeningScheduleService
 {
-    private readonly OpeningScheduleRepository _openingScheduleRepository;
+    private readonly IOpeningScheduleRepository _openingScheduleRepository;
     
-    public OpeningScheduleService(OpeningScheduleRepository openingScheduleRepository) => _openingScheduleRepository = openingScheduleRepository;
+    public OpeningScheduleService(IOpeningScheduleRepository openingScheduleRepository) => _openingScheduleRepository = openingScheduleRepository;
     
     public async Task<IEnumerable<opening_schedule>> GetAllAsync()
     {

@@ -1,4 +1,5 @@
 using DTOs;
+using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Data;
 using Repository.Models;
@@ -8,7 +9,7 @@ namespace Services.Services;
 
 public class ScheduleService : IScheduleService
 {
-    private readonly ScheduleRepository _scheduleRepository;
+    private readonly IScheduleRepository _scheduleRepository;
 
     // Số tháng lịch trình cần duy trì trong tương lai
     private const int MONTHS_TO_ENSURE_IN_FUTURE = 6;
@@ -17,7 +18,7 @@ public class ScheduleService : IScheduleService
     private const int MONTHS_TO_KEEP_OLD = 3;
 
 
-    public ScheduleService(ScheduleRepository scheduleRepository) => _scheduleRepository = scheduleRepository;
+    public ScheduleService(IScheduleRepository scheduleRepository) => _scheduleRepository = scheduleRepository;
 
     public async Task<List<schedule>> GetAllAsync()
     {
@@ -59,7 +60,7 @@ public class ScheduleService : IScheduleService
     // UPDATE Schedule
     public async Task UpdateAsync(UpdateScheduleDto updateScheduleDto)
     {
-        var existingSchedule = await _scheduleRepository.GetByIdAsync(updateScheduleDto.ScheduleId);
+        var existingSchedule = await _scheduleRepository.GetByIDAsync(updateScheduleDto.ScheduleId);
 
         if (existingSchedule == null)
         {

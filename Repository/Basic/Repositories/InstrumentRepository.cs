@@ -1,20 +1,20 @@
 using Microsoft.EntityFrameworkCore;
+using Repository.Basic.IRepositories;
 using Repository.Data;
 using Repository.Models;
 
 namespace Repository.Basic.Repositories;
 
-public class InstrumentRepository : GenericRepository<instrument>
+public class InstrumentRepository : GenericRepository<instrument>, IInstrumentRepository
 {
-    public InstrumentRepository()
+    public InstrumentRepository(AppDbContext context) : base(context)
     {
+        
     }
-    
-    public InstrumentRepository(AppDbContext context) => _context = context;
 
     public async Task<IEnumerable<instrument>> GetAllAsync()
     {
-        return await _context.instruments
+        return await _dbSet
             .Include(d => d.documents)
             .AsSplitQuery()
             .ToListAsync();
@@ -22,41 +22,41 @@ public class InstrumentRepository : GenericRepository<instrument>
 
     public async Task<instrument> GetByIdAsync(int id)
     {
-        return await _context.instruments
+        return await _dbSet
             .Include(d => d.documents)
             .AsSplitQuery()
             .FirstOrDefaultAsync(d => d.instrument_id == id);
     }
 
-    public async Task<instrument> AddAsync(instrument entity)
-    {
-        _context.instruments.Add(entity);
-        await _context.SaveChangesAsync();
-        return entity;
-    }
-
-    public async Task UpdateAsync(instrument entity)
-    {
-        _context.instruments.Update(entity);
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task<bool> DeleteAsync(int id)
-    {
-        var item = await _context.instruments.FindAsync(id);
-
-        if (item == null)
-        {
-            return false ;
-        }
-        
-        _context.instruments.Remove(item);
-        return await _context.SaveChangesAsync() > 0;
-    }
+    // public async Task<instrument> AddAsync(instrument entity)
+    // {
+    //     _context.instruments.Add(entity);
+    //     await _context.SaveChangesAsync();
+    //     return entity;
+    // }
+    //
+    // public async Task UpdateAsync(instrument entity)
+    // {
+    //     _context.instruments.Update(entity);
+    //     await _context.SaveChangesAsync();
+    // }
+    //
+    // public async Task<bool> DeleteAsync(int id)
+    // {
+    //     var item = await _context.instruments.FindAsync(id);
+    //
+    //     if (item == null)
+    //     {
+    //         return false ;
+    //     }
+    //     
+    //     _context.instruments.Remove(item);
+    //     return await _context.SaveChangesAsync() > 0;
+    // }
     
     public async Task<IEnumerable<instrument>> SearchInstrumentsAsync(string? instrumentName = null)
     {
-        IQueryable<instrument> query = _context.instruments;
+        IQueryable<instrument> query = _dbSet;
 
         // Áp dụng điều kiện tìm kiếm nếu instrumentName được cung cấp
         if (!string.IsNullOrEmpty(instrumentName))

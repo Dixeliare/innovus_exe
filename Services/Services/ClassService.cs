@@ -1,4 +1,5 @@
 using DTOs;
+using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Models;
 using Services.IServices;
@@ -7,9 +8,9 @@ namespace Services.Services;
 
 public class ClassService : IClassService
 {
-    private readonly ClassRepository _classRepository;
+    private readonly IClassRepository _classRepository;
     
-    public ClassService (ClassRepository classRepository) => _classRepository = classRepository;
+    public ClassService (IClassRepository classRepository) => _classRepository = classRepository;
     
     public async Task<IEnumerable<_class>> GetAll()
     {

@@ -1,4 +1,5 @@
 using DTOs;
+using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Models;
 using Services.IServices;
@@ -7,13 +8,13 @@ namespace Services.Services;
 
 public class ConsultationRequestService : IConsultationRequestService
 {
-    private readonly ConsultationRequestRepository _consultationRequestRepository;
-    private readonly StatisticRepository _statisticRepository; // Inject cho kiểm tra khóa ngoại
-    private readonly ConsultationTopicRepository _consultationTopicRepository; // Inject cho kiểm tra khóa ngoại
+    private readonly IConsultationRequestRepository _consultationRequestRepository;
+    private readonly IStatisticRepository _statisticRepository; // Inject cho kiểm tra khóa ngoại
+    private readonly IConsultationTopicRepository _consultationTopicRepository; // Inject cho kiểm tra khóa ngoại
 
-    public ConsultationRequestService(ConsultationRequestRepository consultationRequestRepository,
-        StatisticRepository statisticRepository,
-        ConsultationTopicRepository consultationTopicRepository)
+    public ConsultationRequestService(IConsultationRequestRepository consultationRequestRepository,
+        IStatisticRepository statisticRepository,
+        IConsultationTopicRepository consultationTopicRepository)
     {
         _consultationRequestRepository = consultationRequestRepository;
         _statisticRepository = statisticRepository;

@@ -1,4 +1,5 @@
 using DTOs;
+using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Models;
 using Services.IServices;
@@ -7,9 +8,9 @@ namespace Services.Services;
 
 public class TimeslotService : ITimeslotService
 {
-    private readonly TimeslotRepository _timeslotRepository;
+    private readonly ITimeslotRepository _timeslotRepository;
     
-    public TimeslotService(TimeslotRepository timeslotRepository) => _timeslotRepository = timeslotRepository;
+    public TimeslotService(ITimeslotRepository timeslotRepository) => _timeslotRepository = timeslotRepository;
     
     public async Task<IEnumerable<timeslot>> GetAllAsync()
     {

@@ -1,4 +1,5 @@
 using DTOs;
+using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Models;
 using Services.IServices;
@@ -7,10 +8,10 @@ namespace Services.Services;
 
 public class WeekService : IWeekService
 {
-    private readonly WeekRepository _weekRepository;
-    private readonly ScheduleRepository _scheduleRepository; // Để kiểm tra khóa ngoại
+    private readonly IWeekRepository _weekRepository;
+    private readonly IScheduleRepository _scheduleRepository; // Để kiểm tra khóa ngoại
 
-    public WeekService(WeekRepository weekRepository, ScheduleRepository scheduleRepository)
+    public WeekService(IWeekRepository weekRepository, IScheduleRepository scheduleRepository)
     {
         _weekRepository = weekRepository;
         _scheduleRepository = scheduleRepository;
@@ -18,12 +19,12 @@ public class WeekService : IWeekService
     
     public async Task<IEnumerable<week>> GetAll()
     {
-        return await _weekRepository.GetAll();
+        return await _weekRepository.GetAllAsync();
     }
 
     public async Task<week> GetById(int id)
     {
-        return await _weekRepository.GetById(id);
+        return await _weekRepository.GetByIdAsync(id);
     }
 
     public async Task<IEnumerable<WeekDto>> GetWeeksByScheduleIdAsync(int scheduleId)
@@ -36,7 +37,7 @@ public class WeekService : IWeekService
         public async Task<WeekDto> AddAsync(CreateWeekDto createWeekDto)
         {
             // Kiểm tra khóa ngoại Schedule
-            var scheduleExists = await _scheduleRepository.GetByIdAsync(createWeekDto.ScheduleId);
+            var scheduleExists = await _scheduleRepository.GetByIDAsync(createWeekDto.ScheduleId);
             if (scheduleExists == null)
             {
                 throw new KeyNotFoundException($"Schedule with ID {createWeekDto.ScheduleId} not found.");
@@ -76,7 +77,7 @@ public class WeekService : IWeekService
             // Cập nhật ScheduleId nếu được cung cấp và khác với giá trị hiện tại
             if (updateWeekDto.ScheduleId.HasValue && existingWeek.schedule_id != updateWeekDto.ScheduleId.Value)
             {
-                var scheduleExists = await _scheduleRepository.GetByIdAsync(updateWeekDto.ScheduleId.Value);
+                var scheduleExists = await _scheduleRepository.GetByIDAsync(updateWeekDto.ScheduleId.Value);
                 if (scheduleExists == null)
                 {
                     throw new KeyNotFoundException($"Schedule with ID {updateWeekDto.ScheduleId} not found for update.");

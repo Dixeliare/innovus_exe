@@ -1,20 +1,20 @@
 using Microsoft.EntityFrameworkCore;
+using Repository.Basic.IRepositories;
 using Repository.Data;
 using Repository.Models;
 
 namespace Repository.Basic.Repositories;
 
-public class ConsultationRequestRepository : GenericRepository<consultation_request>
+public class ConsultationRequestRepository : GenericRepository<consultation_request>, IConsultationRequestRepository
 {
-    public ConsultationRequestRepository()
+    public ConsultationRequestRepository(AppDbContext context) : base(context)
     {
+        
     }
-    
-    public ConsultationRequestRepository(AppDbContext context) => _context = context;
 
     public async Task<IEnumerable<consultation_request>> GetAllAsync()
     {
-        return await _context.consultation_requests
+        return await _dbSet
             .Include(c => c.consultation_topic)
             .Include(s => s.statistic)
             .AsSplitQuery()
@@ -23,35 +23,35 @@ public class ConsultationRequestRepository : GenericRepository<consultation_requ
 
     public async Task<consultation_request> GetByIdAsync(int id)
     {
-        return await _context.consultation_requests
+        return await _dbSet
             .Include(c => c.consultation_topic)
             .Include(s => s.statistic)
             .AsSplitQuery()
             .FirstOrDefaultAsync(s => s.consultation_request_id == id);
     }
 
-    public async Task<consultation_request> AddAsync(consultation_request entity)
-    {
-        _context.consultation_requests.Add(entity);
-        await _context.SaveChangesAsync();
-        return entity;
-    }
-
-    public async Task UpdateAsync(consultation_request entity)
-    {
-        _context.consultation_requests.Update(entity);
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task<bool> DeleteAsync(int id)
-    {
-        var item = await _context.consultation_requests.FindAsync(id);
-        
-        if (item == null) return false;
-        
-        _context.consultation_requests.Remove(item);
-        return await _context.SaveChangesAsync() > 0;
-    }
+    // public async Task<consultation_request> AddAsync(consultation_request entity)
+    // {
+    //     _context.consultation_requests.Add(entity);
+    //     await _context.SaveChangesAsync();
+    //     return entity;
+    // }
+    //
+    // public async Task UpdateAsync(consultation_request entity)
+    // {
+    //     _context.consultation_requests.Update(entity);
+    //     await _context.SaveChangesAsync();
+    // }
+    //
+    // public async Task<bool> DeleteAsync(int id)
+    // {
+    //     var item = await _context.consultation_requests.FindAsync(id);
+    //     
+    //     if (item == null) return false;
+    //     
+    //     _context.consultation_requests.Remove(item);
+    //     return await _context.SaveChangesAsync() > 0;
+    // }
     
     public async Task<IEnumerable<consultation_request>> SearchConsultationRequestsAsync(
         string? fullname = null,
@@ -60,7 +60,7 @@ public class ConsultationRequestRepository : GenericRepository<consultation_requ
         string? note = null,
         bool? hasContact = null)
     {
-        IQueryable<consultation_request> query = _context.consultation_requests;
+        IQueryable<consultation_request> query = _dbSet;
 
         // Bao gồm các navigation property nếu muốn eager load thông tin liên quan khi tìm kiếm
         query = query.Include(cr => cr.consultation_topic)

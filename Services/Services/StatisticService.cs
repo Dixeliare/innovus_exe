@@ -1,4 +1,5 @@
 using DTOs;
+using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Models;
 using Services.IServices;
@@ -7,9 +8,9 @@ namespace Services.Services;
 
 public class StatisticService : IStatisticService
 {
-    private readonly StatisticRepository _statisticRepository;
+    private readonly IStatisticRepository _statisticRepository;
 
-        public StatisticService(StatisticRepository statisticRepository)
+        public StatisticService(IStatisticRepository statisticRepository)
         {
             _statisticRepository = statisticRepository;
         }

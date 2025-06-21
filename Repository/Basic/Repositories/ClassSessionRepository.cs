@@ -1,20 +1,20 @@
 using Microsoft.EntityFrameworkCore;
+using Repository.Basic.IRepositories;
 using Repository.Data;
 using Repository.Models;
 
 namespace Repository.Basic.Repositories;
 
-public class ClassSessionRepository : GenericRepository<class_session>
+public class ClassSessionRepository : GenericRepository<class_session>, IClassSessionRepository
 {
-    public ClassSessionRepository()
+    public ClassSessionRepository(AppDbContext context) : base(context)
     {
+        
     }
-    
-    public ClassSessionRepository(AppDbContext context) => _context = context;
 
     public async Task<IEnumerable<class_session>> GetAll()
     {
-        var items = await _context.class_sessions
+        var items = await _dbSet
             .Include(c => c._class)
             .Include(a => a.attendances)
             .Include(t => t.time_slot)
@@ -25,9 +25,9 @@ public class ClassSessionRepository : GenericRepository<class_session>
         return items ?? new List<class_session>();
     }
 
-    public async Task<class_session> GetById(int id)
+    public async Task<class_session> GetByIdAsync(int id)
     {
-        var item = await _context.class_sessions
+        var item = await _dbSet
             .Include(c => c._class)
             .Include(a => a.attendances)
             .Include(t => t.time_slot)
@@ -37,31 +37,31 @@ public class ClassSessionRepository : GenericRepository<class_session>
         return item ?? new class_session();
     }
 
-    public async Task<class_session> AddAsync(class_session entity)
-    {
-        _context.class_sessions.Add(entity);
-        await _context.SaveChangesAsync();
-        return entity;
-    }
-
-    public async Task UpdateAsync(class_session entity)
-    {
-        _context.class_sessions.Update(entity);
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task<bool> DeleteAsync(int id)
-    {
-        var item = await _context.class_sessions.FindAsync(id);
-
-        if (item == null)
-        {
-            return false;
-        }
-        
-        _context.class_sessions.Remove(item);
-        return await _context.SaveChangesAsync() > 0;
-    }
+    // public async Task<class_session> AddAsync(class_session entity)
+    // {
+    //     _context.class_sessions.Add(entity);
+    //     await _context.SaveChangesAsync();
+    //     return entity;
+    // }
+    //
+    // public async Task UpdateAsync(class_session entity)
+    // {
+    //     _context.class_sessions.Update(entity);
+    //     await _context.SaveChangesAsync();
+    // }
+    //
+    // public async Task<bool> DeleteAsync(int id)
+    // {
+    //     var item = await _context.class_sessions.FindAsync(id);
+    //
+    //     if (item == null)
+    //     {
+    //         return false;
+    //     }
+    //     
+    //     _context.class_sessions.Remove(item);
+    //     return await _context.SaveChangesAsync() > 0;
+    // }
     
     public async Task<IEnumerable<class_session>> SearchClassSessionsAsync(
         DateOnly? date = null,
@@ -70,7 +70,7 @@ public class ClassSessionRepository : GenericRepository<class_session>
         int? classId = null,
         int? timeSlotId = null)
     {
-        IQueryable<class_session> query = _context.class_sessions;
+        IQueryable<class_session> query = _dbSet;
 
         // Kiểm tra xem có bất kỳ tham số tìm kiếm nào được cung cấp không
         if (date.HasValue ||

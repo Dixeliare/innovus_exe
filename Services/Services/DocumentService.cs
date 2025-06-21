@@ -1,4 +1,5 @@
 using DTOs;
+using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Models;
 using Services.IServices;
@@ -7,11 +8,11 @@ namespace Services.Services;
 
 public class DocumentService : IDocumentService
 {
-    private readonly DocumentRepository _documentRepository;
-    private readonly InstrumentRepository _instrumentRepository; // Inject cho kiểm tra khóa ngoại
+    private readonly IDocumentRepository _documentRepository;
+    private readonly IInstrumentRepository _instrumentRepository; // Inject cho kiểm tra khóa ngoại
 
-    public DocumentService(DocumentRepository documentRepository,
-        InstrumentRepository instrumentRepository)
+    public DocumentService(IDocumentRepository documentRepository,
+        IInstrumentRepository instrumentRepository)
     {
         _documentRepository = documentRepository;
         _instrumentRepository = instrumentRepository;

@@ -1,20 +1,20 @@
 using Microsoft.EntityFrameworkCore;
+using Repository.Basic.IRepositories;
 using Repository.Data;
 using Repository.Models;
 
 namespace Repository.Basic.Repositories;
 
-public class AttendanceRepository : GenericRepository<attendance>
+public class AttendanceRepository : GenericRepository<attendance>, IAttendanceRepository
 {
-    public AttendanceRepository()
+    public AttendanceRepository(AppDbContext context) : base(context)
     {
+        
     }
-    
-    public AttendanceRepository(AppDbContext context) => _context = context;
     
     public async Task<IEnumerable<attendance>> GetAllAsync()
     {
-        return await _context.attendances
+        return await _dbSet
             .Include(c => c.class_session)
             .Include(u => u.user)
             .AsSplitQuery()
@@ -23,40 +23,40 @@ public class AttendanceRepository : GenericRepository<attendance>
 
     public async Task<attendance> GetByIdAsync(int id)
     {
-        return await _context.attendances
+        return await _dbSet
             .Include(c => c.class_session)
             .Include(u => u.user)
             .AsSplitQuery()
             .FirstOrDefaultAsync(a => a.attendance_id == id);
     }
 
-    public async Task<attendance> AddAsync(attendance entity)
-    {
-        _context.attendances.Add(entity);
-        await _context.SaveChangesAsync();
-        return entity;
-    }
-
-    public async Task UpdateAsync(attendance entity)
-    {
-        _context.attendances.Update(entity);
-        await _context.SaveChangesAsync();
-    }
-    
-    public async Task<bool> DeleteAsync(int id)
-    {
-        var item = await _context.attendances.FindAsync(id);
-        if (item == null)
-        {
-            return false;
-        }
-        _context.attendances.Remove(item);
-        return await _context.SaveChangesAsync() > 0;
-    }
+    // public async Task<attendance> AddAsync(attendance entity)
+    // {
+    //     _context.attendances.Add(entity);
+    //     await _context.SaveChangesAsync();
+    //     return entity;
+    // }
+    //
+    // public async Task UpdateAsync(attendance entity)
+    // {
+    //     _context.attendances.Update(entity);
+    //     await _context.SaveChangesAsync();
+    // }
+    //
+    // public async Task<bool> DeleteAsync(int id)
+    // {
+    //     var item = await _context.attendances.FindAsync(id);
+    //     if (item == null)
+    //     {
+    //         return false;
+    //     }
+    //     _context.attendances.Remove(item);
+    //     return await _context.SaveChangesAsync() > 0;
+    // }
     
     public async Task<IEnumerable<attendance>> SearchAttendancesAsync(bool? status = null, string? note = null)
     {
-        IQueryable<attendance> query = _context.attendances;
+        IQueryable<attendance> query = _dbSet;
 
         // Kiểm tra xem có bất kỳ tham số tìm kiếm nào được cung cấp không
         if (status.HasValue || !string.IsNullOrEmpty(note))

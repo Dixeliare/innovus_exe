@@ -1,21 +1,21 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
+using Repository.Basic.IRepositories;
 using Repository.Data;
 using Repository.Models;
 
 namespace Repository.Basic.Repositories;
 
-public class SheetMusicRepository : GenericRepository<sheet_music>
+public class SheetMusicRepository : GenericRepository<sheet_music>, ISheetMusicRepository
 {
-    public SheetMusicRepository()
+    public SheetMusicRepository(AppDbContext context) : base(context)
     {
+        
     }
-    
-    public SheetMusicRepository(AppDbContext context) => _context = context;
 
     public async Task<IEnumerable<sheet_music>> GetAllAsync()
     {
-        return await _context.sheet_musics
+        return await _dbSet
             .Include(s => s.sheet)
             .Include(u => u.user_favorite_sheets)
             .Include(g => g.genres)
@@ -25,7 +25,7 @@ public class SheetMusicRepository : GenericRepository<sheet_music>
 
     public async Task<sheet_music> GetByIdAsync(int id)
     {
-        return await _context.sheet_musics
+        return await _dbSet
             .Include(s => s.sheet)
             .Include(u => u.user_favorite_sheets)
             .Include(g => g.genres)
@@ -33,28 +33,28 @@ public class SheetMusicRepository : GenericRepository<sheet_music>
             .FirstOrDefaultAsync(s => s.sheet_music_id == id);
     }
 
-    public async Task<sheet_music> AddAsync(sheet_music entity)
-    {
-        _context.sheet_musics.Add(entity);
-        await _context.SaveChangesAsync();
-        return entity;
-    }
-
-    public async Task UpdateAsync(sheet_music entity)
-    {
-        _context.Entry(entity).State = EntityState.Modified;
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task<bool> DeleteAsync(int id)
-    {
-        var item = await _context.sheet_musics.FindAsync(id);
-        
-        if (item == null) return false;
-        
-        _context.sheet_musics.Remove(item); 
-        return await _context.SaveChangesAsync() > 0;
-    }
+    // public async Task<sheet_music> AddAsync(sheet_music entity)
+    // {
+    //     _context.sheet_musics.Add(entity);
+    //     await _context.SaveChangesAsync();
+    //     return entity;
+    // }
+    //
+    // public async Task UpdateAsync(sheet_music entity)
+    // {
+    //     _context.Entry(entity).State = EntityState.Modified;
+    //     await _context.SaveChangesAsync();
+    // }
+    //
+    // public async Task<bool> DeleteAsync(int id)
+    // {
+    //     var item = await _context.sheet_musics.FindAsync(id);
+    //     
+    //     if (item == null) return false;
+    //     
+    //     _context.sheet_musics.Remove(item); 
+    //     return await _context.SaveChangesAsync() > 0;
+    // }
     
     public async Task<IEnumerable<sheet_music>> SearchSheetMusicAsync(
             int? number = null,
@@ -63,7 +63,7 @@ public class SheetMusicRepository : GenericRepository<sheet_music>
             int? sheetQuantity = null,
             int? favoriteCount = null)
         {
-            IQueryable<sheet_music> query = _context.sheet_musics;
+            IQueryable<sheet_music> query = _dbSet;
 
             // Luôn bao gồm các navigation property bạn muốn trả về cùng kết quả
             query = query.Include(sm => sm.sheet)
@@ -124,7 +124,7 @@ public class SheetMusicRepository : GenericRepository<sheet_music>
     
     public async Task AddGenreToSheetMusicAsync(int sheetMusicId, int genreId)
     {
-        var sheetMusic = await _context.sheet_musics
+        var sheetMusic = await _dbSet
             .Include(sm => sm.genres)
             .FirstOrDefaultAsync(sm => sm.sheet_music_id == sheetMusicId);
         var genre = await _context.genres.FindAsync(genreId);
@@ -141,7 +141,7 @@ public class SheetMusicRepository : GenericRepository<sheet_music>
 
     public async Task RemoveGenreFromSheetMusicAsync(int sheetMusicId, int genreId)
     {
-        var sheetMusic = await _context.sheet_musics
+        var sheetMusic = await _dbSet
             .Include(sm => sm.genres)
             .FirstOrDefaultAsync(sm => sm.sheet_music_id == sheetMusicId);
         var genreToRemove = sheetMusic?.genres.FirstOrDefault(g => g.genre_id == genreId);

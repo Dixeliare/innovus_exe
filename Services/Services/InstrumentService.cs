@@ -1,4 +1,5 @@
 using DTOs;
+using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Models;
 using Services.IServices;
@@ -7,9 +8,9 @@ namespace Services.Services;
 
 public class InstrumentService : IInstrumentService
 {
-    private readonly InstrumentRepository _instrumentRepository;
+    private readonly IInstrumentRepository _instrumentRepository;
     
-    public InstrumentService(InstrumentRepository instrumentRepository) => _instrumentRepository = instrumentRepository;
+    public InstrumentService(IInstrumentRepository instrumentRepository) => _instrumentRepository = instrumentRepository;
     
     public async Task<IEnumerable<instrument>> GetAllAsync()
     {

@@ -1,4 +1,6 @@
 using DTOs;
+using Microsoft.AspNetCore.Http;
+using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Models;
 using Services.IServices;
@@ -7,16 +9,19 @@ namespace Services.Services;
 
 public class SheetService : ISheetService
 {
-    private readonly SheetRepository _sheetRepository;
-    private readonly SheetMusicRepository _sheetMusicRepository; // Inject cho kiểm tra khóa ngoại sheet_music
+    private readonly ISheetRepository _sheetRepository;
+    private readonly ISheetMusicRepository _sheetMusicRepository;
+    private readonly IFileStorageService _fileStorageService; // Inject IFileStorageService
 
-    public SheetService(SheetRepository sheetRepository,
-        SheetMusicRepository sheetMusicRepository)
+    public SheetService(ISheetRepository sheetRepository,
+                        ISheetMusicRepository sheetMusicRepository,
+                        IFileStorageService fileStorageService) // Thêm IFileStorageService vào constructor
     {
         _sheetRepository = sheetRepository;
         _sheetMusicRepository = sheetMusicRepository;
+        _fileStorageService = fileStorageService; // Khởi tạo
     }
-    
+
     public async Task<IEnumerable<sheet>> GetAllAsync()
     {
         return await _sheetRepository.GetAllAsync();
@@ -27,85 +32,126 @@ public class SheetService : ISheetService
         return await _sheetRepository.GetByIdAsync(id);
     }
 
-    public async Task<SheetDto> AddAsync(CreateSheetDto createSheetDto)
+    // Add Sheet với file ảnh
+    public async Task<SheetDto> AddAsync(IFormFile sheetFile, int sheetMusicId)
+    {
+        // Kiểm tra sự tồn tại của khóa ngoại SheetMusic
+        var sheetMusicExists = await _sheetMusicRepository.GetByIdAsync(sheetMusicId);
+        if (sheetMusicExists == null)
         {
-            // Kiểm tra sự tồn tại của khóa ngoại SheetMusic
-            var sheetMusicExists = await _sheetMusicRepository.GetByIdAsync(createSheetDto.SheetMusicId);
-            if (sheetMusicExists == null)
-            {
-                throw new KeyNotFoundException($"Sheet Music with ID {createSheetDto.SheetMusicId} not found.");
-            }
-
-            var sheetEntity = new sheet
-            {
-                sheet_url = createSheetDto.SheetUrl,
-                // Gán navigation property, EF Core sẽ tự động thiết lập khóa ngoại
-                sheet_music = sheetMusicExists // Gán trực tiếp entity
-            };
-
-            var addedSheet = await _sheetRepository.AddAsync(sheetEntity);
-            return MapToSheetDto(addedSheet);
+            throw new KeyNotFoundException($"Sheet Music with ID {sheetMusicId} not found.");
         }
 
-        // UPDATE Sheet
-        public async Task UpdateAsync(UpdateSheetDto updateSheetDto)
+        string sheetUrl = string.Empty;
+        if (sheetFile != null && sheetFile.Length > 0)
         {
-            var existingSheet = await _sheetRepository.GetByIdAsync(updateSheetDto.SheetId);
+            // Lưu file vào Azure Blob Storage
+            // Sử dụng "sheets" làm folder logic trong container
+            sheetUrl = await _fileStorageService.SaveFileAsync(sheetFile, "sheets");
+        }
+        else
+        {
+            // Nếu không có file, có thể gán URL mặc định hoặc để trống tùy ý
+            // Trong trường hợp này, nếu sheet_url là null! trong model, thì cần một giá trị.
+            // Nếu bạn muốn nó có thể null trong DB, hãy chỉnh sửa model (nhưng bạn không muốn)
+            // nên tốt nhất là luôn có file hoặc URL mặc định.
+            // Ở đây tôi mặc định là throw lỗi nếu không có file, bạn có thể chỉnh sửa
+            throw new ArgumentException("Sheet file is required.");
+        }
 
-            if (existingSheet == null)
+        var sheetEntity = new sheet
+        {
+            sheet_url = sheetUrl, // Gán URL từ Azure
+            sheet_music = sheetMusicExists
+        };
+
+        var addedSheet = await _sheetRepository.AddAsync(sheetEntity);
+        return MapToSheetDto(addedSheet);
+    }
+
+    // UPDATE Sheet với file ảnh
+    public async Task UpdateAsync(int sheetId, IFormFile? sheetFile, int? sheetMusicId)
+    {
+        var existingSheet = await _sheetRepository.GetByIdAsync(sheetId);
+
+        if (existingSheet == null)
+        {
+            throw new KeyNotFoundException($"Sheet with ID {sheetId} not found.");
+        }
+
+        // Xử lý file ảnh mới nếu có
+        if (sheetFile != null && sheetFile.Length > 0)
+        {
+            // 1. Xóa ảnh cũ (nếu có)
+            if (!string.IsNullOrEmpty(existingSheet.sheet_url))
             {
-                throw new KeyNotFoundException($"Sheet with ID {updateSheetDto.SheetId} not found.");
+                await _fileStorageService.DeleteFileAsync(existingSheet.sheet_url);
             }
 
-            // Cập nhật các trường nếu có giá trị được cung cấp
-            if (!string.IsNullOrEmpty(updateSheetDto.SheetUrl))
-            {
-                existingSheet.sheet_url = updateSheetDto.SheetUrl;
-            }
+            // 2. Lưu ảnh mới
+            string newSheetUrl = await _fileStorageService.SaveFileAsync(sheetFile, "sheets");
+            existingSheet.sheet_url = newSheetUrl; // Cập nhật URL mới
+        }
+        // Nếu sheetFile là null, giữ nguyên sheet_url hiện có.
+        // Nếu bạn muốn cho phép xóa ảnh bằng cách gửi null file, bạn cần thêm logic.
 
-            // Kiểm tra và cập nhật khóa ngoại Sheet Music nếu có giá trị mới được cung cấp
-            if (updateSheetDto.SheetMusicId.HasValue)
+        // Kiểm tra và cập nhật khóa ngoại Sheet Music nếu có giá trị mới được cung cấp
+        if (sheetMusicId.HasValue)
+        {
+            if (existingSheet.sheet_music?.sheet_music_id != sheetMusicId.Value)
             {
-                // Tránh cập nhật nếu ID không đổi (hoặc cả hai đều null)
-                if (existingSheet.sheet_music?.sheet_music_id != updateSheetDto.SheetMusicId.Value)
+                var sheetMusicExists = await _sheetMusicRepository.GetByIdAsync(sheetMusicId.Value);
+                if (sheetMusicExists == null)
                 {
-                    var sheetMusicExists = await _sheetMusicRepository.GetByIdAsync(updateSheetDto.SheetMusicId.Value);
-                    if (sheetMusicExists == null)
-                    {
-                        throw new KeyNotFoundException($"Sheet Music with ID {updateSheetDto.SheetMusicId} not found for update.");
-                    }
-                    // Gán navigation property mới
-                    existingSheet.sheet_music = sheetMusicExists;
+                    throw new KeyNotFoundException($"Sheet Music with ID {sheetMusicId.Value} not found for update.");
                 }
+                existingSheet.sheet_music = sheetMusicExists;
             }
-            // Nếu SheetMusicId được gửi là null, xóa liên kết (nếu FK trong DB cho phép null)
-            // Điều này có thể phức tạp với shadow properties, cần kiểm tra cấu hình DB First của bạn.
-            // Nếu DB First model có "sheet_music_id" và nó là nullable, thì set nó bằng null
-            // Để đơn giản, nếu sheet_music_id được gửi là null và existingSheet có liên kết, sẽ bỏ qua
-            // Nếu muốn rõ ràng set null:
-            // else if (updateSheetDto.SheetMusicId == null && existingSheet.sheet_music != null)
-            // {
-            //     existingSheet.sheet_music = null; // hoặc gán shadow property về null
-            // }
-
-
-            await _sheetRepository.UpdateAsync(existingSheet);
         }
+        // else if (sheetMusicId == null && existingSheet.sheet_music != null)
+        // {
+        //     // Nếu bạn muốn có thể gán SheetMusicId về null (nếu DB cho phép),
+        //     // bạn sẽ cần code để cập nhật shadow property hoặc FK trực tiếp.
+        //     // Tạm thời bỏ qua phần này vì bạn không muốn chỉnh sửa Model.
+        // }
 
+        await _sheetRepository.UpdateAsync(existingSheet);
+    }
+
+    // Delete Sheet
     public async Task<bool> DeleteAsync(int id)
     {
+        var sheetToDelete = await _sheetRepository.GetByIdAsync(id);
+        if (sheetToDelete == null)
+        {
+            return false; // Không tìm thấy để xóa
+        }
+
+        // Xóa file ảnh liên quan khỏi Azure Blob trước
+        if (!string.IsNullOrEmpty(sheetToDelete.sheet_url))
+        {
+            try
+            {
+                await _fileStorageService.DeleteFileAsync(sheetToDelete.sheet_url);
+            }
+            catch (Exception ex)
+            {
+                // Log lỗi nếu không xóa được file, nhưng vẫn tiếp tục xóa entity trong DB
+                Console.WriteLine($"Error deleting blob for sheet {id}: {ex.Message}");
+                // Có thể throw lại lỗi nếu bạn muốn rollback giao dịch
+            }
+        }
+
         return await _sheetRepository.DeleteAsync(id);
     }
-    
+
     private SheetDto MapToSheetDto(sheet model)
     {
         return new SheetDto
         {
             SheetId = model.sheet_id,
             SheetUrl = model.sheet_url,
-            // Giả định có một shadow property hoặc đã được cấu hình trong AppDbContext để lấy sheet_music_id
-            // Nếu không, bạn cần điều chỉnh cách lấy SheetMusicId từ model
-            SheetMusicId = model.sheet_music?.sheet_music_id ?? 0 // Cẩn thận với giá trị mặc định 0 nếu không có liên kết
+            SheetMusicId = model.sheet_music?.sheet_music_id ?? 0
         };
     }
 }
