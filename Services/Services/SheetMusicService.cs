@@ -1,5 +1,6 @@
 using DTOs;
 using Microsoft.AspNetCore.Http;
+using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Models;
 using Services.IServices;
@@ -8,14 +9,14 @@ namespace Services.Services;
 
 public class SheetMusicService : ISheetMusicService
 {
-    private readonly SheetMusicRepository _sheetMusicRepository;
-    private readonly SheetRepository _sheetRepository;
-    private readonly GenreRepository _genreRepository;
+    private readonly ISheetMusicRepository _sheetMusicRepository;
+    private readonly ISheetRepository _sheetRepository;
+    private readonly IGenreRepository _genreRepository;
     private readonly IFileStorageService _fileStorageService; // Inject IFileStorageService
 
-    public SheetMusicService(SheetMusicRepository sheetMusicRepository,
-                             SheetRepository sheetRepository,
-                             GenreRepository genreRepository,
+    public SheetMusicService(ISheetMusicRepository sheetMusicRepository,
+                             ISheetRepository sheetRepository,
+                             IGenreRepository genreRepository,
                              IFileStorageService fileStorageService) // Thêm IFileStorageService vào constructor
     {
         _sheetMusicRepository = sheetMusicRepository;

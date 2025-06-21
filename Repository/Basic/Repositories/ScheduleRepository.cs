@@ -7,15 +7,14 @@ namespace Repository.Basic.Repositories;
 
 public class ScheduleRepository : GenericRepository<schedule>, IScheduleRepository
 {
-    public ScheduleRepository()
+    public ScheduleRepository(AppDbContext context) : base(context)
     {
+        
     }
-
-    public ScheduleRepository(AppDbContext context) => _context = context;
 
     public async Task<List<schedule>> GetAllAsync()
     {
-        var items = await _context.schedules
+        var items = await _dbSet
             .Include(w => w.weeks)
             .Include(u => u.user )
             .AsSplitQuery()
@@ -25,7 +24,7 @@ public class ScheduleRepository : GenericRepository<schedule>, IScheduleReposito
 
     public async Task<schedule> GetByIDAsync(int id)
     {
-        var item = await _context.schedules
+        var item = await _dbSet
             .Include(w => w.weeks)
             .Include(u => u.user)
             .AsSplitQuery()
@@ -35,7 +34,7 @@ public class ScheduleRepository : GenericRepository<schedule>, IScheduleReposito
 
     public async Task<List<schedule>> SearchByIdOrNoteAsync(int? id = null, string? note = null) // Thay đổi tham số thành nullable
     {
-        var query = _context.schedules
+        var query = _dbSet
             .Include(w => w.weeks)
             .Include(u => u.user)
             .AsSplitQuery()// Giữ nguyên việc include user
@@ -107,32 +106,32 @@ public class ScheduleRepository : GenericRepository<schedule>, IScheduleReposito
         return searchResult ?? new List<schedule>();
     }
 
-    public async Task<schedule> AddAsync(schedule entity)
-    {
-        _context.schedules.Add(entity);
-        await _context.SaveChangesAsync();
-        return entity;
-    }
-
-    public async Task UpdateAsync(schedule entity)
-    {
-        // Attach và Mark as Modified nếu đối tượng không được theo dõi
-        _context.Entry(entity).State = EntityState.Modified;
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task<bool> DeleteAsync(int scheduleId)
-    {
-        var item = await _context.schedules.FindAsync(scheduleId);
-
-        if (item == null)
-        {
-            return false;
-        }
-
-        _context.schedules.Remove(item);
-        
-        int recordsAffected = await _context.SaveChangesAsync();
-        return recordsAffected > 0;
-    }
+    // public async Task<schedule> AddAsync(schedule entity)
+    // {
+    //     _context.schedules.Add(entity);
+    //     await _context.SaveChangesAsync();
+    //     return entity;
+    // }
+    //
+    // public async Task UpdateAsync(schedule entity)
+    // {
+    //     // Attach và Mark as Modified nếu đối tượng không được theo dõi
+    //     _context.Entry(entity).State = EntityState.Modified;
+    //     await _context.SaveChangesAsync();
+    // }
+    //
+    // public async Task<bool> DeleteAsync(int scheduleId)
+    // {
+    //     var item = await _context.schedules.FindAsync(scheduleId);
+    //
+    //     if (item == null)
+    //     {
+    //         return false;
+    //     }
+    //
+    //     _context.schedules.Remove(item);
+    //     
+    //     int recordsAffected = await _context.SaveChangesAsync();
+    //     return recordsAffected > 0;
+    // }
 }

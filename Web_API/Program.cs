@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Data;
 using Services.Configurations;
@@ -17,23 +18,23 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 // Add services to the container.
 #region Repositories
-builder.Services.AddScoped<ScheduleRepository>();
-builder.Services.AddScoped<TimeslotRepository>();
-builder.Services.AddScoped<WeekRepository>();
-builder.Services.AddScoped<ClassSessionRepository>();
-builder.Services.AddScoped<ClassRepository>();
-builder.Services.AddScoped<AttendanceRepository>();
-builder.Services.AddScoped<GenreRepository>();
-builder.Services.AddScoped<SheetRepository>();
-builder.Services.AddScoped<InstrumentRepository>();
-builder.Services.AddScoped<ConsultationTopicRepository>();
-builder.Services.AddScoped<OpeningScheduleRepository>();
-builder.Services.AddScoped<ConsultationRequestRepository>();
-builder.Services.AddScoped<DocumentRepository>();
-builder.Services.AddScoped<SheetMusicRepository>();
-builder.Services.AddScoped<UserRepository>();
-builder.Services.AddScoped<StatisticRepository>();
-builder.Services.AddScoped<RoleRepository>();
+builder.Services.AddScoped<IScheduleRepository, ScheduleRepository>();
+builder.Services.AddScoped<ITimeslotRepository, TimeslotRepository>();
+builder.Services.AddScoped<IWeekRepository, WeekRepository>();
+builder.Services.AddScoped<IClassSessionRepository, ClassSessionRepository>();
+builder.Services.AddScoped<IClassRepository, ClassRepository>();
+builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
+builder.Services.AddScoped<IGenreRepository, GenreRepository>();
+builder.Services.AddScoped<ISheetRepository, SheetRepository>();
+builder.Services.AddScoped<IInstrumentRepository, InstrumentRepository>();
+builder.Services.AddScoped<IConsultationTopicRepository, ConsultationTopicRepository>();
+builder.Services.AddScoped<IOpeningScheduleRepository, OpeningScheduleRepository>();
+builder.Services.AddScoped<IConsultationRequestRepository, ConsultationRequestRepository>();
+builder.Services.AddScoped<IDocumentRepository, DocumentRepository>();
+builder.Services.AddScoped<ISheetMusicRepository, SheetMusicRepository>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IStatisticRepository, StatisticRepository>();
+builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 #endregion
 
 #region Services

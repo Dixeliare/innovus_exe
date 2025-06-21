@@ -1,5 +1,6 @@
 using DTOs;
 using Microsoft.AspNetCore.Http;
+using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Models;
 using Services.IServices;
@@ -8,18 +9,18 @@ namespace Services.Services;
 
 public class UserService : IUserService
 {
-    private readonly UserRepository _userRepository;
-    private readonly RoleRepository _roleRepository;
-    private readonly StatisticRepository _statisticRepository;
-    private readonly OpeningScheduleRepository _openingScheduleRepository;
-    private readonly ScheduleRepository _scheduleRepository;
+    private readonly IUserRepository _userRepository;
+    private readonly IRoleRepository _roleRepository;
+    private readonly IStatisticRepository _statisticRepository;
+    private readonly IOpeningScheduleRepository _openingScheduleRepository;
+    private readonly IScheduleRepository _scheduleRepository;
     private readonly IFileStorageService _fileStorageService; // Inject IFileStorageService
 
-    public UserService(UserRepository userRepository,
-                       RoleRepository roleRepository,
-                       StatisticRepository statisticRepository,
-                       OpeningScheduleRepository openingScheduleRepository,
-                       ScheduleRepository scheduleRepository,
+    public UserService(IUserRepository userRepository,
+                       IRoleRepository roleRepository,
+                       IStatisticRepository statisticRepository,
+                       IOpeningScheduleRepository openingScheduleRepository,
+                       IScheduleRepository scheduleRepository,
                        IFileStorageService fileStorageService) // Thêm IFileStorageService vào constructor
     {
         _userRepository = userRepository;

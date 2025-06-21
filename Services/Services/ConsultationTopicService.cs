@@ -1,4 +1,5 @@
 using DTOs;
+using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Models;
 using Services.IServices;
@@ -7,9 +8,9 @@ namespace Services.Services;
 
 public class ConsultationTopicService : IConsultationTopicService
 {
-    private readonly ConsultationTopicRepository _consultationTopicRepository;
+    private readonly IConsultationTopicRepository _consultationTopicRepository;
     
-    public ConsultationTopicService(ConsultationTopicRepository consultationTopicRepository) => _consultationTopicRepository = consultationTopicRepository;
+    public ConsultationTopicService(IConsultationTopicRepository consultationTopicRepository) => _consultationTopicRepository = consultationTopicRepository;
     
     public async Task<IEnumerable<consultation_topic>> GetAllAsync()
     {

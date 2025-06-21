@@ -1,8 +1,9 @@
+using System.Reflection.Metadata;
 using Repository.Models;
 
 namespace Repository.Basic.IRepositories;
 
-public interface IDocumentRepository
+public interface IDocumentRepository: IGenericRepository<document>
 {
     Task<IEnumerable<document>> GetAllAsync();
     Task<document> GetByIdAsync(int id);

@@ -7,15 +7,14 @@ namespace Repository.Basic.Repositories;
 
 public class TimeslotRepository : GenericRepository<timeslot>, ITimeslotRepository
 {
-    public TimeslotRepository()
+    public TimeslotRepository(AppDbContext context) : base(context)
     {
+        
     }
-    
-    public TimeslotRepository(AppDbContext context) => _context = context;
 
     public async Task<IEnumerable<timeslot>> GetAllAsync()
     {
-        var items = await _context.timeslots
+        var items = await _dbSet
             .Include(c => c.class_sessions)
             .AsSplitQuery()
             .ToListAsync();
@@ -24,42 +23,42 @@ public class TimeslotRepository : GenericRepository<timeslot>, ITimeslotReposito
 
     public async Task<timeslot> GetByIdAsync(int id)
     {
-        var item = await _context.timeslots
+        var item = await _dbSet
             .Include(c => c.class_sessions)
             .AsSplitQuery()
             .FirstOrDefaultAsync(c => c.timeslot_id == id);
         return item ?? new timeslot();
     }
 
-    public async Task<timeslot> AddAsync(timeslot entity)
-    {
-        _context.timeslots.Add(entity);
-        await _context.SaveChangesAsync();
-        return entity;
-    }
-
-    public async Task UpdateAsync(timeslot entity)
-    {
-        _context.Entry(entity).State = EntityState.Modified;
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task<bool> DeleteAsync(int timeslotId)
-    {
-        var item = await _context.timeslots.FindAsync(timeslotId);
-
-        if (item == null)
-        {
-            return false;
-        }
-        
-        _context.timeslots.Remove(item);
-        return await _context.SaveChangesAsync() > 0;
-    }
+    // public async Task<timeslot> AddAsync(timeslot entity)
+    // {
+    //     _context.timeslots.Add(entity);
+    //     await _context.SaveChangesAsync();
+    //     return entity;
+    // }
+    //
+    // public async Task UpdateAsync(timeslot entity)
+    // {
+    //     _context.Entry(entity).State = EntityState.Modified;
+    //     await _context.SaveChangesAsync();
+    // }
+    //
+    // public async Task<bool> DeleteAsync(int timeslotId)
+    // {
+    //     var item = await _context.timeslots.FindAsync(timeslotId);
+    //
+    //     if (item == null)
+    //     {
+    //         return false;
+    //     }
+    //     
+    //     _context.timeslots.Remove(item);
+    //     return await _context.SaveChangesAsync() > 0;
+    // }
 
     public async Task<IEnumerable<timeslot>> SearchTimeslotsAsync(TimeOnly? startTime = null, TimeOnly? endTime = null)
     {
-        IQueryable<timeslot> query = _context.timeslots;
+        IQueryable<timeslot> query = _dbSet;
 
         if (startTime.HasValue)
         {

@@ -7,15 +7,14 @@ namespace Repository.Basic.Repositories;
 
 public class DocumentRepository : GenericRepository<document>, IDocumentRepository
 {
-    public DocumentRepository()
+    public DocumentRepository(AppDbContext context) : base(context)
     {
+        
     }
-
-    public DocumentRepository(AppDbContext context) => _context = context;
 
     public async Task<IEnumerable<document>> GetAllAsync()
     {
-        return await _context.documents
+        return await _dbSet
             .Include(i => i.instrument)
             .Include(u => u.users)
             .AsSplitQuery()
@@ -24,35 +23,35 @@ public class DocumentRepository : GenericRepository<document>, IDocumentReposito
 
     public async Task<document> GetByIdAsync(int id)
     {
-        return await _context.documents
+        return await _dbSet
             .Include(i => i.instrument)
             .Include(u => u.users)
             .AsSplitQuery()
             .FirstOrDefaultAsync(i => i.document_id == id);
     }
 
-    public async Task<document> AddAsync(document entity)
-    {
-        _context.documents.Add(entity);
-        await _context.SaveChangesAsync();
-        return entity;
-    }
-
-    public async Task UpdateAsync(document entity)
-    {
-        _context.documents.Update(entity);
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task<bool> DeleteAsync(int id)
-    {
-        var item = await _context.documents.FindAsync(id);
-        
-        if (item == null) return false;
-        
-        _context.documents.Remove(item);
-        return await _context.SaveChangesAsync() > 0;
-    }
+    // public async Task<document> AddAsync(document entity)
+    // {
+    //     _context.documents.Add(entity);
+    //     await _context.SaveChangesAsync();
+    //     return entity;
+    // }
+    //
+    // public async Task UpdateAsync(document entity)
+    // {
+    //     _context.documents.Update(entity);
+    //     await _context.SaveChangesAsync();
+    // }
+    //
+    // public async Task<bool> DeleteAsync(int id)
+    // {
+    //     var item = await _context.documents.FindAsync(id);
+    //     
+    //     if (item == null) return false;
+    //     
+    //     _context.documents.Remove(item);
+    //     return await _context.SaveChangesAsync() > 0;
+    // }
     
     public async Task<IEnumerable<document>> SearchDocumentsAsync(
         int? lesson = null,
@@ -60,7 +59,7 @@ public class DocumentRepository : GenericRepository<document>, IDocumentReposito
         string? link = null,
         int? instrumentId = null)
     {
-        IQueryable<document> query = _context.documents;
+        IQueryable<document> query = _dbSet;
 
         // Bao gồm các navigation property nếu muốn eager load thông tin liên quan khi tìm kiếm
         query = query.Include(d => d.instrument);

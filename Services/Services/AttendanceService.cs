@@ -1,4 +1,5 @@
 using DTOs;
+using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Models;
 using Services.IServices;
@@ -7,9 +8,9 @@ namespace Services.Services;
 
 public class AttendanceService : IAttendanceService
 {
-    private readonly AttendanceRepository _attendanceRepository;
+    private readonly IAttendanceRepository _attendanceRepository;
     
-    public AttendanceService(AttendanceRepository attendanceService) => _attendanceRepository = attendanceService;
+    public AttendanceService(IAttendanceRepository attendanceService) => _attendanceRepository = attendanceService;
     
     public async Task<IEnumerable<attendance>> GetAllAsync()
     {

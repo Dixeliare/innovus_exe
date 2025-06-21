@@ -1,4 +1,5 @@
 using DTOs;
+using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Models;
 using Services.IServices;
@@ -7,15 +8,15 @@ namespace Services.Services;
 
 public class ClassSessionService : IClassSessionService
 {
-    private readonly ClassSessionRepository _classSessionRepository;
-    private readonly WeekRepository _weekRepository; // Inject cho kiểm tra khóa ngoại
-    private readonly ClassRepository _classRepository; // Inject cho kiểm tra khóa ngoại
-    private readonly TimeslotRepository _timeSlotRepository; // Inject cho kiểm tra khóa ngoại
+    private readonly IClassSessionRepository _classSessionRepository;
+    private readonly IWeekRepository _weekRepository; // Inject cho kiểm tra khóa ngoại
+    private readonly IClassRepository _classRepository; // Inject cho kiểm tra khóa ngoại
+    private readonly ITimeslotRepository _timeSlotRepository; // Inject cho kiểm tra khóa ngoại
 
-    public ClassSessionService(ClassSessionRepository classSessionRepository,
-        WeekRepository weekRepository,
-        ClassRepository classRepository,
-        TimeslotRepository timeSlotRepository)
+    public ClassSessionService(IClassSessionRepository classSessionRepository,
+        IWeekRepository weekRepository,
+        IClassRepository classRepository,
+        ITimeslotRepository timeSlotRepository)
     {
         _classSessionRepository = classSessionRepository;
         _weekRepository = weekRepository;

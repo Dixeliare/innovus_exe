@@ -2,14 +2,14 @@ using Repository.Models;
 
 namespace Repository.Basic.IRepositories;
 
-public interface IUserRepository
+public interface IUserRepository : IGenericRepository<user>
 {
     Task<IEnumerable<user>> GetAllAsync();
     Task<user> GetByIdAsync(int id);
     Task<user?> GetByUsernameAsync(string username);
-    Task<user> AddAsync(user entity);
-    Task UpdateAsync(user entity);
-    Task<bool> DeleteAsync(int id);
+    // Task<user> AddAsync(user entity);
+    // Task UpdateAsync(user entity);
+    // Task<bool> DeleteAsync(int id);
 
     Task<IEnumerable<user>> SearchUsersAsync(
         string? username = null,

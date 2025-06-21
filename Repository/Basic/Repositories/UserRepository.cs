@@ -9,20 +9,13 @@ namespace Repository.Basic.Repositories;
 
 public class UserRepository: GenericRepository<user>, IUserRepository
 {
-    public UserRepository()
+    public UserRepository(AppDbContext context) : base(context)
     {
-    }
-
-    public UserRepository(AppDbContext context) => _context = context;
-
-    public async Task<user> GetUserAccount(string username, string password)
-    {
-        return await _context.users.FirstOrDefaultAsync(x => x.username == username && x.password == password);
     }
 
     public async Task<IEnumerable<user>> GetAllAsync()
     {
-        return await _context.users
+        return await _dbSet
             .Include(a => a.attendances)
             .Include(o => o.opening_schedule)
             .Include(r => r.role)
@@ -37,7 +30,7 @@ public class UserRepository: GenericRepository<user>, IUserRepository
 
     public async Task<user> GetByIdAsync(int id)
     {
-        return await _context.users.AsNoTracking()
+        return await _dbSet.AsNoTracking()
             .Include(a => a.attendances)
             .Include(o => o.opening_schedule)
             .Include(r => r.role)
@@ -52,29 +45,29 @@ public class UserRepository: GenericRepository<user>, IUserRepository
     
     public async Task<user?> GetByUsernameAsync(string username)
     {
-        return await _context.users.AsNoTracking().FirstOrDefaultAsync(u => u.username == username);
+        return await _dbSet.AsNoTracking().FirstOrDefaultAsync(u => u.username == username);
     }
 
-    public async Task<user> AddAsync(user entity)
-    {
-        _context.users.Add(entity);
-        await _context.SaveChangesAsync();
-        return entity;
-    }
-
-    public async Task UpdateAsync(user entity)
-    {
-        _context.Entry(entity).State = EntityState.Modified;
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task<bool> DeleteAsync(int id)
-    {
-        var item = await _context.users.FindAsync(id);
-        if (item == null) return false;
-        _context.users.Remove(item);
-        return await _context.SaveChangesAsync() > 0;
-    }
+    // public async Task<user> AddAsync(user entity)
+    // {
+    //     _context.users.Add(entity);
+    //     await _context.SaveChangesAsync();
+    //     return entity;
+    // }
+    //
+    // public async Task UpdateAsync(user entity)
+    // {
+    //     _context.Entry(entity).State = EntityState.Modified;
+    //     await _context.SaveChangesAsync();
+    // }
+    //
+    // public async Task<bool> DeleteAsync(int id)
+    // {
+    //     var item = await _context.users.FindAsync(id);
+    //     if (item == null) return false;
+    //     _context.users.Remove(item);
+    //     return await _context.SaveChangesAsync() > 0;
+    // }
     
     public async Task<IEnumerable<user>> SearchUsersAsync(
             string? username = null,
@@ -87,7 +80,7 @@ public class UserRepository: GenericRepository<user>, IUserRepository
             DateOnly? birthday = null,
             int? roleId = null)
         {
-            IQueryable<user> query = _context.users;
+            IQueryable<user> query = _dbSet;
 
             // Luôn bao gồm các navigation property bạn muốn trả về cùng kết quả
             query = query.Include(u => u.role)

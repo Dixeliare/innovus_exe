@@ -2,7 +2,7 @@ using Repository.Models;
 
 namespace Repository.Basic.IRepositories;
 
-public interface IConsultationTopicRepository
+public interface IConsultationTopicRepository: IGenericRepository<consultation_topic>
 {
     Task<IEnumerable<consultation_topic>> GetAllAsync();
     Task<consultation_topic> GetByIdAsync(int id);

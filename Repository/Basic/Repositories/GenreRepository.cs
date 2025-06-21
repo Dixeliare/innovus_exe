@@ -7,15 +7,14 @@ namespace Repository.Basic.Repositories;
 
 public class GenreRepository : GenericRepository<genre>, IGenreRepository
 {
-    public GenreRepository()
+    public GenreRepository(AppDbContext context) : base(context)
     {
+        
     }
-    
-    public GenreRepository(AppDbContext context) => _context = context;
 
     public async Task<IEnumerable<genre>> GetAllAsync()
     {
-        return await _context.genres
+        return await _dbSet
             .Include(s => s.sheet_musics)
             .AsSplitQuery()
             .ToListAsync();
@@ -23,41 +22,41 @@ public class GenreRepository : GenericRepository<genre>, IGenreRepository
 
     public async Task<genre> GetByIdAsync(int id)
     {
-        return await _context.genres
+        return await _dbSet
             .Include(s => s.sheet_musics)
             .AsSplitQuery()
             .FirstOrDefaultAsync(s => s.genre_id == id);
     }
 
-    public async Task<genre> AddAsync(genre entity)
-    {
-        _context.genres.Add(entity);
-        await _context.SaveChangesAsync();
-        return entity;
-    }
-
-    public async Task UpdateAsync(genre entity)
-    {
-        _context.genres.Update(entity);
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task<bool> DeleteAsync(int id)
-    {
-        var item = await _context.genres.FindAsync(id);
-
-        if (item == null)
-        {
-            return false;
-        }
-        
-        _context.genres.Remove(item);
-        return await _context.SaveChangesAsync() > 0;
-    }
+    // public async Task<genre> AddAsync(genre entity)
+    // {
+    //     _context.genres.Add(entity);
+    //     await _context.SaveChangesAsync();
+    //     return entity;
+    // }
+    //
+    // public async Task UpdateAsync(genre entity)
+    // {
+    //     _context.genres.Update(entity);
+    //     await _context.SaveChangesAsync();
+    // }
+    //
+    // public async Task<bool> DeleteAsync(int id)
+    // {
+    //     var item = await _context.genres.FindAsync(id);
+    //
+    //     if (item == null)
+    //     {
+    //         return false;
+    //     }
+    //     
+    //     _context.genres.Remove(item);
+    //     return await _context.SaveChangesAsync() > 0;
+    // }
     
     public async Task<IEnumerable<genre>> SearchGenresAsync(string? genreName = null)
     {
-        IQueryable<genre> query = _context.genres;
+        IQueryable<genre> query = _dbSet;
 
         // Áp dụng điều kiện tìm kiếm nếu genreName được cung cấp
         if (!string.IsNullOrEmpty(genreName))

@@ -1,4 +1,5 @@
 using DTOs;
+using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Models;
 using Services.IServices;
@@ -7,9 +8,9 @@ namespace Services.Services;
 
 public class GenreService : IGenreService
 {
-    private readonly GenreRepository _genreRepository;
+    private readonly IGenreRepository _genreRepository;
     
-    public GenreService(GenreRepository genreService) => _genreRepository = genreService;
+    public GenreService(IGenreRepository genreService) => _genreRepository = genreService;
     
     public async Task<IEnumerable<genre>> GetAllAsync()
     {

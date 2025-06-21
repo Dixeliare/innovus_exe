@@ -7,15 +7,14 @@ namespace Repository.Basic.Repositories;
 
 public class ClassRepository : GenericRepository<_class>, IClassRepository
 {
-    public ClassRepository()
+    public ClassRepository(AppDbContext context) : base(context)
     {
+        
     }
-    
-    public ClassRepository(AppDbContext context) => _context = context;
 
     public async Task<IEnumerable<_class>> GetAll()
     {
-        return await _context._classes
+        return await _dbSet
             .Include(c => c.class_sessions)
             .Include(u => u.users)
             .AsSplitQuery()
@@ -24,40 +23,40 @@ public class ClassRepository : GenericRepository<_class>, IClassRepository
 
     public async Task<_class> GetById(int id)
     {
-        return await _context._classes
+        return await _dbSet
             .Include(c => c.class_sessions)
             .Include(u => u.users)
             .AsSplitQuery()
             .FirstOrDefaultAsync(c => c.class_id == id);
     }
 
-    public async Task<_class> AddAsync(_class entity)
-    {
-        _context._classes.Add(entity);
-        await _context.SaveChangesAsync();
-        return entity;
-    }
-
-    public async Task UpdateAsync(_class entity)
-    {
-        _context._classes.Update(entity);
-        await _context.SaveChangesAsync();
-    }
-    
-    public async Task<bool> DeleteAsync(int id)
-    {
-        var item = await _context._classes.FindAsync(id);
-        if (item == null)
-        {
-            return false;
-        }
-        _context._classes.Remove(item);
-        return await _context.SaveChangesAsync() > 0;
-    }
+    // public async Task<_class> AddAsync(_class entity)
+    // {
+    //     _context._classes.Add(entity);
+    //     await _context.SaveChangesAsync();
+    //     return entity;
+    // }
+    //
+    // public async Task UpdateAsync(_class entity)
+    // {
+    //     _context._classes.Update(entity);
+    //     await _context.SaveChangesAsync();
+    // }
+    //
+    // public async Task<bool> DeleteAsync(int id)
+    // {
+    //     var item = await _context._classes.FindAsync(id);
+    //     if (item == null)
+    //     {
+    //         return false;
+    //     }
+    //     _context._classes.Remove(item);
+    //     return await _context.SaveChangesAsync() > 0;
+    // }
     
     public async Task<IEnumerable<_class>> SearchClassesAsync(int? instrumentId = null, string? classCode = null)
     {
-        IQueryable<_class> query = _context._classes;
+        IQueryable<_class> query = _dbSet;
 
         // Kiểm tra xem có bất kỳ tham số tìm kiếm nào được cung cấp không
         if (instrumentId.HasValue || !string.IsNullOrEmpty(classCode))

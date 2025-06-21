@@ -2,13 +2,13 @@ using Repository.Models;
 
 namespace Repository.Basic.IRepositories;
 
-public interface ISheetMusicRepository
+public interface ISheetMusicRepository: IGenericRepository<sheet_music>
 {
     Task<IEnumerable<sheet_music>> GetAllAsync();
     Task<sheet_music> GetByIdAsync(int id);
-    Task<sheet_music> AddAsync(sheet_music entity);
-    Task UpdateAsync(sheet_music entity);
-    Task<bool> DeleteAsync(int id);
+    // Task<sheet_music> AddAsync(sheet_music entity);
+    // Task UpdateAsync(sheet_music entity);
+    // Task<bool> DeleteAsync(int id);
 
     Task<IEnumerable<sheet_music>> SearchSheetMusicAsync(
         int? number = null,
