@@ -1,6 +1,7 @@
 using DTOs;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
+using Repository.Basic.UnitOfWork;
 using Repository.Models;
 using Services.IServices;
 
@@ -8,18 +9,25 @@ namespace Services.Services;
 
 public class OpeningScheduleService : IOpeningScheduleService
 {
-    private readonly IOpeningScheduleRepository _openingScheduleRepository;
+    // private readonly IOpeningScheduleRepository _openingScheduleRepository;
+    //
+    // public OpeningScheduleService(IOpeningScheduleRepository openingScheduleRepository) => _openingScheduleRepository = openingScheduleRepository;
     
-    public OpeningScheduleService(IOpeningScheduleRepository openingScheduleRepository) => _openingScheduleRepository = openingScheduleRepository;
-    
+    private readonly IUnitOfWork _unitOfWork;
+
+    public OpeningScheduleService(IUnitOfWork unitOfWork)
+    {
+        _unitOfWork = unitOfWork;
+    }
+
     public async Task<IEnumerable<opening_schedule>> GetAllAsync()
     {
-        return await _openingScheduleRepository.GetAllAsync();
+        return await _unitOfWork.OpeningSchedules.GetAllAsync();
     }
 
     public async Task<opening_schedule> GetByIdAsync(int id)
     {
-        return await _openingScheduleRepository.GetByIdAsync(id);
+        return await _unitOfWork.OpeningSchedules.GetByIdAsync(id);
     }
 
     public async Task<OpeningScheduleDto> AddAsync(CreateOpeningScheduleDto createOpeningScheduleDto)
@@ -35,14 +43,14 @@ public class OpeningScheduleService : IOpeningScheduleService
                 is_advanced_class = createOpeningScheduleDto.IsAdvancedClass ?? false // Mặc định là false nếu không được cung cấp
             };
 
-            var addedSchedule = await _openingScheduleRepository.AddAsync(scheduleEntity);
+            var addedSchedule = await _unitOfWork.OpeningSchedules.AddAsync(scheduleEntity);
             return MapToOpeningScheduleDto(addedSchedule);
         }
 
         // UPDATE Opening Schedule
         public async Task UpdateAsync(UpdateOpeningScheduleDto updateOpeningScheduleDto)
         {
-            var existingSchedule = await _openingScheduleRepository.GetByIdAsync(updateOpeningScheduleDto.OpeningScheduleId);
+            var existingSchedule = await _unitOfWork.OpeningSchedules.GetByIdAsync(updateOpeningScheduleDto.OpeningScheduleId);
 
             if (existingSchedule == null)
             {
@@ -79,18 +87,18 @@ public class OpeningScheduleService : IOpeningScheduleService
                 existingSchedule.is_advanced_class = updateOpeningScheduleDto.IsAdvancedClass.Value;
             }
 
-            await _openingScheduleRepository.UpdateAsync(existingSchedule);
+            await _unitOfWork.OpeningSchedules.UpdateAsync(existingSchedule);
         }
 
     public async Task<bool> DeleteAsync(int id)
     {
-        return await _openingScheduleRepository.DeleteAsync(id);
+        return await _unitOfWork.OpeningSchedules.DeleteAsync(id);
     }
 
     public async Task<IEnumerable<opening_schedule>> SearchOpeningSchedulesAsync(string? subject = null, string? classCode = null, DateOnly? openingDay = null,
         DateOnly? endDate = null, string? schedule = null, int? studentQuantity = null, bool? isAdvancedClass = null)
     {
-        return await _openingScheduleRepository.SearchOpeningSchedulesAsync(subject, classCode, openingDay, endDate, schedule, studentQuantity, isAdvancedClass);
+        return await _unitOfWork.OpeningSchedules.SearchOpeningSchedulesAsync(subject, classCode, openingDay, endDate, schedule, studentQuantity, isAdvancedClass);
     }
     
     private OpeningScheduleDto MapToOpeningScheduleDto(opening_schedule model)

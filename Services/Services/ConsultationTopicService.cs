@@ -1,6 +1,7 @@
 using DTOs;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
+using Repository.Basic.UnitOfWork;
 using Repository.Models;
 using Services.IServices;
 
@@ -8,18 +9,25 @@ namespace Services.Services;
 
 public class ConsultationTopicService : IConsultationTopicService
 {
-    private readonly IConsultationTopicRepository _consultationTopicRepository;
+    // private readonly IConsultationTopicRepository _consultationTopicRepository;
+    //
+    // public ConsultationTopicService(IConsultationTopicRepository consultationTopicRepository) => _consultationTopicRepository = consultationTopicRepository;
     
-    public ConsultationTopicService(IConsultationTopicRepository consultationTopicRepository) => _consultationTopicRepository = consultationTopicRepository;
-    
+    private readonly IUnitOfWork _unitOfWork;
+
+    public ConsultationTopicService(IUnitOfWork unitOfWork)
+    {
+        _unitOfWork = unitOfWork;
+    }
+
     public async Task<IEnumerable<consultation_topic>> GetAllAsync()
     {
-        return await _consultationTopicRepository.GetAllAsync();
+        return await _unitOfWork.ConsultationTopics.GetAllAsync();
     }
 
     public async Task<consultation_topic> GetByIdAsync(int id)
     {
-        return await _consultationTopicRepository.GetByIdAsync(id);
+        return await _unitOfWork.ConsultationTopics.GetByIdAsync(id);
     }
 
     public async Task<ConsultationTopicDto> AddAsync(CreateConsultationTopicDto createConsultationTopicDto)
@@ -29,14 +37,14 @@ public class ConsultationTopicService : IConsultationTopicService
             consultation_topic_name = createConsultationTopicDto.ConsultationTopicName
         };
 
-        var addedTopic = await _consultationTopicRepository.AddAsync(topicEntity);
+        var addedTopic = await _unitOfWork.ConsultationTopics.AddAsync(topicEntity);
         return MapToConsultationTopicDto(addedTopic);
     }
 
     // UPDATE Consultation Topic
     public async Task UpdateAsync(UpdateConsultationTopicDto updateConsultationTopicDto)
     {
-        var existingTopic = await _consultationTopicRepository.GetByIdAsync(updateConsultationTopicDto.ConsultationTopicId);
+        var existingTopic = await _unitOfWork.ConsultationTopics.GetByIdAsync(updateConsultationTopicDto.ConsultationTopicId);
 
         if (existingTopic == null)
         {
@@ -54,17 +62,17 @@ public class ConsultationTopicService : IConsultationTopicService
         //     existingTopic.consultation_topic_name = null;
         // }
 
-        await _consultationTopicRepository.UpdateAsync(existingTopic);
+        await _unitOfWork.ConsultationTopics.UpdateAsync(existingTopic);
     }
 
     public async Task<bool> DeleteAsync(int id)
     {
-        return await _consultationTopicRepository.DeleteAsync(id);
+        return await _unitOfWork.ConsultationTopics.DeleteAsync(id);
     }
 
     public async Task<IEnumerable<consultation_topic>> SearchConsultationTopicsAsync(string? topicName = null)
     {
-        return await _consultationTopicRepository.SearchConsultationTopicsAsync(topicName);
+        return await _unitOfWork.ConsultationTopics.SearchConsultationTopicsAsync(topicName);
     }
     
     private ConsultationTopicDto MapToConsultationTopicDto(consultation_topic model)

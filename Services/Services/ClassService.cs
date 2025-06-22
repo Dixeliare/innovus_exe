@@ -1,6 +1,7 @@
 using DTOs;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
+using Repository.Basic.UnitOfWork;
 using Repository.Models;
 using Services.IServices;
 
@@ -8,18 +9,25 @@ namespace Services.Services;
 
 public class ClassService : IClassService
 {
-    private readonly IClassRepository _classRepository;
+    // private readonly IClassRepository _classRepository;
+    //
+    // public ClassService (IClassRepository classRepository) => _classRepository = classRepository;
     
-    public ClassService (IClassRepository classRepository) => _classRepository = classRepository;
-    
+    private readonly IUnitOfWork _unitOfWork;
+
+    public ClassService(IUnitOfWork unitOfWork)
+    {
+        _unitOfWork = unitOfWork;
+    }
+
     public async Task<IEnumerable<_class>> GetAll()
     {
-        return await _classRepository.GetAll();
+        return await _unitOfWork.Classes.GetAll();
     }
 
     public async Task<_class> GetById(int id)
     {
-        return await _classRepository.GetById(id);
+        return await _unitOfWork.Classes.GetById(id);
     }
 
     public async Task<ClassDto> AddAsync(CreateClassDto createClassDto)
@@ -32,7 +40,7 @@ public class ClassService : IClassService
             // Các navigation properties (class_sessions, users) không cần thiết khi tạo mới
         };
 
-        var addedClass = await _classRepository.AddAsync(classEntity);
+        var addedClass = await _unitOfWork.Classes.AddAsync(classEntity);
         return MapToClassDto(addedClass); // Ánh xạ từ Model đã thêm sang ClassDto
     }
 
@@ -40,7 +48,7 @@ public class ClassService : IClassService
     public async Task UpdateAsync(UpdateClassDto updateClassDto)
     {
         // Lấy entity hiện có từ DB để đảm bảo theo dõi bởi DbContext
-        var existingClass = await _classRepository.GetByIdAsync(updateClassDto.ClassId);
+        var existingClass = await _unitOfWork.Classes.GetByIdAsync(updateClassDto.ClassId);
 
         if (existingClass == null)
         {
@@ -53,17 +61,17 @@ public class ClassService : IClassService
         existingClass.instrument_id = updateClassDto.InstrumentId;
         // Không cập nhật navigation properties ở đây nếu bạn không muốn thay đổi mối quan hệ
 
-        await _classRepository.UpdateAsync(existingClass);
+        await _unitOfWork.Classes.UpdateAsync(existingClass);
     }
 
     public async Task<bool> DeleteAsync(int id)
     {
-        return await _classRepository.DeleteAsync(id);
+        return await _unitOfWork.Classes.DeleteAsync(id);
     }
 
     public async Task<IEnumerable<_class>> SearchClassesAsync(int? instrumentId = null, string? classCode = null)
     {
-        return await _classRepository.SearchClassesAsync(instrumentId, classCode);
+        return await _unitOfWork.Classes.SearchClassesAsync(instrumentId, classCode);
     }
     
     private ClassDto MapToClassDto(_class cls)

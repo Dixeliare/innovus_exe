@@ -1,6 +1,7 @@
 using DTOs;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
+using Repository.Basic.UnitOfWork;
 using Repository.Models;
 using Services.IServices;
 
@@ -8,18 +9,25 @@ namespace Services.Services;
 
 public class AttendanceService : IAttendanceService
 {
-    private readonly IAttendanceRepository _attendanceRepository;
+    // private readonly IAttendanceRepository _attendanceRepository;
+    //
+    // public AttendanceService(IAttendanceRepository attendanceService) => _attendanceRepository = attendanceService;
     
-    public AttendanceService(IAttendanceRepository attendanceService) => _attendanceRepository = attendanceService;
-    
+    private readonly IUnitOfWork _unitOfWork;
+
+    public AttendanceService(IUnitOfWork unitOfWork)
+    {
+        _unitOfWork = unitOfWork;
+    }
+
     public async Task<IEnumerable<attendance>> GetAllAsync()
     {
-        return await _attendanceRepository.GetAllAsync();
+        return await _unitOfWork.Attendances.GetAllAsync();
     }
 
     public async Task<attendance> GetByIdAsync(int id)
     {
-        return await _attendanceRepository.GetByIdAsync(id);
+        return await _unitOfWork.Attendances.GetByIdAsync(id);
     }
 
     public async Task<AttendanceDto> AddAsync(CreateAttendanceDto createAttendanceDto)
@@ -44,14 +52,14 @@ public class AttendanceService : IAttendanceService
                 class_session_id = createAttendanceDto.ClassSessionId
             };
 
-            var addedAttendance = await _attendanceRepository.AddAsync(attendanceEntity);
+            var addedAttendance = await _unitOfWork.Attendances.AddAsync(attendanceEntity);
             return MapToAttendanceDto(addedAttendance);
         }
 
         // Method UpdateAsync (PUT) - Cần xử lý cẩn thận nếu bạn muốn cập nhật CheckAt
         public async Task UpdateAsync(UpdateAttendanceDto updateAttendanceDto)
         {
-            var existingAttendance = await _attendanceRepository.GetByIdAsync(updateAttendanceDto.AttendanceId);
+            var existingAttendance = await _unitOfWork.Attendances.GetByIdAsync(updateAttendanceDto.AttendanceId);
 
             if (existingAttendance == null)
             {
@@ -85,17 +93,17 @@ public class AttendanceService : IAttendanceService
             // }
 
 
-            await _attendanceRepository.UpdateAsync(existingAttendance);
+            await _unitOfWork.Attendances.UpdateAsync(existingAttendance);
         }
 
     public async Task<bool> DeleteAsync(int id)
     {
-        return await _attendanceRepository.DeleteAsync(id);
+        return await _unitOfWork.Attendances.DeleteAsync(id);
     }
 
     public async Task<IEnumerable<attendance>> SearchAttendancesAsync(bool? status = null, string? note = null)
     {
-        return await _attendanceRepository.SearchAttendancesAsync(status, note);
+        return await _unitOfWork.Attendances.SearchAttendancesAsync(status, note);
     }
     
     private AttendanceDto MapToAttendanceDto(attendance att)

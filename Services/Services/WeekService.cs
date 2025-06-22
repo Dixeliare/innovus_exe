@@ -1,6 +1,7 @@
 using DTOs;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
+using Repository.Basic.UnitOfWork;
 using Repository.Models;
 using Services.IServices;
 
@@ -8,28 +9,35 @@ namespace Services.Services;
 
 public class WeekService : IWeekService
 {
-    private readonly IWeekRepository _weekRepository;
-    private readonly IScheduleRepository _scheduleRepository; // Để kiểm tra khóa ngoại
+    // private readonly IWeekRepository _weekRepository;
+    // private readonly IScheduleRepository _scheduleRepository; // Để kiểm tra khóa ngoại
 
-    public WeekService(IWeekRepository weekRepository, IScheduleRepository scheduleRepository)
-    {
-        _weekRepository = weekRepository;
-        _scheduleRepository = scheduleRepository;
-    }
+    private readonly IUnitOfWork _unitOfWork;
     
+    // public WeekService(IWeekRepository weekRepository, IScheduleRepository scheduleRepository)
+    // {
+    //     _weekRepository = weekRepository;
+    //     _scheduleRepository = scheduleRepository;
+    // }
+
+    public WeekService(IUnitOfWork unitOfWork)
+    {
+        _unitOfWork = unitOfWork;
+    }
+
     public async Task<IEnumerable<week>> GetAll()
     {
-        return await _weekRepository.GetAllAsync();
+        return await _unitOfWork.Weeks.GetAllAsync();
     }
 
     public async Task<week> GetById(int id)
     {
-        return await _weekRepository.GetByIdAsync(id);
+        return await _unitOfWork.Weeks.GetByIdAsync(id);
     }
 
     public async Task<IEnumerable<WeekDto>> GetWeeksByScheduleIdAsync(int scheduleId)
         {
-            var weeks = await _weekRepository.GetWeeksByScheduleIdAsync(scheduleId);
+            var weeks = await _unitOfWork.Weeks.GetWeeksByScheduleIdAsync(scheduleId);
             return weeks.Select(MapToWeekDto);
         }
 
@@ -37,7 +45,7 @@ public class WeekService : IWeekService
         public async Task<WeekDto> AddAsync(CreateWeekDto createWeekDto)
         {
             // Kiểm tra khóa ngoại Schedule
-            var scheduleExists = await _scheduleRepository.GetByIDAsync(createWeekDto.ScheduleId);
+            var scheduleExists = await _unitOfWork.Schedules.GetByIDAsync(createWeekDto.ScheduleId);
             if (scheduleExists == null)
             {
                 throw new KeyNotFoundException($"Schedule with ID {createWeekDto.ScheduleId} not found.");
@@ -50,14 +58,14 @@ public class WeekService : IWeekService
                 schedule_id = createWeekDto.ScheduleId
             };
 
-            var addedWeek = await _weekRepository.AddAsync(weekEntity);
+            var addedWeek = await _unitOfWork.Weeks.AddAsync(weekEntity);
             return MapToWeekDto(addedWeek);
         }
 
         // UPDATE Week
         public async Task UpdateAsync(UpdateWeekDto updateWeekDto)
         {
-            var existingWeek = await _weekRepository.GetByIdAsync(updateWeekDto.WeekId);
+            var existingWeek = await _unitOfWork.Weeks.GetByIdAsync(updateWeekDto.WeekId);
 
             if (existingWeek == null)
             {
@@ -77,7 +85,7 @@ public class WeekService : IWeekService
             // Cập nhật ScheduleId nếu được cung cấp và khác với giá trị hiện tại
             if (updateWeekDto.ScheduleId.HasValue && existingWeek.schedule_id != updateWeekDto.ScheduleId.Value)
             {
-                var scheduleExists = await _scheduleRepository.GetByIDAsync(updateWeekDto.ScheduleId.Value);
+                var scheduleExists = await _unitOfWork.Schedules.GetByIDAsync(updateWeekDto.ScheduleId.Value);
                 if (scheduleExists == null)
                 {
                     throw new KeyNotFoundException($"Schedule with ID {updateWeekDto.ScheduleId} not found for update.");
@@ -85,17 +93,17 @@ public class WeekService : IWeekService
                 existingWeek.schedule_id = updateWeekDto.ScheduleId.Value;
             }
 
-            await _weekRepository.UpdateAsync(existingWeek);
+            await _unitOfWork.Weeks.UpdateAsync(existingWeek);
         }
 
     public async Task<bool> DeleteAsync(int id)
     {
-        return await _weekRepository.DeleteAsync(id);
+        return await _unitOfWork.Weeks.DeleteAsync(id);
     }
 
     public async Task<IEnumerable<week>> SearchWeeksAsync(DateOnly? dayOfWeek, int? scheduleId)
     {
-        return await _weekRepository.SearchWeeksAsync(dayOfWeek, scheduleId);
+        return await _unitOfWork.Weeks.SearchWeeksAsync(dayOfWeek, scheduleId);
     }
     
     private WeekDto MapToWeekDto(week model)

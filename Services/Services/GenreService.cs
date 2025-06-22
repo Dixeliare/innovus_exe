@@ -1,6 +1,7 @@
 using DTOs;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
+using Repository.Basic.UnitOfWork;
 using Repository.Models;
 using Services.IServices;
 
@@ -8,18 +9,25 @@ namespace Services.Services;
 
 public class GenreService : IGenreService
 {
-    private readonly IGenreRepository _genreRepository;
+    // private readonly IGenreRepository _genreRepository;
+    //
+    // public GenreService(IGenreRepository genreService) => _genreRepository = genreService;
     
-    public GenreService(IGenreRepository genreService) => _genreRepository = genreService;
-    
+    private readonly IUnitOfWork _unitOfWork;
+
+    public GenreService(IUnitOfWork unitOfWork)
+    {
+        _unitOfWork = unitOfWork;
+    }
+
     public async Task<IEnumerable<genre>> GetAllAsync()
     {
-        return await _genreRepository.GetAllAsync();
+        return await _unitOfWork.Genres.GetAllAsync();
     }
 
     public async Task<genre> GetByIdAsync(int id)
     {
-        return await _genreRepository.GetByIdAsync(id);
+        return await _unitOfWork.Genres.GetByIdAsync(id);
     }
 
     public async Task<GenreDto> AddAsync(CreateGenreDto createGenreDto)
@@ -29,14 +37,14 @@ public class GenreService : IGenreService
             genre_name = createGenreDto.GenreName
         };
 
-        var addedGenre = await _genreRepository.AddAsync(genreEntity);
+        var addedGenre = await _unitOfWork.Genres.AddAsync(genreEntity);
         return MapToGenreDto(addedGenre);
     }
 
     // UPDATE Genre
     public async Task UpdateAsync(UpdateGenreDto updateGenreDto)
     {
-        var existingGenre = await _genreRepository.GetByIdAsync(updateGenreDto.GenreId);
+        var existingGenre = await _unitOfWork.Genres.GetByIdAsync(updateGenreDto.GenreId);
 
         if (existingGenre == null)
         {
@@ -54,17 +62,17 @@ public class GenreService : IGenreService
         //     existingGenre.genre_name = null;
         // }
 
-        await _genreRepository.UpdateAsync(existingGenre);
+        await _unitOfWork.Genres.UpdateAsync(existingGenre);
     }
 
     public async Task<bool> DeleteAsync(int id)
     {
-        return await _genreRepository.DeleteAsync(id);
+        return await _unitOfWork.Genres.DeleteAsync(id);
     }
 
     public async Task<IEnumerable<genre>> SearchGenresAsync(string? genreName = null)
     {
-        return await _genreRepository.SearchGenresAsync(genreName);
+        return await _unitOfWork.Genres.SearchGenresAsync(genreName);
     }
     
     private GenreDto MapToGenreDto(genre model)

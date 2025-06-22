@@ -1,6 +1,7 @@
 using DTOs;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
+using Repository.Basic.UnitOfWork;
 using Repository.Models;
 using Services.IServices;
 
@@ -8,18 +9,25 @@ namespace Services.Services;
 
 public class InstrumentService : IInstrumentService
 {
-    private readonly IInstrumentRepository _instrumentRepository;
+    // private readonly IInstrumentRepository _instrumentRepository;
+    //
+    // public InstrumentService(IInstrumentRepository instrumentRepository) => _instrumentRepository = instrumentRepository;
     
-    public InstrumentService(IInstrumentRepository instrumentRepository) => _instrumentRepository = instrumentRepository;
-    
+    private readonly IUnitOfWork _unitOfWork;
+
+    public InstrumentService(IUnitOfWork unitOfWork)
+    {
+        _unitOfWork = unitOfWork;
+    }
+
     public async Task<IEnumerable<instrument>> GetAllAsync()
     {
-        return await _instrumentRepository.GetAllAsync();
+        return await _unitOfWork.Instruments.GetAllAsync();
     }
 
     public async Task<instrument> GetByIdAsync(int id)
     {
-        return await _instrumentRepository.GetByIdAsync(id);
+        return await _unitOfWork.Instruments.GetByIdAsync(id);
     }
 
     public async Task<InstrumentDto> AddAsync(CreateInstrumentDto createInstrumentDto)
@@ -29,14 +37,14 @@ public class InstrumentService : IInstrumentService
             instrument_name = createInstrumentDto.InstrumentName
         };
 
-        var addedInstrument = await _instrumentRepository.AddAsync(instrumentEntity);
+        var addedInstrument = await _unitOfWork.Instruments.AddAsync(instrumentEntity);
         return MapToInstrumentDto(addedInstrument);
     }
 
     // UPDATE Instrument
     public async Task UpdateAsync(UpdateInstrumentDto updateInstrumentDto)
     {
-        var existingInstrument = await _instrumentRepository.GetByIdAsync(updateInstrumentDto.InstrumentId);
+        var existingInstrument = await _unitOfWork.Instruments.GetByIdAsync(updateInstrumentDto.InstrumentId);
 
         if (existingInstrument == null)
         {
@@ -54,17 +62,17 @@ public class InstrumentService : IInstrumentService
         //     existingInstrument.instrument_name = null;
         // }
 
-        await _instrumentRepository.UpdateAsync(existingInstrument);
+        await _unitOfWork.Instruments.UpdateAsync(existingInstrument);
     }
 
     public async Task<bool> DeleteAsync(int id)
     {
-        return await _instrumentRepository.DeleteAsync(id);
+        return await _unitOfWork.Instruments.DeleteAsync(id);
     }
 
     public async Task<IEnumerable<instrument>> SearchInstrumentsAsync(string? instrumentName = null)
     {
-        return await _instrumentRepository.SearchInstrumentsAsync(instrumentName);
+        return await _unitOfWork.Instruments.SearchInstrumentsAsync(instrumentName);
     }
     
     private InstrumentDto MapToInstrumentDto(instrument model)

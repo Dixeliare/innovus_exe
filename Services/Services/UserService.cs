@@ -2,6 +2,7 @@ using DTOs;
 using Microsoft.AspNetCore.Http;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
+using Repository.Basic.UnitOfWork;
 using Repository.Models;
 using Services.IServices;
 
@@ -9,32 +10,41 @@ namespace Services.Services;
 
 public class UserService : IUserService
 {
-    private readonly IUserRepository _userRepository;
-    private readonly IRoleRepository _roleRepository;
-    private readonly IStatisticRepository _statisticRepository;
-    private readonly IOpeningScheduleRepository _openingScheduleRepository;
-    private readonly IScheduleRepository _scheduleRepository;
-    private readonly IFileStorageService _fileStorageService; // Inject IFileStorageService
-
-    public UserService(IUserRepository userRepository,
-                       IRoleRepository roleRepository,
-                       IStatisticRepository statisticRepository,
-                       IOpeningScheduleRepository openingScheduleRepository,
-                       IScheduleRepository scheduleRepository,
-                       IFileStorageService fileStorageService) // Thêm IFileStorageService vào constructor
+    // private readonly IUserRepository _userRepository;
+    // private readonly IRoleRepository _roleRepository;
+    // private readonly IStatisticRepository _statisticRepository;
+    // private readonly IOpeningScheduleRepository _openingScheduleRepository;
+    // private readonly IScheduleRepository _scheduleRepository;
+    // private readonly IFileStorageService _fileStorageService; // Inject IFileStorageService
+    //
+    // public UserService(IUserRepository userRepository,
+    //                    IRoleRepository roleRepository,
+    //                    IStatisticRepository statisticRepository,
+    //                    IOpeningScheduleRepository openingScheduleRepository,
+    //                    IScheduleRepository scheduleRepository,
+    //                    IFileStorageService fileStorageService) // Thêm IFileStorageService vào constructor
+    // {
+    //     _userRepository = userRepository;
+    //     _roleRepository = roleRepository;
+    //     _statisticRepository = statisticRepository;
+    //     _openingScheduleRepository = openingScheduleRepository;
+    //     _scheduleRepository = scheduleRepository;
+    //     _fileStorageService = fileStorageService; // Khởi tạo
+    // }
+    
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IFileStorageService _fileStorageService;
+    
+    public UserService(IUnitOfWork unitOfWork, IFileStorageService fileStorageService)
     {
-        _userRepository = userRepository;
-        _roleRepository = roleRepository;
-        _statisticRepository = statisticRepository;
-        _openingScheduleRepository = openingScheduleRepository;
-        _scheduleRepository = scheduleRepository;
-        _fileStorageService = fileStorageService; // Khởi tạo
+        _unitOfWork = unitOfWork;
+        _fileStorageService = fileStorageService;
     }
 
     // Phương thức Login (sẽ kiểm tra mật khẩu đã hash)
     public async Task<user?> GetUserAccount(string username, string password)
     {
-        var user = await _userRepository.GetByUsernameAsync(username);
+        var user = await _unitOfWork.Users.GetByUsernameAsync(username);
         if (user == null)
         {
             return null;
@@ -51,19 +61,19 @@ public class UserService : IUserService
 
     public async Task<IEnumerable<UserDto>> GetAllAsync()
     {
-        var users = await _userRepository.GetAllAsync();
+        var users = await _unitOfWork.Users.GetAllAsync();
         return users.Select(u => MapToUserDto(u));
     }
 
     public async Task<UserDto?> GetByIdAsync(int id)
     {
-        var user = await _userRepository.GetByIdAsync(id);
+        var user = await _unitOfWork.Users.GetByIdAsync(id);
         return user != null ? MapToUserDto(user) : null;
     }
 
     public async Task<UserDto?> GetByUsernameAsync(string username)
     {
-        var user = await _userRepository.GetByUsernameAsync(username);
+        var user = await _unitOfWork.Users.GetByUsernameAsync(username);
         return user != null ? MapToUserDto(user) : null;
     }
 
@@ -85,7 +95,7 @@ public class UserService : IUserService
         int? openingScheduleId,
         int? scheduleId)
     {
-        var existingUser = await _userRepository.GetByIdAsync(userId);
+        var existingUser = await _unitOfWork.Users.GetByIdAsync(userId);
 
         if (existingUser == null)
         {
@@ -121,7 +131,7 @@ public class UserService : IUserService
             // Kiểm tra trùng lặp username mới (nếu có thay đổi)
             if (existingUser.username != username)
             {
-                var userWithSameUsername = await _userRepository.GetByUsernameAsync(username);
+                var userWithSameUsername = await _unitOfWork.Users.GetByUsernameAsync(username);
                 if (userWithSameUsername != null && userWithSameUsername.user_id != userId)
                 {
                     throw new ArgumentException($"Username '{username}' already exists for another user.");
@@ -161,7 +171,7 @@ public class UserService : IUserService
         {
             if (existingUser.role_id != roleId.Value)
             {
-                var roleExists = await _roleRepository.GetByIdAsync(roleId.Value);
+                var roleExists = await _unitOfWork.Roles.GetByIdAsync(roleId.Value);
                 if (roleExists == null)
                 {
                     throw new KeyNotFoundException($"Role with ID {roleId.Value} not found for update.");
@@ -179,7 +189,7 @@ public class UserService : IUserService
         {
             if (existingUser.statistic_id != statisticId.Value)
             {
-                var statisticExists = await _statisticRepository.GetByIdAsync(statisticId.Value);
+                var statisticExists = await _unitOfWork.Statistics.GetByIdAsync(statisticId.Value);
                 if (statisticExists == null)
                 {
                     throw new KeyNotFoundException($"Statistic with ID {statisticId.Value} not found for update.");
@@ -197,7 +207,7 @@ public class UserService : IUserService
         {
             if (existingUser.opening_schedule_id != openingScheduleId.Value)
             {
-                var openingScheduleExists = await _openingScheduleRepository.GetByIdAsync(openingScheduleId.Value);
+                var openingScheduleExists = await _unitOfWork.OpeningSchedules.GetByIdAsync(openingScheduleId.Value);
                 if (openingScheduleExists == null)
                 {
                     throw new KeyNotFoundException($"Opening Schedule with ID {openingScheduleId.Value} not found for update.");
@@ -215,7 +225,7 @@ public class UserService : IUserService
         {
             if (existingUser.schedule_id != scheduleId.Value)
             {
-                var scheduleExists = await _scheduleRepository.GetByIdAsync(scheduleId.Value);
+                var scheduleExists = await _unitOfWork.Schedules.GetByIdAsync(scheduleId.Value);
                 if (scheduleExists == null)
                 {
                     throw new KeyNotFoundException($"Schedule with ID {scheduleId.Value} not found for update.");
@@ -228,12 +238,12 @@ public class UserService : IUserService
             existingUser.schedule_id = null;
         }
 
-        await _userRepository.UpdateAsync(existingUser);
+        await _unitOfWork.Users.UpdateAsync(existingUser);
     }
 
     public async Task<bool> DeleteAsync(int id)
     {
-        var userToDelete = await _userRepository.GetByIdAsync(id);
+        var userToDelete = await _unitOfWork.Users.GetByIdAsync(id);
         if (userToDelete == null)
         {
             return false;
@@ -253,7 +263,7 @@ public class UserService : IUserService
             }
         }
 
-        return await _userRepository.DeleteAsync(id);
+        return await _unitOfWork.Users.DeleteAsync(id);
     }
 
     public async Task<IEnumerable<UserDto>> SearchUsersAsync(string? username = null, string? accountName = null, string? password = null,
@@ -263,7 +273,7 @@ public class UserService : IUserService
         // Quan trọng: KHÔNG NÊN tìm kiếm theo mật khẩu thô trong thực tế.
         // Nếu bạn cần tìm kiếm người dùng, hãy dùng username/account_name/email.
         // Biến `password` ở đây sẽ bị bỏ qua khi thực hiện tìm kiếm trên DB.
-        var users = await _userRepository.SearchUsersAsync(username, accountName, null, address, phoneNumber, isDisabled, createAt, birthday, roleId);
+        var users = await _unitOfWork.Users.SearchUsersAsync(username, accountName, null, address, phoneNumber, isDisabled, createAt, birthday, roleId);
         return users.Select(u => MapToUserDto(u));
     }
 
@@ -305,7 +315,7 @@ public class UserService : IUserService
         // 1. Kiểm tra trùng lặp username VÀ các khóa ngoại trước
         if (!string.IsNullOrEmpty(username))
         {
-            var existingUser = await _userRepository.GetByUsernameAsync(username);
+            var existingUser = await _unitOfWork.Users.GetByUsernameAsync(username);
             if (existingUser != null)
             {
                 throw new ArgumentException($"Username '{username}' already exists.");
@@ -315,7 +325,7 @@ public class UserService : IUserService
         // Kiểm tra khóa ngoại Role
         if (roleId.HasValue)
         {
-            var roleExists = await _roleRepository.GetByIdAsync(roleId.Value);
+            var roleExists = await _unitOfWork.Roles.GetByIdAsync(roleId.Value);
             if (roleExists == null)
             {
                 throw new KeyNotFoundException($"Role with ID {roleId.Value} not found.");
@@ -325,7 +335,7 @@ public class UserService : IUserService
         // ... (Kiểm tra các khóa ngoại khác tương tự) ...
         if (statisticId.HasValue)
         {
-            var statisticExists = await _statisticRepository.GetByIdAsync(statisticId.Value);
+            var statisticExists = await _unitOfWork.Statistics.GetByIdAsync(statisticId.Value);
             if (statisticExists == null)
             {
                 throw new KeyNotFoundException($"Statistic with ID {statisticId.Value} not found.");
@@ -334,7 +344,7 @@ public class UserService : IUserService
 
         if (openingScheduleId.HasValue)
         {
-            var openingScheduleExists = await _openingScheduleRepository.GetByIdAsync(openingScheduleId.Value);
+            var openingScheduleExists = await _unitOfWork.OpeningSchedules.GetByIdAsync(openingScheduleId.Value);
             if (openingScheduleExists == null)
             {
                 throw new KeyNotFoundException($"Opening Schedule with ID {openingScheduleId.Value} not found.");
@@ -343,7 +353,7 @@ public class UserService : IUserService
 
         if (scheduleId.HasValue)
         {
-            var scheduleExists = await _scheduleRepository.GetByIdAsync(scheduleId.Value);
+            var scheduleExists = await _unitOfWork.Schedules.GetByIdAsync(scheduleId.Value);
             if (scheduleExists == null)
             {
                 throw new KeyNotFoundException($"Schedule with ID {scheduleId.Value} not found.");
@@ -371,7 +381,7 @@ public class UserService : IUserService
         // 3. THỬ lưu user vào database trước
         try
         {
-            var addedUser = await _userRepository.AddAsync(userEntity);
+            var addedUser = await _unitOfWork.Users.AddAsync(userEntity);
 
             // 4. Nếu lưu user thành công, MỚI TIẾN HÀNH lưu ảnh
             if (avatarImageFile != null && avatarImageFile.Length > 0)
@@ -390,7 +400,7 @@ public class UserService : IUserService
 
                 // NếuUserRepository.UpdateAsync() yêu cầu cả entity, bạn cần lấy lại entity nếu AsNoTracking
                 // Để đơn giản, giả định _userRepository.UpdateAsync(addedUser) hoạt động.
-                await _userRepository.UpdateAsync(addedUser);
+                await _unitOfWork.Users.UpdateAsync(addedUser);
             }
 
             return MapToUserDto(addedUser);

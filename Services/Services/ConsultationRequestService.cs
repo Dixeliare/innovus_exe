@@ -1,6 +1,7 @@
 using DTOs;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
+using Repository.Basic.UnitOfWork;
 using Repository.Models;
 using Services.IServices;
 
@@ -8,27 +9,34 @@ namespace Services.Services;
 
 public class ConsultationRequestService : IConsultationRequestService
 {
-    private readonly IConsultationRequestRepository _consultationRequestRepository;
-    private readonly IStatisticRepository _statisticRepository; // Inject cho kiểm tra khóa ngoại
-    private readonly IConsultationTopicRepository _consultationTopicRepository; // Inject cho kiểm tra khóa ngoại
-
-    public ConsultationRequestService(IConsultationRequestRepository consultationRequestRepository,
-        IStatisticRepository statisticRepository,
-        IConsultationTopicRepository consultationTopicRepository)
-    {
-        _consultationRequestRepository = consultationRequestRepository;
-        _statisticRepository = statisticRepository;
-        _consultationTopicRepository = consultationTopicRepository;
-    }
+    // private readonly IConsultationRequestRepository _consultationRequestRepository;
+    // private readonly IStatisticRepository _statisticRepository; // Inject cho kiểm tra khóa ngoại
+    // private readonly IConsultationTopicRepository _consultationTopicRepository; // Inject cho kiểm tra khóa ngoại
+    //
+    // public ConsultationRequestService(IConsultationRequestRepository consultationRequestRepository,
+    //     IStatisticRepository statisticRepository,
+    //     IConsultationTopicRepository consultationTopicRepository)
+    // {
+    //     _consultationRequestRepository = consultationRequestRepository;
+    //     _statisticRepository = statisticRepository;
+    //     _consultationTopicRepository = consultationTopicRepository;
+    // }
     
+    private readonly IUnitOfWork _unitOfWork;
+
+    public ConsultationRequestService(IUnitOfWork unitOfWork)
+    {
+        _unitOfWork = unitOfWork;
+    }
+
     public async Task<IEnumerable<consultation_request>> GetAllAsync()
     {
-        return await _consultationRequestRepository.GetAllAsync();
+        return await _unitOfWork.ConsultationRequests.GetAllAsync();
     }
 
     public async Task<consultation_request> GetByIdAsync(int id)
     {
-        return await _consultationRequestRepository.GetByIdAsync(id);
+        return await _unitOfWork.ConsultationRequests.GetByIdAsync(id);
     }
 
     public async Task<ConsultationRequestDto> AddAsync(CreateConsultationRequestDto createConsultationRequestDto)
@@ -36,7 +44,7 @@ public class ConsultationRequestService : IConsultationRequestService
             // Kiểm tra sự tồn tại của các khóa ngoại (nếu chúng được cung cấp)
             if (createConsultationRequestDto.StatisticId.HasValue)
             {
-                var statisticExists = await _statisticRepository.GetByIdAsync(createConsultationRequestDto.StatisticId.Value);
+                var statisticExists = await _unitOfWork.Statistics.GetByIdAsync(createConsultationRequestDto.StatisticId.Value);
                 if (statisticExists == null)
                 {
                     throw new KeyNotFoundException($"Statistic with ID {createConsultationRequestDto.StatisticId} not found.");
@@ -45,7 +53,7 @@ public class ConsultationRequestService : IConsultationRequestService
 
             if (createConsultationRequestDto.ConsultationTopicId.HasValue)
             {
-                var topicExists = await _consultationTopicRepository.GetByIdAsync(createConsultationRequestDto.ConsultationTopicId.Value);
+                var topicExists = await _unitOfWork.ConsultationTopics.GetByIdAsync(createConsultationRequestDto.ConsultationTopicId.Value);
                 if (topicExists == null)
                 {
                     throw new KeyNotFoundException($"Consultation Topic with ID {createConsultationRequestDto.ConsultationTopicId} not found.");
@@ -63,14 +71,14 @@ public class ConsultationRequestService : IConsultationRequestService
                 consultation_topic_id = createConsultationRequestDto.ConsultationTopicId
             };
 
-            var addedRequest = await _consultationRequestRepository.AddAsync(requestEntity);
+            var addedRequest = await _unitOfWork.ConsultationRequests.AddAsync(requestEntity);
             return MapToConsultationRequestDto(addedRequest);
         }
 
         // UPDATE Consultation Request
         public async Task UpdateAsync(UpdateConsultationRequestDto updateConsultationRequestDto)
         {
-            var existingRequest = await _consultationRequestRepository.GetByIdAsync(updateConsultationRequestDto.ConsultationRequestId);
+            var existingRequest = await _unitOfWork.ConsultationRequests.GetByIdAsync(updateConsultationRequestDto.ConsultationRequestId);
 
             if (existingRequest == null)
             {
@@ -102,7 +110,7 @@ public class ConsultationRequestService : IConsultationRequestService
             // Kiểm tra và cập nhật khóa ngoại nếu có giá trị mới được cung cấp
             if (updateConsultationRequestDto.StatisticId.HasValue)
             {
-                var statisticExists = await _statisticRepository.GetByIdAsync(updateConsultationRequestDto.StatisticId.Value);
+                var statisticExists = await _unitOfWork.Statistics.GetByIdAsync(updateConsultationRequestDto.StatisticId.Value);
                 if (statisticExists == null)
                 {
                     throw new KeyNotFoundException($"Statistic with ID {updateConsultationRequestDto.StatisticId} not found for update.");
@@ -118,7 +126,7 @@ public class ConsultationRequestService : IConsultationRequestService
 
             if (updateConsultationRequestDto.ConsultationTopicId.HasValue)
             {
-                var topicExists = await _consultationTopicRepository.GetByIdAsync(updateConsultationRequestDto.ConsultationTopicId.Value);
+                var topicExists = await _unitOfWork.ConsultationTopics.GetByIdAsync(updateConsultationRequestDto.ConsultationTopicId.Value);
                 if (topicExists == null)
                 {
                     throw new KeyNotFoundException($"Consultation Topic with ID {updateConsultationRequestDto.ConsultationTopicId} not found for update.");
@@ -131,18 +139,18 @@ public class ConsultationRequestService : IConsultationRequestService
             }
 
 
-            await _consultationRequestRepository.UpdateAsync(existingRequest);
+            await _unitOfWork.ConsultationRequests.UpdateAsync(existingRequest);
         }
 
     public async Task<bool> DeleteAsync(int id)
     {
-        return await _consultationRequestRepository.DeleteAsync(id);
+        return await _unitOfWork.ConsultationRequests.DeleteAsync(id);
     }
 
     public async Task<IEnumerable<consultation_request>> SearchConsultationRequestsAsync(string? fullname = null, string? contactNumber = null, string? email = null,
         string? note = null, bool? hasContact = null)
     {
-        return await _consultationRequestRepository.SearchConsultationRequestsAsync(fullname , contactNumber, email, note, hasContact);
+        return await _unitOfWork.ConsultationRequests.SearchConsultationRequestsAsync(fullname , contactNumber, email, note, hasContact);
     }
     
     private ConsultationRequestDto MapToConsultationRequestDto(consultation_request model)

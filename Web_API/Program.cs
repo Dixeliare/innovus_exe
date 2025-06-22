@@ -7,6 +7,7 @@ using Microsoft.OpenApi.Models;
 using Repository.Basic;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
+using Repository.Basic.UnitOfWork;
 using Repository.Data;
 using Services.Configurations;
 using Services.IServices;
@@ -38,7 +39,10 @@ builder.Services.AddScoped<IStatisticRepository, StatisticRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+#endregion
 
+#region UnitOfWork
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 #endregion
 
 #region Services

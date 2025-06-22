@@ -2,6 +2,7 @@ using DTOs;
 using Microsoft.AspNetCore.Http;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
+using Repository.Basic.UnitOfWork;
 using Repository.Models;
 using Services.IServices;
 
@@ -9,39 +10,49 @@ namespace Services.Services;
 
 public class SheetMusicService : ISheetMusicService
 {
-    private readonly ISheetMusicRepository _sheetMusicRepository;
-    private readonly ISheetRepository _sheetRepository;
-    private readonly IGenreRepository _genreRepository;
-    private readonly IFileStorageService _fileStorageService; // Inject IFileStorageService
+    // private readonly ISheetMusicRepository _sheetMusicRepository;
+    // private readonly ISheetRepository _sheetRepository;
+    // private readonly IGenreRepository _genreRepository;
+    // private readonly IFileStorageService _fileStorageService; // Inject IFileStorageService
+    //
+    // public SheetMusicService(ISheetMusicRepository sheetMusicRepository,
+    //                          ISheetRepository sheetRepository,
+    //                          IGenreRepository genreRepository,
+    //                          IFileStorageService fileStorageService) // Thêm IFileStorageService vào constructor
+    // {
+    //     _sheetMusicRepository = sheetMusicRepository;
+    //     _sheetRepository = sheetRepository;
+    //     _genreRepository = genreRepository;
+    //     _fileStorageService = fileStorageService; // Khởi tạo
+    // }
 
-    public SheetMusicService(ISheetMusicRepository sheetMusicRepository,
-                             ISheetRepository sheetRepository,
-                             IGenreRepository genreRepository,
-                             IFileStorageService fileStorageService) // Thêm IFileStorageService vào constructor
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IFileStorageService _fileStorageService;
+
+    public SheetMusicService(IUnitOfWork unitOfWork, IFileStorageService fileStorageService)
     {
-        _sheetMusicRepository = sheetMusicRepository;
-        _sheetRepository = sheetRepository;
-        _genreRepository = genreRepository;
-        _fileStorageService = fileStorageService; // Khởi tạo
+        _unitOfWork = unitOfWork;
+        _fileStorageService = fileStorageService;
     }
 
     public async Task<IEnumerable<sheet_music>> GetAllAsync()
     {
-        return await _sheetMusicRepository.GetAllAsync();
+        return await _unitOfWork.SheetMusics.GetAllAsync();
     }
 
     public async Task<sheet_music> GetByIdAsync(int id)
     {
-        return await _sheetMusicRepository.GetByIdAsync(id);
+        return await _unitOfWork.SheetMusics.GetByIdAsync(id);
     }
 
     // Add Sheet Music với file ảnh bìa
-    public async Task<SheetMusicDto> AddAsync(IFormFile coverImageFile, int? number, string? musicName, string composer, int? sheetQuantity, int? favoriteCount, int? sheetId)
+    public async Task<SheetMusicDto> AddAsync(IFormFile coverImageFile, int? number, string? musicName, string composer,
+        int? sheetQuantity, int? favoriteCount, int? sheetId)
     {
         // Kiểm tra sự tồn tại của khóa ngoại SheetId nếu được cung cấp
         if (sheetId.HasValue)
         {
-            var sheetExists = await _sheetRepository.GetByIdAsync(sheetId.Value);
+            var sheetExists = await _unitOfWork.Sheets.GetByIdAsync(sheetId.Value);
             if (sheetExists == null)
             {
                 throw new KeyNotFoundException($"Sheet with ID {sheetId.Value} not found.");
@@ -72,14 +83,15 @@ public class SheetMusicService : ISheetMusicService
             sheet_id = sheetId
         };
 
-        var addedSheetMusic = await _sheetMusicRepository.AddAsync(sheetMusicEntity);
+        var addedSheetMusic = await _unitOfWork.SheetMusics.AddAsync(sheetMusicEntity);
         return MapToSheetMusicDto(addedSheetMusic);
     }
 
     // UPDATE Sheet Music với file ảnh bìa
-    public async Task UpdateAsync(int sheetMusicId, IFormFile? coverImageFile, int? number, string? musicName, string? composer, int? sheetQuantity, int? favoriteCount, int? sheetId)
+    public async Task UpdateAsync(int sheetMusicId, IFormFile? coverImageFile, int? number, string? musicName,
+        string? composer, int? sheetQuantity, int? favoriteCount, int? sheetId)
     {
-        var existingSheetMusic = await _sheetMusicRepository.GetByIdAsync(sheetMusicId);
+        var existingSheetMusic = await _unitOfWork.SheetMusics.GetByIdAsync(sheetMusicId);
 
         if (existingSheetMusic == null)
         {
@@ -107,19 +119,23 @@ public class SheetMusicService : ISheetMusicService
         {
             existingSheetMusic.number = number.Value;
         }
+
         if (!string.IsNullOrEmpty(musicName))
         {
             existingSheetMusic.music_name = musicName;
         }
+
         if (!string.IsNullOrEmpty(composer))
         {
             existingSheetMusic.composer = composer;
         }
+
         // cover_url đã được xử lý ở trên
         if (sheetQuantity.HasValue)
         {
             existingSheetMusic.sheet_quantity = sheetQuantity.Value;
         }
+
         if (favoriteCount.HasValue)
         {
             existingSheetMusic.favorite_count = favoriteCount.Value;
@@ -130,11 +146,12 @@ public class SheetMusicService : ISheetMusicService
         {
             if (existingSheetMusic.sheet_id != sheetId.Value)
             {
-                var sheetExists = await _sheetRepository.GetByIdAsync(sheetId.Value);
+                var sheetExists = await _unitOfWork.Sheets.GetByIdAsync(sheetId.Value);
                 if (sheetExists == null)
                 {
                     throw new KeyNotFoundException($"Sheet with ID {sheetId.Value} not found for update.");
                 }
+
                 existingSheetMusic.sheet_id = sheetId.Value;
             }
         }
@@ -143,12 +160,12 @@ public class SheetMusicService : ISheetMusicService
             existingSheetMusic.sheet_id = null;
         }
 
-        await _sheetMusicRepository.UpdateAsync(existingSheetMusic);
+        await _unitOfWork.SheetMusics.UpdateAsync(existingSheetMusic);
     }
 
     public async Task<bool> DeleteAsync(int id)
     {
-        var sheetMusicToDelete = await _sheetMusicRepository.GetByIdAsync(id);
+        var sheetMusicToDelete = await _unitOfWork.SheetMusics.GetByIdAsync(id);
         if (sheetMusicToDelete == null)
         {
             return false;
@@ -167,28 +184,31 @@ public class SheetMusicService : ISheetMusicService
             }
         }
 
-        return await _sheetMusicRepository.DeleteAsync(id);
+        return await _unitOfWork.SheetMusics.DeleteAsync(id);
     }
 
     public async Task AddGenreToSheetMusicAsync(int sheetMusicId, int genreId)
     {
-        var genreExists = await _genreRepository.GetByIdAsync(genreId);
+        var genreExists = await _unitOfWork.Genres.GetByIdAsync(genreId);
         if (genreExists == null)
         {
             throw new KeyNotFoundException($"Genre with ID {genreId} not found.");
         }
-        await _sheetMusicRepository.AddGenreToSheetMusicAsync(sheetMusicId, genreId);
+
+        await _unitOfWork.SheetMusics.AddGenreToSheetMusicAsync(sheetMusicId, genreId);
     }
 
     public async Task RemoveGenreFromSheetMusicAsync(int sheetMusicId, int genreId)
     {
-        await _sheetMusicRepository.RemoveGenreFromSheetMusicAsync(sheetMusicId, genreId);
+        await _unitOfWork.SheetMusics.RemoveGenreFromSheetMusicAsync(sheetMusicId, genreId);
     }
 
-    public async Task<IEnumerable<sheet_music>> SearchSheetMusicAsync(int? number = null, string? musicName = null, string? composer = null,
+    public async Task<IEnumerable<sheet_music>> SearchSheetMusicAsync(int? number = null, string? musicName = null,
+        string? composer = null,
         int? sheetQuantity = null, int? favoriteCount = null)
     {
-        return await _sheetMusicRepository.SearchSheetMusicAsync(number, musicName, composer, sheetQuantity, favoriteCount);
+        return await _unitOfWork.SheetMusics.SearchSheetMusicAsync(number, musicName, composer, sheetQuantity,
+            favoriteCount);
     }
 
     private SheetMusicDto MapToSheetMusicDto(sheet_music model)

@@ -1,6 +1,7 @@
 using DTOs;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
+using Repository.Basic.UnitOfWork;
 using Repository.Models;
 using Services.IServices;
 
@@ -8,30 +9,37 @@ namespace Services.Services;
 
 public class DocumentService : IDocumentService
 {
-    private readonly IDocumentRepository _documentRepository;
-    private readonly IInstrumentRepository _instrumentRepository; // Inject cho kiểm tra khóa ngoại
-
-    public DocumentService(IDocumentRepository documentRepository,
-        IInstrumentRepository instrumentRepository)
-    {
-        _documentRepository = documentRepository;
-        _instrumentRepository = instrumentRepository;
-    }
+    // private readonly IDocumentRepository _documentRepository;
+    // private readonly IInstrumentRepository _instrumentRepository; // Inject cho kiểm tra khóa ngoại
+    //
+    // public DocumentService(IDocumentRepository documentRepository,
+    //     IInstrumentRepository instrumentRepository)
+    // {
+    //     _documentRepository = documentRepository;
+    //     _instrumentRepository = instrumentRepository;
+    // }
     
+    private readonly IUnitOfWork _unitOfWork;
+
+    public DocumentService(IUnitOfWork unitOfWork)
+    {
+        _unitOfWork = unitOfWork;
+    }
+
     public async Task<IEnumerable<document>> GetAllAsync()
     {
-        return await _documentRepository.GetAllAsync();
+        return await _unitOfWork.Documents.GetAllAsync();
     }
 
     public async Task<document> GetByIdAsync(int id)
     {
-        return await _documentRepository.GetByIdAsync(id);
+        return await _unitOfWork.Documents.GetByIdAsync(id);
     }
 
     public async Task<DocumentDto> AddAsync(CreateDocumentDto createDocumentDto)
         {
             // Kiểm tra sự tồn tại của khóa ngoại Instrument
-            var instrumentExists = await _instrumentRepository.GetByIdAsync(createDocumentDto.InstrumentId);
+            var instrumentExists = await _unitOfWork.Instruments.GetByIdAsync(createDocumentDto.InstrumentId);
             if (instrumentExists == null)
             {
                 throw new KeyNotFoundException($"Instrument with ID {createDocumentDto.InstrumentId} not found.");
@@ -45,14 +53,14 @@ public class DocumentService : IDocumentService
                 instrument_id = createDocumentDto.InstrumentId
             };
 
-            var addedDocument = await _documentRepository.AddAsync(documentEntity);
+            var addedDocument = await _unitOfWork.Documents.AddAsync(documentEntity);
             return MapToDocumentDto(addedDocument);
         }
 
         // UPDATE Document
         public async Task UpdateAsync(UpdateDocumentDto updateDocumentDto)
         {
-            var existingDocument = await _documentRepository.GetByIdAsync(updateDocumentDto.DocumentId);
+            var existingDocument = await _unitOfWork.Documents.GetByIdAsync(updateDocumentDto.DocumentId);
 
             if (existingDocument == null)
             {
@@ -76,7 +84,7 @@ public class DocumentService : IDocumentService
             // Kiểm tra và cập nhật khóa ngoại Instrument nếu có giá trị mới được cung cấp
             if (updateDocumentDto.InstrumentId.HasValue && updateDocumentDto.InstrumentId.Value != existingDocument.instrument_id)
             {
-                var instrumentExists = await _instrumentRepository.GetByIdAsync(updateDocumentDto.InstrumentId.Value);
+                var instrumentExists = await _unitOfWork.Instruments.GetByIdAsync(updateDocumentDto.InstrumentId.Value);
                 if (instrumentExists == null)
                 {
                     throw new KeyNotFoundException($"Instrument with ID {updateDocumentDto.InstrumentId} not found for update.");
@@ -84,17 +92,17 @@ public class DocumentService : IDocumentService
                 existingDocument.instrument_id = updateDocumentDto.InstrumentId.Value;
             }
 
-            await _documentRepository.UpdateAsync(existingDocument);
+            await _unitOfWork.Documents.UpdateAsync(existingDocument);
         }
 
     public async Task<bool> DeleteAsync(int id)
     {
-        return await _documentRepository.DeleteAsync(id);
+        return await _unitOfWork.Documents.DeleteAsync(id);
     }
 
     public async Task<IEnumerable<document>> SearchDocumentsAsync(int? lesson = null, string? lessonName = null, string? link = null, int? instrumentId = null)
     {
-        return await _documentRepository.SearchDocumentsAsync(lesson, lessonName, link, instrumentId);
+        return await _unitOfWork.Documents.SearchDocumentsAsync(lesson, lessonName, link, instrumentId);
     }
     
     private DocumentDto MapToDocumentDto(document model)

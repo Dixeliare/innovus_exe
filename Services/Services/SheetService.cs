@@ -2,6 +2,7 @@ using DTOs;
 using Microsoft.AspNetCore.Http;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
+using Repository.Basic.UnitOfWork;
 using Repository.Models;
 using Services.IServices;
 
@@ -9,34 +10,43 @@ namespace Services.Services;
 
 public class SheetService : ISheetService
 {
-    private readonly ISheetRepository _sheetRepository;
-    private readonly ISheetMusicRepository _sheetMusicRepository;
-    private readonly IFileStorageService _fileStorageService; // Inject IFileStorageService
+    // private readonly ISheetRepository _sheetRepository;
+    // private readonly ISheetMusicRepository _sheetMusicRepository;
+    // private readonly IFileStorageService _fileStorageService; // Inject IFileStorageService
+    //
+    // public SheetService(ISheetRepository sheetRepository,
+    //                     ISheetMusicRepository sheetMusicRepository,
+    //                     IFileStorageService fileStorageService) // Thêm IFileStorageService vào constructor
+    // {
+    //     _sheetRepository = sheetRepository;
+    //     _sheetMusicRepository = sheetMusicRepository;
+    //     _fileStorageService = fileStorageService; // Khởi tạo
+    // }
+    
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IFileStorageService _fileStorageService;
 
-    public SheetService(ISheetRepository sheetRepository,
-                        ISheetMusicRepository sheetMusicRepository,
-                        IFileStorageService fileStorageService) // Thêm IFileStorageService vào constructor
+    public SheetService(IUnitOfWork unitOfWork, IFileStorageService fileStorageService)
     {
-        _sheetRepository = sheetRepository;
-        _sheetMusicRepository = sheetMusicRepository;
-        _fileStorageService = fileStorageService; // Khởi tạo
+        _unitOfWork = unitOfWork;
+        _fileStorageService = fileStorageService;
     }
 
     public async Task<IEnumerable<sheet>> GetAllAsync()
     {
-        return await _sheetRepository.GetAllAsync();
+        return await _unitOfWork.Sheets.GetAllAsync();
     }
 
     public async Task<sheet> GetByIdAsync(int id)
     {
-        return await _sheetRepository.GetByIdAsync(id);
+        return await _unitOfWork.Sheets.GetByIdAsync(id);
     }
 
     // Add Sheet với file ảnh
     public async Task<SheetDto> AddAsync(IFormFile sheetFile, int sheetMusicId)
     {
         // Kiểm tra sự tồn tại của khóa ngoại SheetMusic
-        var sheetMusicExists = await _sheetMusicRepository.GetByIdAsync(sheetMusicId);
+        var sheetMusicExists = await _unitOfWork.SheetMusics.GetByIdAsync(sheetMusicId);
         if (sheetMusicExists == null)
         {
             throw new KeyNotFoundException($"Sheet Music with ID {sheetMusicId} not found.");
@@ -65,14 +75,14 @@ public class SheetService : ISheetService
             sheet_music = sheetMusicExists
         };
 
-        var addedSheet = await _sheetRepository.AddAsync(sheetEntity);
+        var addedSheet = await _unitOfWork.Sheets.AddAsync(sheetEntity);
         return MapToSheetDto(addedSheet);
     }
 
     // UPDATE Sheet với file ảnh
     public async Task UpdateAsync(int sheetId, IFormFile? sheetFile, int? sheetMusicId)
     {
-        var existingSheet = await _sheetRepository.GetByIdAsync(sheetId);
+        var existingSheet = await _unitOfWork.Sheets.GetByIdAsync(sheetId);
 
         if (existingSheet == null)
         {
@@ -100,7 +110,7 @@ public class SheetService : ISheetService
         {
             if (existingSheet.sheet_music?.sheet_music_id != sheetMusicId.Value)
             {
-                var sheetMusicExists = await _sheetMusicRepository.GetByIdAsync(sheetMusicId.Value);
+                var sheetMusicExists = await _unitOfWork.SheetMusics.GetByIdAsync(sheetMusicId.Value);
                 if (sheetMusicExists == null)
                 {
                     throw new KeyNotFoundException($"Sheet Music with ID {sheetMusicId.Value} not found for update.");
@@ -115,13 +125,13 @@ public class SheetService : ISheetService
         //     // Tạm thời bỏ qua phần này vì bạn không muốn chỉnh sửa Model.
         // }
 
-        await _sheetRepository.UpdateAsync(existingSheet);
+        await _unitOfWork.Sheets.UpdateAsync(existingSheet);
     }
 
     // Delete Sheet
     public async Task<bool> DeleteAsync(int id)
     {
-        var sheetToDelete = await _sheetRepository.GetByIdAsync(id);
+        var sheetToDelete = await _unitOfWork.Sheets.GetByIdAsync(id);
         if (sheetToDelete == null)
         {
             return false; // Không tìm thấy để xóa
@@ -142,7 +152,7 @@ public class SheetService : ISheetService
             }
         }
 
-        return await _sheetRepository.DeleteAsync(id);
+        return await _unitOfWork.Sheets.DeleteAsync(id);
     }
 
     private SheetDto MapToSheetDto(sheet model)

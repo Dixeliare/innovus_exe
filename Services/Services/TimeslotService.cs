@@ -1,6 +1,7 @@
 using DTOs;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
+using Repository.Basic.UnitOfWork;
 using Repository.Models;
 using Services.IServices;
 
@@ -8,23 +9,30 @@ namespace Services.Services;
 
 public class TimeslotService : ITimeslotService
 {
-    private readonly ITimeslotRepository _timeslotRepository;
+    // private readonly ITimeslotRepository _timeslotRepository;
+    //
+    // public TimeslotService(ITimeslotRepository timeslotRepository) => _timeslotRepository = timeslotRepository;
     
-    public TimeslotService(ITimeslotRepository timeslotRepository) => _timeslotRepository = timeslotRepository;
-    
+    private readonly IUnitOfWork _unitOfWork;
+
+    public TimeslotService(IUnitOfWork unitOfWork)
+    {
+        _unitOfWork = unitOfWork;
+    }
+
     public async Task<IEnumerable<timeslot>> GetAllAsync()
     {
-        return await _timeslotRepository.GetAllAsync();
+        return await _unitOfWork.Timeslots.GetAllAsync();
     }
 
     public async Task<timeslot> GetByIDAsync(int id)
     {
-        return await _timeslotRepository.GetByIdAsync(id);
+        return await _unitOfWork.Timeslots.GetByIdAsync(id);
     }
 
     public async Task<IEnumerable<timeslot>> SearchByStartTimeOrEndTimeAsync(TimeOnly? startTime, TimeOnly? endTime)
     {
-        return await _timeslotRepository.SearchTimeslotsAsync(startTime, endTime);
+        return await _unitOfWork.Timeslots.SearchTimeslotsAsync(startTime, endTime);
     }
 
     public async Task<TimeslotDto> AddAsync(CreateTimeslotDto createTimeslotDto)
@@ -41,14 +49,14 @@ public class TimeslotService : ITimeslotService
             end_time = createTimeslotDto.EndTime
         };
 
-        var addedTimeslot = await _timeslotRepository.AddAsync(timeslotEntity);
+        var addedTimeslot = await _unitOfWork.Timeslots.AddAsync(timeslotEntity);
         return MapToTimeslotDto(addedTimeslot);
     }
 
     // UPDATE Timeslot
     public async Task UpdateAsync(UpdateTimeslotDto updateTimeslotDto)
     {
-        var existingTimeslot = await _timeslotRepository.GetByIdAsync(updateTimeslotDto.TimeslotId);
+        var existingTimeslot = await _unitOfWork.Timeslots.GetByIdAsync(updateTimeslotDto.TimeslotId);
 
         if (existingTimeslot == null)
         {
@@ -71,12 +79,12 @@ public class TimeslotService : ITimeslotService
             throw new ArgumentException("Updated End Time must be after updated Start Time.");
         }
 
-        await _timeslotRepository.UpdateAsync(existingTimeslot);
+        await _unitOfWork.Timeslots.UpdateAsync(existingTimeslot);
     }
 
     public async Task<bool> DeleteAsync(int timeslotId)
     {
-        return await _timeslotRepository.DeleteAsync(timeslotId);
+        return await _unitOfWork.Timeslots.DeleteAsync(timeslotId);
     }
     
     private TimeslotDto MapToTimeslotDto(timeslot model)

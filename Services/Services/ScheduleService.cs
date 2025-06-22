@@ -1,6 +1,7 @@
 using DTOs;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
+using Repository.Basic.UnitOfWork;
 using Repository.Data;
 using Repository.Models;
 using Services.IServices;
@@ -9,7 +10,9 @@ namespace Services.Services;
 
 public class ScheduleService : IScheduleService
 {
-    private readonly IScheduleRepository _scheduleRepository;
+    // private readonly IScheduleRepository _scheduleRepository;
+
+    private readonly IUnitOfWork _unitOfWork;
 
     // Số tháng lịch trình cần duy trì trong tương lai
     private const int MONTHS_TO_ENSURE_IN_FUTURE = 6;
@@ -18,26 +21,31 @@ public class ScheduleService : IScheduleService
     private const int MONTHS_TO_KEEP_OLD = 3;
 
 
-    public ScheduleService(IScheduleRepository scheduleRepository) => _scheduleRepository = scheduleRepository;
+    // public ScheduleService(IScheduleRepository scheduleRepository) => _scheduleRepository = scheduleRepository;
+
+    public ScheduleService(IUnitOfWork unitOfWork)
+    {
+        _unitOfWork = unitOfWork;
+    }
 
     public async Task<List<schedule>> GetAllAsync()
     {
-        return await _scheduleRepository.GetAllAsync();
+        return await _unitOfWork.Schedules.GetAllAsync();
     }
 
     public async Task<schedule> GetByIDAsync(int id)
     {
-        return await _scheduleRepository.GetByIDAsync(id);
+        return await _unitOfWork.Schedules.GetByIDAsync(id);
     }
 
     public async Task<List<schedule>> SearchByIdOrNoteAsync(int? id, string? note)
     {
-        return await _scheduleRepository.SearchByIdOrNoteAsync(id, note);
+        return await _unitOfWork.Schedules.SearchByIdOrNoteAsync(id, note);
     }
 
     public async Task<List<schedule>> SearchByMonthYearAsync(int? month, int? year)
     {
-        return await _scheduleRepository.SearchByMonthYearAsync(month, year);
+        return await _unitOfWork.Schedules.SearchByMonthYearAsync(month, year);
     }
 
     public async Task<ScheduleDto> AddAsync(CreateScheduleDto createScheduleDto)
@@ -53,14 +61,14 @@ public class ScheduleService : IScheduleService
             // KHÔNG gán user_id ở đây
         };
 
-        var addedSchedule = await _scheduleRepository.AddAsync(scheduleEntity);
+        var addedSchedule = await _unitOfWork.Schedules.AddAsync(scheduleEntity);
         return MapToScheduleDto(addedSchedule);
     }
 
     // UPDATE Schedule
     public async Task UpdateAsync(UpdateScheduleDto updateScheduleDto)
     {
-        var existingSchedule = await _scheduleRepository.GetByIDAsync(updateScheduleDto.ScheduleId);
+        var existingSchedule = await _unitOfWork.Schedules.GetByIDAsync(updateScheduleDto.ScheduleId);
 
         if (existingSchedule == null)
         {
@@ -87,12 +95,12 @@ public class ScheduleService : IScheduleService
 
         // KHÔNG kiểm tra hay cập nhật UserId ở đây
 
-        await _scheduleRepository.UpdateAsync(existingSchedule);
+        await _unitOfWork.Schedules.UpdateAsync(existingSchedule);
     }
 
     public async Task<bool> DeleteAsync(int scheduleId)
     {
-        return await _scheduleRepository.DeleteAsync(scheduleId);
+        return await _unitOfWork.Schedules.DeleteAsync(scheduleId);
     }
 
 
@@ -129,7 +137,7 @@ public class ScheduleService : IScheduleService
 
             // Kiểm tra xem schedule cho tháng/năm này đã tồn tại chưa
             var existingSchedule =
-                await _scheduleRepository.SearchByMonthYearAsync(targetMonthYear.Month, targetMonthYear.Year);
+                await _unitOfWork.Schedules.SearchByMonthYearAsync(targetMonthYear.Month, targetMonthYear.Year);
 
             if (existingSchedule == null || !existingSchedule.Any())
             {
@@ -151,7 +159,7 @@ public class ScheduleService : IScheduleService
             // Hoặc lặp qua và gọi CreateSchedule từng cái một
             foreach (var s in schedulesToAdd)
             {
-                await _scheduleRepository.AddAsync(s);
+                await _unitOfWork.Schedules.AddAsync(s);
             }
 
             Console.WriteLine($"[ScheduleService] - Created {schedulesToAdd.Count} new schedules.");
@@ -174,7 +182,7 @@ public class ScheduleService : IScheduleService
         // Tìm tất cả các schedule cũ hơn mốc thời gian đã định
         // Lưu ý: DbContext.RemoveRange cần các thực thể được theo dõi (tracked entities)
         var oldSchedules =
-            await _scheduleRepository
+            await _unitOfWork.Schedules
                 .GetAllAsync(); // Lấy tất cả để lọc trên bộ nhớ (hoặc dùng FindAsync nếu có nhiều bản ghi)
         oldSchedules = oldSchedules
             .Where(s => s.month_year.HasValue && s.month_year.Value < cutoffDate)
@@ -186,7 +194,7 @@ public class ScheduleService : IScheduleService
                 $"[ScheduleService] - Found {oldSchedules.Count} old schedules to delete before {cutoffDate.Month}/{cutoffDate.Year}.");
             foreach (var s in oldSchedules)
             {
-                await _scheduleRepository.DeleteAsync(s.schedule_id); // Gọi hàm DeleteAsync của repo
+                await _unitOfWork.Schedules.DeleteAsync(s.schedule_id); // Gọi hàm DeleteAsync của repo
             }
 
             Console.WriteLine($"[ScheduleService] - Deleted {oldSchedules.Count} old schedules.");
