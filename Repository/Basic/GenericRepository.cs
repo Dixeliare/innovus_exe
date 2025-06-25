@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Repository.Data;
 
@@ -47,6 +48,16 @@ public class GenericRepository<T> : IGenericRepository<T> where T : class
     public async Task<T> GetByIdAsync(int id)
     {
         return await _dbSet.FindAsync(id);
+    }
+    
+    public async Task<T?> FindOneAsync(Expression<Func<T, bool>> predicate)
+    {
+        return await _dbSet.FirstOrDefaultAsync(predicate);
+    }
+    
+    public async Task<bool> AnyAsync(Expression<Func<T, bool>> predicate)
+    {
+        return await _dbSet.AnyAsync(predicate);
     }
 
 }

@@ -2,11 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using DTOs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Repository.Data;
 using Repository.Models;
+using Services.Exceptions;
+using Services.IServices;
 
 namespace Web_API.Controllers
 {
@@ -14,95 +17,64 @@ namespace Web_API.Controllers
     [ApiController]
     public class StatisticController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly IStatisticService _statisticService;
 
-        public StatisticController(AppDbContext context)
+        public StatisticController(IStatisticService statisticService)
         {
-            _context = context;
+            _statisticService = statisticService;
         }
 
         // GET: api/Statistic
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<statistic>>> Getstatistics()
+        public async Task<ActionResult<IEnumerable<statistic>>> GetStatistic()
         {
-            return await _context.statistics.ToListAsync();
+            var statistics = await _statisticService.GetAllAsync();
+            return Ok(statistics);
         }
 
         // GET: api/Statistic/5
         [HttpGet("{id}")]
         public async Task<ActionResult<statistic>> Getstatistic(int id)
         {
-            var statistic = await _context.statistics.FindAsync(id);
-
-            if (statistic == null)
-            {
-                return NotFound();
-            }
-
-            return statistic;
+            var statistic = await _statisticService.GetByIdAsync(id);
+            return Ok(statistic);
         }
 
         // PUT: api/Statistic/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
-        public async Task<IActionResult> Putstatistic(int id, statistic statistic)
+        public async Task<IActionResult> Putstatistic(int id, [FromBody] UpdateStatisticDto updateStatisticDto)
         {
-            if (id != statistic.statistic_id)
+            if (id != updateStatisticDto.StatisticId)
             {
-                return BadRequest();
-            }
-
-            _context.Entry(statistic).State = EntityState.Modified;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!statisticExists(id))
+                // Ném ValidationException thay vì BadRequest
+                throw new ValidationException(new Dictionary<string, string[]>
                 {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                    { "StatisticId", new string[] { "ID thống kê trong URL không khớp với ID trong body." } }
+                });
             }
 
+            // XÓA KHỐI TRY-CATCH VÀ LOGIC CHECK statisticsExists NÀY!
+            await _statisticService.UpdateAsync(updateStatisticDto);
             return NoContent();
         }
 
         // POST: api/Statistic
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<statistic>> Poststatistic(statistic statistic)
+        public async Task<ActionResult<statistic>> Poststatistic([FromBody] CreateStatisticDto createStatisticDto)
         {
-            _context.statistics.Add(statistic);
-            await _context.SaveChangesAsync();
+            var createdStatistic = await _statisticService.AddAsync(createStatisticDto);
+            return CreatedAtAction(nameof(GetStatistic), new { id = createdStatistic.StatisticId }, createdStatistic);
 
-            return CreatedAtAction("Getstatistic", new { id = statistic.statistic_id }, statistic);
         }
 
         // DELETE: api/Statistic/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> Deletestatistic(int id)
         {
-            var statistic = await _context.statistics.FindAsync(id);
-            if (statistic == null)
-            {
-                return NotFound();
-            }
-
-            _context.statistics.Remove(statistic);
-            await _context.SaveChangesAsync();
-
+            await _statisticService.DeleteAsync(id);
             return NoContent();
-        }
-
-        private bool statisticExists(int id)
-        {
-            return _context.statistics.Any(e => e.statistic_id == id);
         }
     }
 }

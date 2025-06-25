@@ -5,10 +5,10 @@ namespace Services.IServices;
 
 public interface IGenreService
 {
-    Task<IEnumerable<genre>> GetAllAsync();
-    Task<genre> GetByIdAsync(int id);
+    Task<IEnumerable<GenreDto>> GetAllAsync();
+    Task<GenreDto> GetByIdAsync(int id);
     Task<GenreDto> AddAsync(CreateGenreDto createGenreDto);
     Task UpdateAsync(UpdateGenreDto updateGenreDto);
-    Task<bool> DeleteAsync(int id);
-    Task<IEnumerable<genre>> SearchGenresAsync(string? genreName = null);
+    Task DeleteAsync(int id);
+    Task<IEnumerable<GenreDto>> SearchGenresAsync(string? genreName = null);
 }

@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Repository.Basic.IRepositories;
 using Repository.Data;
@@ -20,6 +21,11 @@ public class RoleRepository : GenericRepository<role>, IRoleRepository
     public async Task<role?> GetByIdAsync(int id)
     {
         return await _dbSet.AsNoTracking().FirstOrDefaultAsync(r => r.role_id == id);
+    }
+    
+    public async Task<role?> FindOneAsync(Expression<Func<role, bool>> predicate)
+    {
+        return await _dbSet.FirstOrDefaultAsync(predicate);
     }
 
     // public async Task<role> AddAsync(role entity)

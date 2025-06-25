@@ -1,8 +1,11 @@
+using System.Net;
 using DTOs;
+using Microsoft.EntityFrameworkCore;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Basic.UnitOfWork;
 using Repository.Models;
+using Services.Exceptions;
 using Services.IServices;
 
 namespace Services.Services;
@@ -20,58 +23,171 @@ public class ClassService : IClassService
         _unitOfWork = unitOfWork;
     }
 
-    public async Task<IEnumerable<_class>> GetAll()
+    public async Task<IEnumerable<ClassDto>> GetAllAsync()
     {
-        return await _unitOfWork.Classes.GetAll();
+        var classes = await _unitOfWork.Classes.GetAllAsync();
+        return classes.Select(MapToClassDto);
     }
 
-    public async Task<_class> GetById(int id)
+    public async Task<ClassDto> GetByIdAsync(int id)
     {
-        return await _unitOfWork.Classes.GetById(id);
+        var cls = await _unitOfWork.Classes.GetByIdAsync(id);
+        if (cls == null)
+        {
+            throw new NotFoundException("Class", "Id", id);
+        }
+        return MapToClassDto(cls);
     }
 
     public async Task<ClassDto> AddAsync(CreateClassDto createClassDto)
     {
-        // Ánh xạ từ CreateClassDto sang Model _class
+        var instrumentExists = await _unitOfWork.Instruments.GetByIdAsync(createClassDto.InstrumentId);
+        if (instrumentExists == null)
+        {
+            throw new NotFoundException("Instrument", "Id", createClassDto.InstrumentId);
+        }
+
+        if (!string.IsNullOrEmpty(createClassDto.ClassCode))
+        {
+            var existingClass = await _unitOfWork.Classes.FindOneAsync(
+                c => c.class_code != null && c.class_code.ToLower() == createClassDto.ClassCode.ToLower());
+            if (existingClass != null)
+            {
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "ClassCode", new[] { $"Mã lớp học '{createClassDto.ClassCode}' đã tồn tại." } } // Sử dụng new[] thay vì new string[]
+                });
+            }
+        }
+
         var classEntity = new _class
         {
             class_code = createClassDto.ClassCode,
             instrument_id = createClassDto.InstrumentId
-            // Các navigation properties (class_sessions, users) không cần thiết khi tạo mới
         };
 
-        var addedClass = await _unitOfWork.Classes.AddAsync(classEntity);
-        return MapToClassDto(addedClass); // Ánh xạ từ Model đã thêm sang ClassDto
+        try
+        {
+            var addedClass = await _unitOfWork.Classes.AddAsync(classEntity);
+            await _unitOfWork.CompleteAsync();
+            return MapToClassDto(addedClass);
+        }
+        catch (DbUpdateException dbEx)
+        {
+            throw new ApiException("Có lỗi xảy ra khi thêm lớp học vào cơ sở dữ liệu.", dbEx, (int)HttpStatusCode.InternalServerError);
+        }
+        catch (Exception ex)
+        {
+            throw new ApiException("An unexpected error occurred while adding the class.", ex, (int)HttpStatusCode.InternalServerError);
+        }
     }
 
-    // Method UpdateAsync (PUT)
     public async Task UpdateAsync(UpdateClassDto updateClassDto)
     {
-        // Lấy entity hiện có từ DB để đảm bảo theo dõi bởi DbContext
         var existingClass = await _unitOfWork.Classes.GetByIdAsync(updateClassDto.ClassId);
 
         if (existingClass == null)
         {
-            // Xử lý trường hợp không tìm thấy lớp học
-            throw new KeyNotFoundException($"Class with ID {updateClassDto.ClassId} not found.");
+            throw new NotFoundException("Class", "Id", updateClassDto.ClassId);
         }
 
-        // Cập nhật các thuộc tính từ UpdateClassDto sang entity hiện có
-        existingClass.class_code = updateClassDto.ClassCode;
-        existingClass.instrument_id = updateClassDto.InstrumentId;
-        // Không cập nhật navigation properties ở đây nếu bạn không muốn thay đổi mối quan hệ
+        // Kiểm tra và cập nhật InstrumentId nếu có giá trị mới được cung cấp và khác giá trị cũ
+        // Đảm bảo updateClassDto.InstrumentId có giá trị trước khi truy cập .Value
+        if (updateClassDto.InstrumentId.HasValue && updateClassDto.InstrumentId.Value != existingClass.instrument_id)
+        {
+            var instrumentExists = await _unitOfWork.Instruments.GetByIdAsync(updateClassDto.InstrumentId.Value);
+            if (instrumentExists == null)
+            {
+                throw new NotFoundException("Instrument", "Id", updateClassDto.InstrumentId.Value);
+            }
+            existingClass.instrument_id = updateClassDto.InstrumentId.Value;
+        }
+        // Nếu client gửi null cho InstrumentId (và nó là nullable trong DB), bạn có thể gán null:
+        // else if (updateClassDto.InstrumentId == null)
+        // {
+        //     existingClass.instrument_id = null; // Chỉ làm điều này nếu instrument_id trong model là nullable
+        // }
 
-        await _unitOfWork.Classes.UpdateAsync(existingClass);
+
+        // Kiểm tra tính duy nhất của ClassCode nếu ClassCode được cập nhật và khác giá trị cũ
+        // Cần kiểm tra null cho updateClassDto.ClassCode trước khi gọi ToLower()
+        if (!string.IsNullOrEmpty(updateClassDto.ClassCode) && updateClassDto.ClassCode.ToLower() != existingClass.class_code?.ToLower())
+        {
+            var classWithSameCode = await _unitOfWork.Classes.FindOneAsync(
+                c => c.class_code != null && c.class_code.ToLower() == updateClassDto.ClassCode.ToLower());
+            if (classWithSameCode != null && classWithSameCode.class_id != updateClassDto.ClassId)
+            {
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "ClassCode", new[] { $"Mã lớp học '{updateClassDto.ClassCode}' đã được sử dụng bởi một lớp học khác." } }
+                });
+            }
+            existingClass.class_code = updateClassDto.ClassCode;
+        }
+        // Nếu bạn muốn cho phép gán null cho class_code (nếu DB cho phép), bạn có thể thêm:
+        // else if (updateClassDto.ClassCode == null)
+        // {
+        //     existingClass.class_code = null;
+        // }
+
+        try
+        {
+            await _unitOfWork.Classes.UpdateAsync(existingClass);
+            await _unitOfWork.CompleteAsync();
+        }
+        catch (DbUpdateException dbEx)
+        {
+            throw new ApiException("Có lỗi xảy ra khi cập nhật lớp học trong cơ sở dữ liệu.", dbEx, (int)HttpStatusCode.InternalServerError);
+        }
+        catch (Exception ex)
+        {
+            throw new ApiException("An unexpected error occurred while updating the class.", ex, (int)HttpStatusCode.InternalServerError);
+        }
     }
 
-    public async Task<bool> DeleteAsync(int id)
+    public async Task DeleteAsync(int id)
     {
-        return await _unitOfWork.Classes.DeleteAsync(id);
+        var classToDelete = await _unitOfWork.Classes.GetByIdAsync(id);
+        if (classToDelete == null)
+        {
+            throw new NotFoundException("Class", "Id", id);
+        }
+
+        try
+        {
+            var hasRelatedSessions = await _unitOfWork.ClassSessions.AnyAsync(cs => cs.class_id == id);
+            if (hasRelatedSessions)
+            {
+                throw new ApiException("Không thể xóa lớp học này vì có các buổi học liên quan.", null, (int)HttpStatusCode.Conflict);
+            }
+
+            // Kiểm tra xem có bất kỳ user nào liên quan đến lớp này không
+            // Đây là cách kiểm tra cho mối quan hệ Many-to-Many
+            // Đảm bảo rằng Users Repository của bạn có phương thức Find/Any có thể thực hiện Join hoặc Include để kiểm tra.
+            // Hoặc bạn có thể cần một repo riêng cho bảng user_class nếu có.
+            var hasRelatedUsers = await _unitOfWork.Users.AnyAsync(u => u.classes.Any(c => c.class_id == id));
+            if (hasRelatedUsers)
+            {
+                throw new ApiException("Không thể xóa lớp học này vì có người dùng (học viên/giáo viên) đang tham gia lớp.", null, (int)HttpStatusCode.Conflict);
+            }
+
+            await _unitOfWork.Classes.DeleteAsync(id);
+            await _unitOfWork.CompleteAsync();
+        }
+        catch (DbUpdateException dbEx)
+        {
+            throw new ApiException("Có lỗi xảy ra khi xóa lớp học khỏi cơ sở dữ liệu.", dbEx, (int)HttpStatusCode.InternalServerError);
+        }
+        catch (Exception ex)
+        {
+            throw new ApiException("An unexpected error occurred while deleting the class.", ex, (int)HttpStatusCode.InternalServerError);
+        }
     }
 
-    public async Task<IEnumerable<_class>> SearchClassesAsync(int? instrumentId = null, string? classCode = null)
+    public async Task<IEnumerable<ClassDto>> SearchClassesAsync(int? instrumentId = null, string? classCode = null)
     {
-        return await _unitOfWork.Classes.SearchClassesAsync(instrumentId, classCode);
+        var classes = await _unitOfWork.Classes.SearchClassesAsync(instrumentId, classCode);
+        return classes.Select(MapToClassDto);
     }
     
     private ClassDto MapToClassDto(_class cls)

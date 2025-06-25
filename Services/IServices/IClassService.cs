@@ -5,10 +5,10 @@ namespace Services.IServices;
 
 public interface IClassService
 {
-    Task<IEnumerable<_class>> GetAll();
-    Task<_class> GetById(int id);
+    Task<IEnumerable<ClassDto>> GetAllAsync();
+    Task<ClassDto> GetByIdAsync(int id);
     Task<ClassDto> AddAsync(CreateClassDto createClassDto);
     Task UpdateAsync(UpdateClassDto updateClassDto);
-    Task<bool> DeleteAsync(int id);
-    Task<IEnumerable<_class>> SearchClassesAsync(int? instrumentId = null, string? classCode = null);
+    Task DeleteAsync(int id);
+    Task<IEnumerable<ClassDto>> SearchClassesAsync(int? instrumentId = null, string? classCode = null);
 }

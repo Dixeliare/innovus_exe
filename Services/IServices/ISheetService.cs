@@ -12,13 +12,13 @@ public interface ISheetService
     // Task UpdateAsync(UpdateSheetDto updateSheetDto);
     // Task<bool> DeleteAsync(int id);
     
-    Task<IEnumerable<sheet>> GetAllAsync();
-    Task<sheet> GetByIdAsync(int id);
+    Task<IEnumerable<SheetDto>> GetAllAsync();
+    Task<SheetDto> GetByIdAsync(int id);
     // Thay đổi AddAsync để nhận IFormFile
     Task<SheetDto> AddAsync(IFormFile sheetFile, int sheetMusicId); // Hoặc CreateSheetDto nếu bạn muốn giữ DTO
 
     // Thay đổi UpdateAsync để nhận IFormFile
     Task UpdateAsync(int sheetId, IFormFile? sheetFile, int? sheetMusicId); // Hoặc UpdateSheetDto nếu bạn muốn giữ DTO
 
-    Task<bool> DeleteAsync(int id);
+    Task DeleteAsync(int id);
 }
