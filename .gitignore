@@ -16,6 +16,8 @@ bld/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
+# Thêm dòng này để bỏ qua thư mục publish
+**/publish/
 
 # .NET Core
 project.lock.json
