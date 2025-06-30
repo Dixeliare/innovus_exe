@@ -146,8 +146,10 @@ builder.Services.AddSwaggerGen(option =>
 
 var app = builder.Build();
 
+var enableSwagger = builder.Configuration.GetValue<bool>("EnableSwagger", false);
+
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || enableSwagger)
 {
     app.UseSwagger();
     app.UseSwaggerUI();
