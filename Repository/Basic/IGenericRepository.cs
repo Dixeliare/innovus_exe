@@ -4,6 +4,8 @@ namespace Repository.Basic;
 
 public interface IGenericRepository<T> where T : class
 {
+    // "Host=localhost;Port=5432;Database=innovus_db;Username=postgres;Password=12345"
+    
     Task<T> AddAsync(T entity);
     Task UpdateAsync(T entity);
     Task<bool> DeleteAsync(int id);

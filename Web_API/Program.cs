@@ -144,6 +144,16 @@ builder.Services.AddSwaggerGen(option =>
     });
 });
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAllOrigins", policy =>
+    {
+        policy.AllowAnyOrigin()      
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
 var app = builder.Build();
 
 var enableSwagger = builder.Configuration.GetValue<bool>("EnableSwagger", false);
@@ -157,6 +167,8 @@ if (app.Environment.IsDevelopment() || enableSwagger)
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseHttpsRedirection();
+
+app.UseCors("AllowAllOrigins");
 
 app.MapControllers();
 app.Run();
