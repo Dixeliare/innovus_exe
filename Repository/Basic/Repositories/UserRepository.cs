@@ -45,7 +45,7 @@ public class UserRepository: GenericRepository<user>, IUserRepository
     
     public async Task<user?> GetByUsernameAsync(string username)
     {
-        return await _dbSet.AsNoTracking().FirstOrDefaultAsync(u => u.username == username);
+        return await _dbSet.AsNoTracking().Include(r => r.role).FirstOrDefaultAsync(u => u.username == username);
     }
 
     // public async Task<user> AddAsync(user entity)
