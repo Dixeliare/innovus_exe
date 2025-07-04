@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Repository.Data;
 using Repository.Models;
+using Services.Exceptions;
 using Services.IServices;
 
 namespace Web_API.Controllers
@@ -21,50 +22,41 @@ namespace Web_API.Controllers
         public ScheduleController(IScheduleService? scheduleService) => _scheduleService = scheduleService;
 
         [HttpGet]
-        public async Task<IEnumerable<schedule>> GetAll()
+        public async Task<ActionResult<IEnumerable<ScheduleDto>>> GetAllAsync() // Trả về ScheduleDto
         {
-            return await _scheduleService.GetAllAsync();
+            var schedules = await _scheduleService.GetAllAsync();
+            return Ok(schedules); // Service đã trả về DTO
         }
+
         [HttpGet("search_id_or_note")]
-        public async Task<IEnumerable<schedule>> SearchByIdOrNote([FromQuery] int? id,[FromQuery] string? note)
+        public async Task<ActionResult<IEnumerable<ScheduleDto>>> SearchByIdOrNote([FromQuery] int? id, [FromQuery] string? note)
         {
-            return await _scheduleService.SearchByIdOrNoteAsync(id, note);
+            var schedules = await _scheduleService.SearchByIdOrNoteAsync(id, note);
+            return Ok(schedules); // Service đã trả về DTO
         }
 
         [HttpGet("search_month_or_year")]
-        public async Task<IEnumerable<schedule>> SearchByMonthYearAsync([FromQuery]int month,[FromQuery] int year)
+        public async Task<ActionResult<IEnumerable<ScheduleDto>>> SearchByMonthYearAsync([FromQuery]int month, [FromQuery] int year)
         {
-            return await _scheduleService.SearchByMonthYearAsync(month, year);
+            var schedules = await _scheduleService.SearchByMonthYearAsync(month, year);
+            return Ok(schedules); // Service đã trả về DTO
         }
 
         [HttpGet("{id}")]
         public async Task<ActionResult<ScheduleDto>> GetScheduleById(int id)
         {
+            // Service sẽ ném NotFoundException nếu không tìm thấy
             var schedule = await _scheduleService.GetByIDAsync(id);
-            if (schedule == null)
-            {
-                return NotFound();
-            }
-            return Ok(schedule);
+            return Ok(schedule); // Service đã trả về DTO
         }
 
         // POST: api/Schedules
         [HttpPost]
         public async Task<ActionResult<ScheduleDto>> CreateSchedule([FromBody] CreateScheduleDto createScheduleDto)
         {
-            try
-            {
-                var createdSchedule = await _scheduleService.AddAsync(createScheduleDto);
-                return CreatedAtAction(nameof(GetScheduleById), new { id = createdSchedule.ScheduleId }, createdSchedule);
-            }
-            catch (KeyNotFoundException ex) // Giữ lại để bắt các lỗi khác nếu có
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while creating the schedule.", error = ex.Message });
-            }
+            // Không có try-catch ở đây
+            var createdSchedule = await _scheduleService.AddAsync(createScheduleDto);
+            return CreatedAtAction(nameof(GetScheduleById), new { id = createdSchedule.ScheduleId }, createdSchedule);
         }
 
         // PUT: api/Schedules/{id}
@@ -73,41 +65,24 @@ namespace Web_API.Controllers
         {
             if (id != updateScheduleDto.ScheduleId)
             {
-                return BadRequest(new { message = "Schedule ID in URL does not match ID in body." });
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "ScheduleId", new string[] { "ID lịch trình trong URL không khớp với ID trong body." } }
+                });
             }
 
-            try
-            {
-                await _scheduleService.UpdateAsync(updateScheduleDto);
-                return NoContent();
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while updating the schedule.", error = ex.Message });
-            }
+            // Không có try-catch ở đây
+            await _scheduleService.UpdateAsync(updateScheduleDto);
+            return NoContent();
         }
 
         // DELETE: api/Schedules/{id}
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteSchedule(int id)
         {
-            try
-            {
-                await _scheduleService.DeleteAsync(id);
-                return NoContent();
-            }
-            catch (KeyNotFoundException)
-            {
-                return NotFound();
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while deleting the schedule.", error = ex.Message });
-            }
+            // Không có try-catch ở đây
+            await _scheduleService.DeleteAsync(id);
+            return NoContent();
         }
     }
 }

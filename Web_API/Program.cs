@@ -4,8 +4,10 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Repository.Basic;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
+using Repository.Basic.UnitOfWork;
 using Repository.Data;
 using Services.Configurations;
 using Services.IServices;
@@ -35,6 +37,12 @@ builder.Services.AddScoped<ISheetMusicRepository, SheetMusicRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IStatisticRepository, StatisticRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
+
+builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+#endregion
+
+#region UnitOfWork
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 #endregion
 
 #region Services
@@ -136,10 +144,22 @@ builder.Services.AddSwaggerGen(option =>
     });
 });
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAllOrigins", policy =>
+    {
+        policy.AllowAnyOrigin()      
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
 var app = builder.Build();
 
+var enableSwagger = builder.Configuration.GetValue<bool>("EnableSwagger", false);
+
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || enableSwagger)
 {
     app.UseSwagger();
     app.UseSwaggerUI();
@@ -147,6 +167,8 @@ if (app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseHttpsRedirection();
+
+app.UseCors("AllowAllOrigins");
 
 app.MapControllers();
 app.Run();

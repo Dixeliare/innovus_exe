@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Repository.Data;
 using Repository.Models;
+using Services.Exceptions;
 using Services.IServices;
 
 namespace Web_API.Controllers
@@ -21,39 +22,38 @@ namespace Web_API.Controllers
         public ConsultationRequestController(IConsultationRequestService consultationRequestService) => _consultationRequestService = consultationRequestService;
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<ConsultationRequestDto>>> GetAllConsultationRequests()
+        public async Task<ActionResult<IEnumerable<ConsultationRequestDto>>> GetAllConsultationRequests() // Trả về DTOs
         {
             var requests = await _consultationRequestService.GetAllAsync();
             return Ok(requests);
         }
 
         [HttpGet("{id}")]
-        public async Task<ActionResult<ConsultationRequestDto>> GetConsultationRequestById(int id)
+        public async Task<ActionResult<ConsultationRequestDto>> GetConsultationRequestById(int id) // Trả về DTO
         {
+            // Service sẽ ném NotFoundException nếu không tìm thấy
             var request = await _consultationRequestService.GetByIdAsync(id);
-            if (request == null)
-            {
-                return NotFound();
-            }
-            return Ok(request);
+            return Ok(request); // Service đã trả về DTO
+        }
+
+        [HttpGet("search_by")]
+        public async Task<ActionResult<IEnumerable<ConsultationRequestDto>>> SearchByAsync( // Trả về DTOs
+            [FromQuery] string? fullname = null,
+            [FromQuery] string? contactNumber = null,
+            [FromQuery] string? email = null,
+            [FromQuery] string? note = null,
+            [FromQuery] bool? hasContact = null)
+        {
+            var requests = await _consultationRequestService.SearchConsultationRequestsAsync(fullname, contactNumber, email, note, hasContact);
+            return Ok(requests); // Service đã trả về DTOs
         }
 
         [HttpPost]
         public async Task<ActionResult<ConsultationRequestDto>> CreateConsultationRequest([FromBody] CreateConsultationRequestDto createConsultationRequestDto)
         {
-            try
-            {
-                var createdRequest = await _consultationRequestService.AddAsync(createConsultationRequestDto);
-                return CreatedAtAction(nameof(GetConsultationRequestById), new { id = createdRequest.ConsultationRequestId }, createdRequest);
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while creating the consultation request.", error = ex.Message });
-            }
+            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ValidationException/ApiException nếu có lỗi.
+            var createdRequest = await _consultationRequestService.AddAsync(createConsultationRequestDto);
+            return CreatedAtAction(nameof(GetConsultationRequestById), new { id = createdRequest.ConsultationRequestId }, createdRequest);
         }
 
         // PUT: api/ConsultationRequests/{id}
@@ -62,50 +62,23 @@ namespace Web_API.Controllers
         {
             if (id != updateConsultationRequestDto.ConsultationRequestId)
             {
-                return BadRequest(new { message = "Consultation Request ID in URL does not match ID in body." });
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "ConsultationRequestId", new string[] { "ID yêu cầu tư vấn trong URL không khớp với ID trong body." } }
+                });
             }
 
-            try
-            {
-                await _consultationRequestService.UpdateAsync(updateConsultationRequestDto);
-                return NoContent();
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while updating the consultation request.", error = ex.Message });
-            }
+            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ValidationException/ApiException nếu có lỗi.
+            await _consultationRequestService.UpdateAsync(updateConsultationRequestDto);
+            return NoContent();
         }
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteConsultationRequest(int id)
         {
-            try
-            {
-                await _consultationRequestService.DeleteAsync(id);
-                return NoContent();
-            }
-            catch (KeyNotFoundException)
-            {
-                return NotFound();
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while deleting the consultation request.", error = ex.Message });
-            }
-        }
-
-        [HttpGet("search_by")]
-        public async Task<IEnumerable<consultation_request>> SearchByAsync([FromQuery] string? fullname = null,
-            [FromQuery] string? contactNumber = null,
-            [FromQuery] string? email = null,
-            [FromQuery] string? note = null,
-            [FromQuery] bool? hasContact = null)
-        {
-            return await _consultationRequestService.SearchConsultationRequestsAsync(fullname, contactNumber, email, note, hasContact);
+            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ApiException nếu có lỗi.
+            await _consultationRequestService.DeleteAsync(id);
+            return NoContent();
         }
     }
 }

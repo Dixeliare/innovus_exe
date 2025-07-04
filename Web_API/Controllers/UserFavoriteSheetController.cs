@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Repository.Data;
 using Repository.Models;
+using Services.Exceptions;
 using Services.IServices;
 
 namespace Web_API.Controllers
@@ -20,47 +21,47 @@ namespace Web_API.Controllers
         
         public UserFavoriteSheetController(IUserFavoriteSheetService userFavoriteSheetService) => _userFavoriteSheetService = userFavoriteSheetService;
 
-        [HttpGet("{userId}")]
-        public async Task<IEnumerable<sheet_music>> GetFavoriteSheetsByUserAsync([FromQuery] int userId)
+        [HttpGet("{userId}/favorites")]
+        public async Task<ActionResult<IEnumerable<sheet_music>>> GetFavoriteSheetsByUserAsync(int userId)
         {
-            return await _userFavoriteSheetService.GetFavoriteSheetsByUserAsync(userId);
+            // Service sẽ ném NotFoundException nếu userId không tồn tại
+            var favoriteSheets = await _userFavoriteSheetService.GetFavoriteSheetsByUserAsync(userId);
+            return Ok(favoriteSheets);
         }
 
-        [HttpGet("{sheetMusicId}/users")]
-        public async Task<IEnumerable<user>> GetUsersFavoritingSheetAsync([FromQuery] int sheetMusicId)
+        [HttpGet("{sheetMusicId}/favoritingUsers")]
+        public async Task<ActionResult<IEnumerable<user>>> GetUsersFavoritingSheetAsync(int sheetMusicId)
         {
-            return await _userFavoriteSheetService.GetUsersFavoritingSheetAsync(sheetMusicId);
+            // Service sẽ ném NotFoundException nếu sheetMusicId không tồn tại
+            var users = await _userFavoriteSheetService.GetUsersFavoritingSheetAsync(sheetMusicId);
+            return Ok(users);
         }
 
+        [HttpGet("{userId}/{sheetMusicId}/isFavorite")]
+        public async Task<ActionResult<bool>> CheckIfSheetIsFavoriteForUserAsync(int userId, int sheetMusicId)
+        {
+            // Service sẽ tự kiểm tra sự tồn tại của User/SheetMusic nếu cần
+            var isFavorite = await _userFavoriteSheetService.CheckIfSheetIsFavoriteForUserAsync(userId, sheetMusicId);
+            return Ok(isFavorite);
+        }
+        
         [HttpGet("{userId}/{sheetMusicId}")]
-        public async Task<bool> CheckIfSheetIsFavoriteForUserAsync([FromQuery] int userId,[FromQuery]  int sheetMusicId)
+        public async Task<ActionResult<UserFavoriteSheetDto>> GetUserFavoriteSheetById(int userId, int sheetMusicId)
         {
-            return await _userFavoriteSheetService.CheckIfSheetIsFavoriteForUserAsync(userId, sheetMusicId);
+            // Service sẽ ném NotFoundException nếu không tìm thấy
+            var favoriteSheet = await _userFavoriteSheetService.GetByIdAsync(userId, sheetMusicId);
+            return Ok(favoriteSheet);
         }
 
         [HttpPost]
         public async Task<ActionResult<UserFavoriteSheetDto>> AddUserFavoriteSheet([FromBody] CreateUserFavoriteSheetDto createDto)
         {
-            try
-            {
-                var createdFavorite = await _userFavoriteSheetService.AddUserFavoriteSheetAsync(createDto);
-                // Trả về 201 Created và vị trí của tài nguyên mới tạo
-                return CreatedAtAction(nameof(CheckIfSheetIsFavoriteForUserAsync),
-                                       new { userId = createdFavorite.UserId, sheetMusicId = createdFavorite.SheetMusicId },
-                                       createdFavorite);
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message }); // User hoặc Sheet Music không tồn tại
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Conflict(new { message = ex.Message }); // Đã tồn tại mục yêu thích này
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while adding the user favorite sheet.", error = ex.Message });
-            }
+            // Không còn try-catch ở đây, để Middleware xử lý exception
+            var createdFavorite = await _userFavoriteSheetService.AddUserFavoriteSheetAsync(createDto);
+            // Trả về 201 Created và vị trí của tài nguyên mới tạo
+            return CreatedAtAction(nameof(GetUserFavoriteSheetById), // Thay đổi tên hàm để khớp với Get cho cặp ID
+                new { userId = createdFavorite.UserId, sheetMusicId = createdFavorite.SheetMusicId },
+                createdFavorite);
         }
 
         // PUT: api/UserFavoriteSheets/{userId}/{sheetMusicId}
@@ -70,28 +71,24 @@ namespace Web_API.Controllers
         {
             if (userId != updateDto.UserId || sheetMusicId != updateDto.SheetMusicId)
             {
-                return BadRequest(new { message = "User ID or Sheet Music ID in URL does not match IDs in body." });
+                // Ném ValidationException thay vì BadRequest
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "IdMismatch", new string[] { "User ID hoặc Sheet Music ID trong URL không khớp với ID trong body." } }
+                });
             }
 
-            try
-            {
-                await _userFavoriteSheetService.UpdateUserFavoriteSheetAsync(updateDto);
-                return NoContent(); // 204 No Content for successful update
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while updating the user favorite sheet.", error = ex.Message });
-            }
+            // Không còn try-catch ở đây
+            await _userFavoriteSheetService.UpdateUserFavoriteSheetAsync(updateDto);
+            return NoContent(); // 204 No Content for successful update
         }
 
         [HttpDelete("{userId}/{sheetMusicId}")]
-        public async Task<bool> DeleteUserFavoriteSheetAsync([FromQuery] int userId,[FromQuery]  int sheetMusicId)
+        public async Task<IActionResult> DeleteUserFavoriteSheetAsync([FromQuery] int userId,[FromQuery]  int sheetMusicId)
         {
-            return await _userFavoriteSheetService.DeleteUserFavoriteSheetAsync(userId, sheetMusicId);
+            // Service sẽ ném NotFoundException nếu không tìm thấy
+            await _userFavoriteSheetService.DeleteUserFavoriteSheetAsync(userId, sheetMusicId);
+            return NoContent(); // 204 No Content for successful deletion
         }
     }
 }

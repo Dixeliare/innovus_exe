@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Repository.Data;
 using Repository.Models;
+using Services.Exceptions;
 using Services.IServices;
 
 namespace Web_API.Controllers
@@ -21,58 +22,60 @@ namespace Web_API.Controllers
         public ClassController(IClassService classService) => _classService = classService;
 
         [HttpGet]
-        public async Task<IEnumerable<_class>> GetAll()
+        public async Task<ActionResult<IEnumerable<ClassDto>>> GetAllAsync() // Trả về DTOs
         {
-            return await _classService.GetAll();
+            var classes = await _classService.GetAllAsync();
+            return Ok(classes);
         }
 
         [HttpGet("{id}")]
-        public async Task<_class> GetById(int id)
+        public async Task<ActionResult<ClassDto>> GetById(int id) // Trả về DTO
         {
-            return await _classService.GetById(id);
+            // Service sẽ ném NotFoundException nếu không tìm thấy
+            var cls = await _classService.GetByIdAsync(id);
+            return Ok(cls); // Service đã trả về DTO
+        }
+
+        [HttpGet("search_by_instrument_id_or_class_code")] // Đổi tên đường dẫn cho rõ ràng hơn
+        public async Task<ActionResult<IEnumerable<ClassDto>>> SearchAsync( // Trả về DTOs
+            [FromQuery] int? instrumentId = null,
+            [FromQuery] string? classCode = null)
+        {
+            var classes = await _classService.SearchClassesAsync(instrumentId, classCode);
+            return Ok(classes); // Service đã trả về DTOs
         }
 
         [HttpPost]
-        public async Task<ActionResult<ClassDto>> Add(CreateClassDto createClassDto)
+        public async Task<ActionResult<ClassDto>> Add([FromBody] CreateClassDto createClassDto)
         {
+            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ValidationException/ApiException nếu có lỗi.
             var newClass = await _classService.AddAsync(createClassDto);
-            // Trả về 201 CreatedAtAction nếu thành công
             return CreatedAtAction(nameof(GetById), new { id = newClass.ClassId }, newClass);
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, UpdateClassDto updateClassDto)
+        public async Task<IActionResult> Update(int id, [FromBody] UpdateClassDto updateClassDto)
         {
             if (id != updateClassDto.ClassId)
             {
-                return BadRequest("Class ID in URL does not match ID in request body.");
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "ClassId", new string[] { "ID lớp học trong URL không khớp với ID trong body." } }
+                });
             }
 
-            try
-            {
-                await _classService.UpdateAsync(updateClassDto);
-                return NoContent(); // 204 No Content cho cập nhật thành công
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(ex.Message); // Trả về 404 nếu không tìm thấy lớp học
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, $"Internal server error: {ex.Message}");
-            }
+            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ValidationException/ApiException nếu có lỗi.
+            await _classService.UpdateAsync(updateClassDto);
+            return NoContent(); // 204 No Content cho cập nhật thành công
         }
 
-        [HttpDelete("id")]
-        public async Task<bool> DeleteAsync(int id)
+        [HttpDelete("{id}")] // Xóa theo ID từ URL
+        public async Task<IActionResult> DeleteAsync(int id) // Trả về IActionResult
         {
-            return await _classService.DeleteAsync(id);
+            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ApiException nếu có lỗi.
+            await _classService.DeleteAsync(id);
+            return NoContent();
         }
 
-        [HttpGet("search_by_instrumet_id_or_class_code")]
-        public async Task<IEnumerable<_class>> SearchAsync([FromQuery] int? instrumentId = null,[FromQuery] string? classCode = null)
-        {
-            return await _classService.SearchClassesAsync(instrumentId, classCode);
-        }
     }
 }

@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Repository.Data;
 using Repository.Models;
+using Services.Exceptions;
 using Services.IServices;
 
 namespace Web_API.Controllers
@@ -21,46 +22,35 @@ namespace Web_API.Controllers
         public DocumentController(IDocumentService documentService) => _documentService = documentService;
 
         [HttpGet]
-        public async Task<IEnumerable<document>> GetAllAsync()
+        public async Task<ActionResult<IEnumerable<DocumentDto>>> GetAllAsync() // Trả về DTO
         {
-            return await _documentService.GetAllAsync();
+            var documents = await _documentService.GetAllAsync();
+            return Ok(documents);
         }
 
         [HttpGet("{id}")]
-        public async Task<ActionResult<DocumentDto>> GetDocumentById(int id)
+        public async Task<ActionResult<DocumentDto>> GetDocumentById(int id) // Trả về DTO
         {
+            // Service sẽ ném NotFoundException nếu không tìm thấy
             var document = await _documentService.GetByIdAsync(id);
-            if (document == null)
-            {
-                return NotFound();
-            }
-            return Ok(document);
+            return Ok(document); // Service đã trả về DTO
         }
 
         [HttpGet("search_by")]
-        public async Task<IEnumerable<document>> SearchByDocumentAsync([FromQuery] int? lesson = null,
+        public async Task<ActionResult<IEnumerable<DocumentDto>>> SearchByDocumentAsync([FromQuery] int? lesson = null,
             [FromQuery] string? lessonName = null, [FromQuery] string? link = null,
             [FromQuery] int? instrumentId = null)
         {
-            return await _documentService.SearchDocumentsAsync(lesson, lessonName, link, instrumentId);
+            var documents = await _documentService.SearchDocumentsAsync(lesson, lessonName, link, instrumentId);
+            return Ok(documents); // Service đã trả về DTOs
         }
 
         [HttpPost]
         public async Task<ActionResult<DocumentDto>> CreateDocument([FromBody] CreateDocumentDto createDocumentDto)
         {
-            try
-            {
-                var createdDocument = await _documentService.AddAsync(createDocumentDto);
-                return CreatedAtAction(nameof(GetDocumentById), new { id = createdDocument.DocumentId }, createdDocument);
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while creating the document.", error = ex.Message });
-            }
+            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ValidationException/ApiException nếu có lỗi.
+            var createdDocument = await _documentService.AddAsync(createDocumentDto);
+            return CreatedAtAction(nameof(GetDocumentById), new { id = createdDocument.DocumentId }, createdDocument);
         }
 
         // PUT: api/Documents/{id}
@@ -69,40 +59,23 @@ namespace Web_API.Controllers
         {
             if (id != updateDocumentDto.DocumentId)
             {
-                return BadRequest(new { message = "Document ID in URL does not match ID in body." });
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "DocumentId", new string[] { "ID tài liệu trong URL không khớp với ID trong body." } }
+                });
             }
 
-            try
-            {
-                await _documentService.UpdateAsync(updateDocumentDto);
-                return NoContent();
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while updating the document.", error = ex.Message });
-            }
+            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ValidationException/ApiException nếu có lỗi.
+            await _documentService.UpdateAsync(updateDocumentDto);
+            return NoContent();
         }
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteDocument(int id)
         {
-            try
-            {
-                await _documentService.DeleteAsync(id);
-                return NoContent();
-            }
-            catch (KeyNotFoundException)
-            {
-                return NotFound();
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while deleting the document.", error = ex.Message });
-            }
+            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ApiException nếu có lỗi.
+            await _documentService.DeleteAsync(id);
+            return NoContent();
         }
     }
 }

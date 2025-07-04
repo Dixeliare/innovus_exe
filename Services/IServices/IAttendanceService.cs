@@ -5,11 +5,11 @@ namespace Services.IServices;
 
 public interface IAttendanceService
 {
-    Task<IEnumerable<attendance>> GetAllAsync();
-    Task<attendance> GetByIdAsync(int id);
+    Task<IEnumerable<AttendanceDto>> GetAllAsync();
+    Task<AttendanceDto> GetByIdAsync(int id);
     Task<AttendanceDto> AddAsync(CreateAttendanceDto createAttendanceDto);
     Task UpdateAsync(UpdateAttendanceDto updateAttendanceDto);
-    Task<bool> DeleteAsync(int id);
-    Task<IEnumerable<attendance>> SearchAttendancesAsync(bool? status = null, string? note = null);
+    Task DeleteAsync(int id);
+    Task<IEnumerable<AttendanceDto>> SearchAttendancesAsync(bool? status = null, string? note = null);
 
 }

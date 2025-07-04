@@ -5,13 +5,13 @@ namespace Services.IServices;
 
 public interface IClassSessionService
 {
-    Task<IEnumerable<class_session>> GetAll();
+    Task<IEnumerable<ClassSessionDto>> GetAllAsync();
     Task<ClassSessionDto> GetByIdAsync(int id);
     Task<ClassSessionDto> AddAsync(CreateClassSessionDto createClassSessionDto);
     Task UpdateAsync(UpdateClassSessionDto updateClassSessionDto);
-    Task<bool> DeleteAsync(int id);
+    Task DeleteAsync(int id);
 
-    Task<IEnumerable<class_session>> SearchClassSessionsAsync(
+    Task<IEnumerable<ClassSessionDto>> SearchClassSessionsAsync(
         DateOnly? date = null,
         string? roomCode = null,
         int? weekId = null,

@@ -5,8 +5,8 @@ namespace Services.IServices;
 
 public interface IWeekService
 {
-    Task<IEnumerable<week>> GetAll();
-    Task<week> GetById(int id);
+    Task<IEnumerable<week>> GetAllAsync();
+    Task<week> GetByIdAsync(int id);
     Task<IEnumerable<WeekDto>> GetWeeksByScheduleIdAsync(int scheduleId);
     Task<WeekDto> AddAsync(CreateWeekDto createWeekDto);
     Task UpdateAsync(UpdateWeekDto updateWeekDto);

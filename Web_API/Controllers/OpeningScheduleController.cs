@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Repository.Data;
 using Repository.Models;
+using Services.Exceptions;
 using Services.IServices;
 
 namespace Web_API.Controllers
@@ -21,45 +22,36 @@ namespace Web_API.Controllers
         public OpeningScheduleController(IOpeningScheduleService openingScheduleService) => _openingScheduleService = openingScheduleService;
 
         [HttpGet]
-        public async Task<IEnumerable<opening_schedule>> GetAllAsync()
+        public async Task<ActionResult<IEnumerable<OpeningScheduleDto>>> GetAllAsync()
         {
-            return await _openingScheduleService.GetAllAsync();
+            var schedules = await _openingScheduleService.GetAllAsync();
+            return Ok(schedules);
         }
 
         [HttpGet("search_by")]
-        public async Task<IEnumerable<opening_schedule>> SearchByAsync([FromQuery] string? subject = null,
+        public async Task<ActionResult<IEnumerable<OpeningScheduleDto>>> SearchByAsync([FromQuery] string? subject = null,
             [FromQuery] string? classCode = null, [FromQuery] DateOnly? openingDay = null,
             [FromQuery] DateOnly? endDate = null, [FromQuery] string? schedule = null,
             [FromQuery] int? studentQuantity = null, [FromQuery] bool? isAdvancedClass = null)
         {
-            return await _openingScheduleService.SearchOpeningSchedulesAsync(subject, classCode, openingDay, endDate, schedule, studentQuantity, isAdvancedClass);
+            var schedules = await _openingScheduleService.SearchOpeningSchedulesAsync(subject, classCode, openingDay, endDate, schedule, studentQuantity, isAdvancedClass);
+            return Ok(schedules); // Service đã trả về DTO
         }
 
         [HttpGet("{id}")]
         public async Task<ActionResult<OpeningScheduleDto>> GetOpeningScheduleById(int id)
         {
+            // Service sẽ ném NotFoundException nếu không tìm thấy
             var schedule = await _openingScheduleService.GetByIdAsync(id);
-            if (schedule == null)
-            {
-                return NotFound();
-            }
-            return Ok(schedule);
+            return Ok(schedule); // Service đã trả về DTO
         }
 
         // POST: api/OpeningSchedules
         [HttpPost]
         public async Task<ActionResult<OpeningScheduleDto>> CreateOpeningSchedule([FromBody] CreateOpeningScheduleDto createOpeningScheduleDto)
         {
-            try
-            {
-                var createdSchedule = await _openingScheduleService.AddAsync(createOpeningScheduleDto);
-                return CreatedAtAction(nameof(GetOpeningScheduleById), new { id = createdSchedule.OpeningScheduleId }, createdSchedule);
-            }
-            catch (Exception ex)
-            {
-                // Vì không có khóa ngoại, lỗi thường là do validation hoặc DB
-                return StatusCode(500, new { message = "An error occurred while creating the opening schedule.", error = ex.Message });
-            }
+            var createdSchedule = await _openingScheduleService.AddAsync(createOpeningScheduleDto);
+            return CreatedAtAction(nameof(GetOpeningScheduleById), new { id = createdSchedule.OpeningScheduleId }, createdSchedule);
         }
 
         // PUT: api/OpeningSchedules/{id}
@@ -68,41 +60,25 @@ namespace Web_API.Controllers
         {
             if (id != updateOpeningScheduleDto.OpeningScheduleId)
             {
-                return BadRequest(new { message = "Opening Schedule ID in URL does not match ID in body." });
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "OpeningScheduleId", new string[] { "ID lịch khai giảng trong URL không khớp với ID trong body." } }
+                });
             }
 
-            try
-            {
-                await _openingScheduleService.UpdateAsync(updateOpeningScheduleDto);
-                return NoContent();
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while updating the opening schedule.", error = ex.Message });
-            }
+            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ValidationException/ApiException nếu có lỗi.
+            await _openingScheduleService.UpdateAsync(updateOpeningScheduleDto);
+            return NoContent();
         }
 
         // DELETE: api/OpeningSchedules/{id}
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteOpeningSchedule(int id)
         {
-            try
-            {
-                await _openingScheduleService.DeleteAsync(id);
-                return NoContent();
-            }
-            catch (KeyNotFoundException)
-            {
-                return NotFound();
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while deleting the opening schedule.", error = ex.Message });
-            }
+            
+            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ApiException nếu có lỗi.
+            await _openingScheduleService.DeleteAsync(id);
+            return NoContent();
         }
     }
 }

@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Repository.Data;
 using Repository.Models;
+using Services.Exceptions;
 using Services.IServices;
 
 namespace Web_API.Controllers
@@ -21,47 +22,38 @@ namespace Web_API.Controllers
         public ClassSessionController(IClassSessionService classSessionService) => _classSessionService = classSessionService;
 
         [HttpGet]
-        public async Task<IEnumerable<class_session>> GetAllAsync()
+        public async Task<ActionResult<IEnumerable<ClassSessionDto>>> GetAllAsync() // Trả về DTOs
         {
-            return await _classSessionService.GetAll();
+            var classSessions = await _classSessionService.GetAllAsync();
+            return Ok(classSessions);
         }
 
         [HttpGet("{id}")]
-        public async Task<ActionResult<ClassSessionDto>> GetClassSessionById(int id)
+        public async Task<ActionResult<ClassSessionDto>> GetClassSessionById(int id) // Trả về DTO
         {
+            // Service sẽ ném NotFoundException nếu không tìm thấy
             var classSession = await _classSessionService.GetByIdAsync(id);
-            if (classSession == null)
-            {
-                return NotFound();
-            }
-            return Ok(classSession);
+            return Ok(classSession); // Service đã trả về DTO
         }
 
-        [HttpGet("search_by_date_or_room_code_or_week_id_or_class_id_or_time_slot_id")]
-        public async Task<IEnumerable<class_session>> SearchClassSessions([FromQuery] DateOnly? date = null,[FromQuery] string? roomCode = null,[FromQuery] int? weekId = null,[FromQuery] int? classId = null,
+        [HttpGet("search_by")] // Đổi tên đường dẫn cho rõ ràng hơn
+        public async Task<ActionResult<IEnumerable<ClassSessionDto>>> SearchClassSessions( // Trả về DTOs
+            [FromQuery] DateOnly? date = null,
+            [FromQuery] string? roomCode = null,
+            [FromQuery] int? weekId = null,
+            [FromQuery] int? classId = null,
             [FromQuery] int? timeSlotId = null)
         {
-            return await _classSessionService.SearchClassSessionsAsync(date, roomCode, weekId, classId, timeSlotId);
+            var classSessions = await _classSessionService.SearchClassSessionsAsync(date, roomCode, weekId, classId, timeSlotId);
+            return Ok(classSessions); // Service đã trả về DTOs
         }
 
         [HttpPost]
         public async Task<ActionResult<ClassSessionDto>> CreateClassSession([FromBody] CreateClassSessionDto createClassSessionDto)
         {
-            try
-            {
-                var createdClassSession = await _classSessionService.AddAsync(createClassSessionDto);
-                return CreatedAtAction(nameof(GetClassSessionById), new { id = createdClassSession.ClassSessionId }, createdClassSession);
-            }
-            catch (KeyNotFoundException ex)
-            {
-                // Xử lý lỗi khóa ngoại nếu ID không tồn tại
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                // Xử lý các lỗi khác
-                return StatusCode(500, new { message = "An error occurred while creating the class session.", error = ex.Message });
-            }
+            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ValidationException/ApiException nếu có lỗi.
+            var createdClassSession = await _classSessionService.AddAsync(createClassSessionDto);
+            return CreatedAtAction(nameof(GetClassSessionById), new { id = createdClassSession.ClassSessionId }, createdClassSession);
         }
 
         // PUT: api/ClassSessions/{id}
@@ -70,29 +62,23 @@ namespace Web_API.Controllers
         {
             if (id != updateClassSessionDto.ClassSessionId)
             {
-                return BadRequest(new { message = "Class Session ID in URL does not match ID in body." });
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "ClassSessionId", new string[] { "ID buổi học trong URL không khớp với ID trong body." } }
+                });
             }
 
-            try
-            {
-                await _classSessionService.UpdateAsync(updateClassSessionDto);
-                return NoContent(); // 204 No Content for successful update
-            }
-            catch (KeyNotFoundException ex)
-            {
-                // Xử lý lỗi nếu bản ghi không tồn tại hoặc khóa ngoại không hợp lệ
-                return NotFound(new { message = ex.Message }); // Hoặc BadRequest nếu lỗi là do FK không hợp lệ
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while updating the class session.", error = ex.Message });
-            }
+            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ValidationException/ApiException nếu có lỗi.
+            await _classSessionService.UpdateAsync(updateClassSessionDto);
+            return NoContent();
         }
 
-        [HttpDelete("{id}")]
-        public async Task<bool> DeleteAsync([FromBody] int value)
+        [HttpDelete("{id}")] // Xóa theo ID từ URL
+        public async Task<IActionResult> DeleteClassSession(int id) // Trả về IActionResult
         {
-            return await _classSessionService.DeleteAsync(value);
+            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ApiException nếu có lỗi.
+            await _classSessionService.DeleteAsync(id);
+            return NoContent();
         }
     }
 }

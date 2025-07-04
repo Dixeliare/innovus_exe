@@ -16,6 +16,15 @@ bld/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
+# Ignore publish output
+**/publish/
+
+# Ignore zip files
+*.zip
+
+# Ignore macOS specific files
+.DS_Store
+**/.DS_Store
 
 # .NET Core
 project.lock.json

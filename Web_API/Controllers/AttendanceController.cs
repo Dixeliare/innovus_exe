@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Repository.Data;
 using Repository.Models;
+using Services.Exceptions;
 using Services.IServices;
 
 namespace Web_API.Controllers
@@ -20,66 +21,60 @@ namespace Web_API.Controllers
         
         public AttendanceController(IAttendanceService attendanceService) => _attendanceService = attendanceService;
 
-        [HttpGet("search_by_status_or_note")]
-        public async Task<IEnumerable<attendance>> SearchAttendancesAsync([FromQuery] bool? status = null,[FromQuery] string? note = null)
-        {
-            return await _attendanceService.SearchAttendancesAsync(status, note);
-        }
-
         [HttpGet]
-        public async Task<IEnumerable<attendance>> GetAll()
+        public async Task<ActionResult<IEnumerable<AttendanceDto>>> GetAllAsync() // Trả về DTOs
         {
-            return await _attendanceService.GetAllAsync();
+            var attendances = await _attendanceService.GetAllAsync();
+            return Ok(attendances);
         }
 
         [HttpGet("{id}")]
-        public async Task<attendance> GetById(int id)
+        public async Task<ActionResult<AttendanceDto>> GetById(int id) // Trả về DTO
         {
-            return await _attendanceService.GetByIdAsync(id);
+            // Service sẽ ném NotFoundException nếu không tìm thấy
+            var attendance = await _attendanceService.GetByIdAsync(id);
+            return Ok(attendance); // Service đã trả về DTO
+        }
+
+        [HttpGet("search_by")] // Đổi tên đường dẫn cho rõ ràng hơn
+        public async Task<ActionResult<IEnumerable<AttendanceDto>>> SearchAttendancesAsync( // Trả về DTOs
+            [FromQuery] bool? status = null,
+            [FromQuery] string? note = null)
+        {
+            var attendances = await _attendanceService.SearchAttendancesAsync(status, note);
+            return Ok(attendances); // Service đã trả về DTOs
         }
 
         [HttpPost]
-        public async Task<ActionResult<AttendanceDto>> Add(CreateAttendanceDto createAttendanceDto)
+        public async Task<ActionResult<AttendanceDto>> Add([FromBody] CreateAttendanceDto createAttendanceDto)
         {
-            try
-            {
-                var newAttendance = await _attendanceService.AddAsync(createAttendanceDto);
-                return CreatedAtAction(nameof(GetById), new { id = newAttendance.AttendanceId }, newAttendance);
-            }
-            catch (Exception ex)
-            {
-                // Xử lý các lỗi khác, ví dụ: khóa ngoại không tồn tại
-                return StatusCode(500, $"Internal server error: {ex.Message}");
-            }
+            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ValidationException/ApiException nếu có lỗi.
+            var newAttendance = await _attendanceService.AddAsync(createAttendanceDto);
+            return CreatedAtAction(nameof(GetById), new { id = newAttendance.AttendanceId }, newAttendance);
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, UpdateAttendanceDto updateAttendanceDto)
+        public async Task<IActionResult> Update(int id, [FromBody] UpdateAttendanceDto updateAttendanceDto)
         {
             if (id != updateAttendanceDto.AttendanceId)
             {
-                return BadRequest("Attendance ID in URL does not match ID in request body.");
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "AttendanceId", new[] { "ID điểm danh trong URL không khớp với ID trong body." } }
+                });
             }
 
-            try
-            {
-                await _attendanceService.UpdateAsync(updateAttendanceDto);
-                return NoContent();
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(ex.Message);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, $"Internal server error: {ex.Message}");
-            }
+            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ValidationException/ApiException nếu có lỗi.
+            await _attendanceService.UpdateAsync(updateAttendanceDto);
+            return NoContent();
         }
 
-        [HttpDelete("id")]
-        public async Task<bool> Delete(int id)
+        [HttpDelete("{id}")] // Xóa theo ID từ URL
+        public async Task<IActionResult> Delete(int id) // Trả về IActionResult
         {
-            return await _attendanceService.DeleteAsync(id);
+            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ApiException nếu có lỗi.
+            await _attendanceService.DeleteAsync(id);
+            return NoContent();
         }
     }
 }

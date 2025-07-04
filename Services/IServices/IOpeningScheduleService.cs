@@ -5,13 +5,13 @@ namespace Services.IServices;
 
 public interface IOpeningScheduleService
 {
-    Task<IEnumerable<opening_schedule>> GetAllAsync();
-    Task<opening_schedule> GetByIdAsync(int id);
+    Task<IEnumerable<OpeningScheduleDto>> GetAllAsync();
+    Task<OpeningScheduleDto> GetByIdAsync(int id);
     Task<OpeningScheduleDto> AddAsync(CreateOpeningScheduleDto createOpeningScheduleDto);
     Task UpdateAsync(UpdateOpeningScheduleDto updateOpeningScheduleDto);
-    Task<bool> DeleteAsync(int id);
+    Task DeleteAsync(int id);
 
-    Task<IEnumerable<opening_schedule>> SearchOpeningSchedulesAsync(
+    Task<IEnumerable<OpeningScheduleDto>> SearchOpeningSchedulesAsync(
         string? subject = null,
         string? classCode = null,
         DateOnly? openingDay = null,

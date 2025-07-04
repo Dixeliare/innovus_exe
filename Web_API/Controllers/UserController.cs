@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Repository.Data;
 using Repository.Models;
+using Services.Exceptions;
 using Services.IServices;
 
 namespace Web_API.Controllers
@@ -34,14 +35,12 @@ namespace Web_API.Controllers
         // Không cần thay đổi ở đây, vì login request chỉ cần username và password
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
-            // Gọi service để xác thực, service đã hash/verify password
+            // Controller gọi service. Nếu service ném UnauthorizedAppException,
+            // Middleware sẽ bắt và trả về 401 Unauthorized.
             var user = await _userService.GetUserAccount(request.UserName, request.Password);
 
-            if (user == null)
-                return Unauthorized(new { message = "Invalid username or password." });
-
+            // Đoạn code này chỉ chạy nếu user được trả về thành công (không ném Exception)
             var token = GenerateJSONWebToken(user);
-
             return Ok(new { token });
         }
 
@@ -87,10 +86,6 @@ namespace Web_API.Controllers
         public async Task<ActionResult<UserDto>> GetUserById(int id)
         {
             var user = await _userService.GetByIdAsync(id);
-            if (user == null)
-            {
-                return NotFound();
-            }
             return Ok(user);
         }
 
@@ -100,105 +95,76 @@ namespace Web_API.Controllers
         public async Task<ActionResult<UserDto>> GetUserByUsername(string username)
         {
             var user = await _userService.GetByUsernameAsync(username);
-            if (user == null)
-            {
-                return NotFound();
-            }
             return Ok(user);
         }
 
 
         // POST: api/Users
-        [HttpPost]// Chỉ role 1 được tạo user mới
-        // Nhận file từ Form-data. Các thuộc tính khác cũng đi kèm trong form-data.
+        [HttpPost]
+        [Authorize(Roles = "1")] // Chỉ role 1 được tạo user mới
+        [Consumes("multipart/form-data")] // Quan trọng: Thêm Consumes cho Form-data
         public async Task<ActionResult<UserDto>> CreateUser([FromForm] CreateUserDto createUserDto)
         {
-            // Kiểm tra validation cho Password nếu nó là Required trong DTO
             if (!ModelState.IsValid)
             {
-                return BadRequest(ModelState);
+                return BadRequest(ModelState); // Trả về 400 Bad Request
             }
 
-            try
-            {
-                var createdUser = await _userService.AddAsync(
-                    createUserDto.Username,
-                    createUserDto.AccountName,
-                    createUserDto.Password, // Mật khẩu thô
-                    createUserDto.Address,
-                    createUserDto.PhoneNumber,
-                    createUserDto.IsDisabled,
-                    createUserDto.AvatarImageFile, // File avatar (có thể null)
-                    createUserDto.Birthday,
-                    createUserDto.RoleId,
-                    createUserDto.StatisticId,
-                    createUserDto.OpeningScheduleId,
-                    createUserDto.ScheduleId
-                );
-                return CreatedAtAction(nameof(GetUserById), new { id = createdUser.UserId }, createdUser);
-            }
-            catch (ArgumentException ex) // Bắt lỗi trùng lặp username
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (KeyNotFoundException ex) // Bắt lỗi khóa ngoại
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while creating the user.", error = ex.Message });
-            }
+            // Middleware sẽ bắt ValidationException, NotFoundException, ApiException từ Service
+            var createdUser = await _userService.AddAsync(
+                createUserDto.Username,
+                createUserDto.AccountName,
+                createUserDto.Password, // Mật khẩu THÔ
+                createUserDto.Address,
+                createUserDto.PhoneNumber,
+                createUserDto.IsDisabled,
+                createUserDto.AvatarImageFile,
+                createUserDto.Birthday,
+                createUserDto.RoleId,
+                createUserDto.StatisticId,
+                createUserDto.OpeningScheduleId,
+                createUserDto.ScheduleId
+            );
+            return CreatedAtAction(nameof(GetUserById), new { id = createdUser.UserId }, createdUser);
         }
 
         // PUT: api/Users/{id}
         [HttpPut("{id}")]
-        [Authorize(Roles = "1,2")] // Cho phép cả role 1 và 2 cập nhật user
-        // Nhận file từ Form-data
+        [Authorize(Roles = "1,2")]
+        [Consumes("multipart/form-data")] // Quan trọng: Thêm Consumes cho Form-data
         public async Task<IActionResult> UpdateUser(int id, [FromForm] UpdateUserDto updateUserDto)
         {
             if (id != updateUserDto.UserId)
             {
-                return BadRequest(new { message = "User ID in URL does not match ID in body." });
+                // Ném ValidationException thay vì BadRequest nếu ID không khớp
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "UserId", new string[] { "ID người dùng trong URL không khớp với ID trong body." } }
+                });
             }
 
-            // Kiểm tra validation cho NewPassword nếu nó là Required trong DTO và được cung cấp
             if (!ModelState.IsValid)
             {
                 return BadRequest(ModelState);
             }
 
-            try
-            {
-                await _userService.UpdateAsync(
-                    updateUserDto.UserId,
-                    updateUserDto.Username,
-                    updateUserDto.AccountName,
-                    updateUserDto.NewPassword, // Mật khẩu mới (có thể null)
-                    updateUserDto.Address,
-                    updateUserDto.PhoneNumber,
-                    updateUserDto.IsDisabled,
-                    updateUserDto.AvatarImageFile, // File avatar (có thể null)
-                    updateUserDto.Birthday,
-                    updateUserDto.RoleId,
-                    updateUserDto.StatisticId,
-                    updateUserDto.OpeningScheduleId,
-                    updateUserDto.ScheduleId
-                );
-                return NoContent();
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (ArgumentException ex) // Bắt lỗi trùng lặp username
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while updating the user.", error = ex.Message });
-            }
+            // Middleware sẽ bắt NotFoundException, ValidationException, ApiException từ Service
+            await _userService.UpdateAsync(
+                updateUserDto.UserId,
+                updateUserDto.Username,
+                updateUserDto.AccountName,
+                updateUserDto.NewPassword, // Mật khẩu THÔ mới
+                updateUserDto.Address,
+                updateUserDto.PhoneNumber,
+                updateUserDto.IsDisabled,
+                updateUserDto.AvatarImageFile,
+                updateUserDto.Birthday,
+                updateUserDto.RoleId,
+                updateUserDto.StatisticId,
+                updateUserDto.OpeningScheduleId,
+                updateUserDto.ScheduleId
+            );
+            return NoContent();
         }
 
         // DELETE: api/Users/{id}
@@ -206,19 +172,9 @@ namespace Web_API.Controllers
         [Authorize(Roles = "1")] // Chỉ role 1 được xóa user
         public async Task<IActionResult> DeleteUser(int id)
         {
-            try
-            {
-                var result = await _userService.DeleteAsync(id);
-                if (!result)
-                {
-                    return NotFound(new { message = $"User with ID {id} not found or could not be deleted." });
-                }
-                return NoContent();
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while deleting the user.", error = ex.Message });
-            }
+            await _userService.DeleteAsync(id);
+            return NoContent();
+
         }
 
         // GET: api/Users/search

@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Repository.Data;
 using Repository.Models;
+using Services.Exceptions;
 using Services.IServices;
 
 namespace Web_API.Controllers
@@ -21,42 +22,33 @@ namespace Web_API.Controllers
         public InstrumentController(IInstrumentService instrumentService) => _instrumentService = instrumentService;
 
         [HttpGet("search_by_instrument_name")]
-        public async Task<IEnumerable<instrument>> SearchInstrumentsAsync([FromQuery] string? instrumentName = null)
+        public async Task<ActionResult<IEnumerable<instrument>>> SearchInstrumentsAsync([FromQuery] string? instrumentName = null)
         {
-            return await _instrumentService.SearchInstrumentsAsync(instrumentName);
+            var instruments = await _instrumentService.SearchInstrumentsAsync(instrumentName);
+            return Ok(instruments); // Service already returns DTOs
         }
 
         [HttpGet]
-        public async Task<IEnumerable<instrument>> GetAllAsync()
+        public async Task<ActionResult<IEnumerable<instrument>>> GetAllAsync()
         {
-            return await _instrumentService.GetAllAsync();
+            var instruments = await _instrumentService.GetAllAsync();
+            return Ok(instruments);
         }
 
         [HttpGet("{id}")]
         public async Task<ActionResult<InstrumentDto>> GetInstrumentById(int id)
         {
             var instrument = await _instrumentService.GetByIdAsync(id);
-            if (instrument == null)
-            {
-                return NotFound();
-            }
-            return Ok(instrument);
+            return Ok(instrument); // Service already returns DTO
+
         }
 
         // POST: api/Instruments
         [HttpPost]
         public async Task<ActionResult<InstrumentDto>> CreateInstrument([FromBody] CreateInstrumentDto createInstrumentDto)
         {
-            try
-            {
-                var createdInstrument = await _instrumentService.AddAsync(createInstrumentDto);
-                return CreatedAtAction(nameof(GetInstrumentById), new { id = createdInstrument.InstrumentId }, createdInstrument);
-            }
-            catch (Exception ex)
-            {
-                // Vì không có khóa ngoại, lỗi thường là do validation hoặc DB
-                return StatusCode(500, new { message = "An error occurred while creating the instrument.", error = ex.Message });
-            }
+            var createdInstrument = await _instrumentService.AddAsync(createInstrumentDto);
+            return CreatedAtAction(nameof(GetInstrumentById), new { id = createdInstrument.InstrumentId }, createdInstrument);
         }
 
         // PUT: api/Instruments/{id}
@@ -65,41 +57,23 @@ namespace Web_API.Controllers
         {
             if (id != updateInstrumentDto.InstrumentId)
             {
-                return BadRequest(new { message = "Instrument ID in URL does not match ID in body." });
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "InstrumentId", new string[] { "ID nhạc cụ trong URL không khớp với ID trong body." } }
+                });
             }
 
-            try
-            {
-                await _instrumentService.UpdateAsync(updateInstrumentDto);
-                return NoContent();
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while updating the instrument.", error = ex.Message });
-            }
+            // No try-catch here. Service will throw NotFoundException/ValidationException/ApiException if there's an error.
+            await _instrumentService.UpdateAsync(updateInstrumentDto);
+            return NoContent();
         }
 
         // DELETE: api/Instruments/{id}
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteInstrument(int id)
         {
-            try
-            {
-                await _instrumentService.DeleteAsync(id);
-                return NoContent();
-            }
-            catch (KeyNotFoundException)
-            {
-                return NotFound();
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while deleting the instrument.", error = ex.Message });
-            }
+            await _instrumentService.DeleteAsync(id);
+            return NoContent();
         }
     }
 }

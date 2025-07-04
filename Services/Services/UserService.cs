@@ -1,70 +1,90 @@
+using System.Net;
 using DTOs;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
+using Repository.Basic.UnitOfWork;
 using Repository.Models;
+using Services.Exceptions;
 using Services.IServices;
 
 namespace Services.Services;
 
 public class UserService : IUserService
 {
-    private readonly IUserRepository _userRepository;
-    private readonly IRoleRepository _roleRepository;
-    private readonly IStatisticRepository _statisticRepository;
-    private readonly IOpeningScheduleRepository _openingScheduleRepository;
-    private readonly IScheduleRepository _scheduleRepository;
-    private readonly IFileStorageService _fileStorageService; // Inject IFileStorageService
-
-    public UserService(IUserRepository userRepository,
-                       IRoleRepository roleRepository,
-                       IStatisticRepository statisticRepository,
-                       IOpeningScheduleRepository openingScheduleRepository,
-                       IScheduleRepository scheduleRepository,
-                       IFileStorageService fileStorageService) // Thêm IFileStorageService vào constructor
+    // private readonly IUserRepository _userRepository;
+    // private readonly IRoleRepository _roleRepository;
+    // private readonly IStatisticRepository _statisticRepository;
+    // private readonly IOpeningScheduleRepository _openingScheduleRepository;
+    // private readonly IScheduleRepository _scheduleRepository;
+    // private readonly IFileStorageService _fileStorageService; // Inject IFileStorageService
+    //
+    // public UserService(IUserRepository userRepository,
+    //                    IRoleRepository roleRepository,
+    //                    IStatisticRepository statisticRepository,
+    //                    IOpeningScheduleRepository openingScheduleRepository,
+    //                    IScheduleRepository scheduleRepository,
+    //                    IFileStorageService fileStorageService) // Thêm IFileStorageService vào constructor
+    // {
+    //     _userRepository = userRepository;
+    //     _roleRepository = roleRepository;
+    //     _statisticRepository = statisticRepository;
+    //     _openingScheduleRepository = openingScheduleRepository;
+    //     _scheduleRepository = scheduleRepository;
+    //     _fileStorageService = fileStorageService; // Khởi tạo
+    // }
+    
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IFileStorageService _fileStorageService;
+    
+    public UserService(IUnitOfWork unitOfWork, IFileStorageService fileStorageService)
     {
-        _userRepository = userRepository;
-        _roleRepository = roleRepository;
-        _statisticRepository = statisticRepository;
-        _openingScheduleRepository = openingScheduleRepository;
-        _scheduleRepository = scheduleRepository;
-        _fileStorageService = fileStorageService; // Khởi tạo
+        _unitOfWork = unitOfWork;
+        _fileStorageService = fileStorageService;
     }
 
     // Phương thức Login (sẽ kiểm tra mật khẩu đã hash)
-    public async Task<user?> GetUserAccount(string username, string password)
+    public async Task<user> GetUserAccount(string username, string password)
     {
-        var user = await _userRepository.GetByUsernameAsync(username);
+        var user = await _unitOfWork.Users.GetByUsernameAsync(username);
         if (user == null)
         {
-            return null;
+            throw new UnauthorizedAppException("Tên đăng nhập hoặc mật khẩu không hợp lệ.");
         }
 
-        // Verify the hashed password
-        // `BCrypt.Net.BCrypt.Verify` an toàn để so sánh mật khẩu thô với mật khẩu đã hash
-        if (BCrypt.Net.BCrypt.Verify(password, user.password))
+        // --- ĐÃ THAY ĐỔI: So sánh mật khẩu THÔ trực tiếp (RẤT KHÔNG AN TOÀN) ---
+        if (user.password == password) // KHÔNG HASH - RẤT RỦI RO BẢO MẬT!
         {
             return user;
         }
-        return null;
+        throw new UnauthorizedAppException("Tên đăng nhập hoặc mật khẩu không hợp lệ.");
     }
 
     public async Task<IEnumerable<UserDto>> GetAllAsync()
     {
-        var users = await _userRepository.GetAllAsync();
+        var users = await _unitOfWork.Users.GetAllAsync();
         return users.Select(u => MapToUserDto(u));
     }
 
     public async Task<UserDto?> GetByIdAsync(int id)
     {
-        var user = await _userRepository.GetByIdAsync(id);
-        return user != null ? MapToUserDto(user) : null;
+        var user = await _unitOfWork.Users.GetByIdAsync(id);
+        if (user == null)
+        {
+            throw new NotFoundException("User", "Id", id);
+        }
+        return MapToUserDto(user);
     }
 
     public async Task<UserDto?> GetByUsernameAsync(string username)
     {
-        var user = await _userRepository.GetByUsernameAsync(username);
-        return user != null ? MapToUserDto(user) : null;
+        var user = await _unitOfWork.Users.GetByUsernameAsync(username);
+        if (user == null)
+        {
+            throw new NotFoundException("User", "Username", username);
+        }
+        return MapToUserDto(user);
     }
 
     
@@ -85,17 +105,15 @@ public class UserService : IUserService
         int? openingScheduleId,
         int? scheduleId)
     {
-        var existingUser = await _userRepository.GetByIdAsync(userId);
-
+        var existingUser = await _unitOfWork.Users.GetByIdAsync(userId);
         if (existingUser == null)
         {
-            throw new KeyNotFoundException($"User with ID {userId} not found.");
+            throw new NotFoundException("User", "Id", userId);
         }
 
         // Xử lý file ảnh mới nếu có
         if (avatarImageFile != null && avatarImageFile.Length > 0)
         {
-            // 1. Xóa ảnh cũ (nếu có và không rỗng)
             if (!string.IsNullOrEmpty(existingUser.avatar_url))
             {
                 try
@@ -105,71 +123,55 @@ public class UserService : IUserService
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Error deleting old avatar for user {userId}: {ex.Message}");
-                    // Tiếp tục mà không ném lỗi để không chặn việc cập nhật
+                    // Ghi log nhưng không ném để không chặn việc cập nhật user
                 }
             }
-            // 2. Lưu ảnh mới
             string newAvatarUrl = await _fileStorageService.SaveFileAsync(avatarImageFile, "avatars");
-            existingUser.avatar_url = newAvatarUrl; // Cập nhật URL mới
+            existingUser.avatar_url = newAvatarUrl;
         }
-        // Nếu avatarImageFile là null, giữ nguyên avatar_url hiện có.
-        // Nếu bạn muốn client có thể "xóa" avatar, bạn cần một cơ chế riêng (ví dụ: gửi một cờ "clearAvatar").
-
-        // Cập nhật các trường khác nếu có giá trị được cung cấp
+        
+        // Cập nhật các trường khác
         if (!string.IsNullOrEmpty(username))
         {
-            // Kiểm tra trùng lặp username mới (nếu có thay đổi)
             if (existingUser.username != username)
             {
-                var userWithSameUsername = await _userRepository.GetByUsernameAsync(username);
+                var userWithSameUsername = await _unitOfWork.Users.GetByUsernameAsync(username);
                 if (userWithSameUsername != null && userWithSameUsername.user_id != userId)
                 {
-                    throw new ArgumentException($"Username '{username}' already exists for another user.");
+                    throw new ValidationException(new Dictionary<string, string[]>
+                    {
+                        { "Username", new string[] { $"Tên đăng nhập '{username}' đã tồn tại cho người dùng khác." } }
+                    });
                 }
             }
             existingUser.username = username;
         }
 
-        if (!string.IsNullOrEmpty(accountName))
+        if (!string.IsNullOrEmpty(accountName)) { existingUser.account_name = accountName; }
+        if (!string.IsNullOrEmpty(newPassword)) // Nếu có mật khẩu mới, cập nhật nó THÔ
         {
-            existingUser.account_name = accountName;
+            // --- ĐÃ THAY ĐỔI: Lưu mật khẩu THÔ mới (RẤT KHÔNG AN TOÀN) ---
+            existingUser.password = newPassword; // KHÔNG HASH - RẤT RỦI RO BẢO MẬT!
         }
-        if (!string.IsNullOrEmpty(newPassword)) // Nếu có mật khẩu mới, hash và cập nhật nó
-        {
-            existingUser.password = BCrypt.Net.BCrypt.HashPassword(newPassword); // HASH MẬT KHẨU MỚI
-        }
-        if (!string.IsNullOrEmpty(address))
-        {
-            existingUser.address = address;
-        }
-        if (!string.IsNullOrEmpty(phoneNumber))
-        {
-            existingUser.phone_number = phoneNumber;
-        }
-        if (isDisabled.HasValue)
-        {
-            existingUser.is_disabled = isDisabled.Value;
-        }
-        // avatar_url đã được xử lý ở trên
-        if (birthday.HasValue)
-        {
-            existingUser.birthday = birthday.Value;
-        }
+        if (!string.IsNullOrEmpty(address)) { existingUser.address = address; }
+        if (!string.IsNullOrEmpty(phoneNumber)) { existingUser.phone_number = phoneNumber; }
+        if (isDisabled.HasValue) { existingUser.is_disabled = isDisabled.Value; }
+        if (birthday.HasValue) { existingUser.birthday = birthday.Value; }
 
         // Cập nhật khóa ngoại Role
         if (roleId.HasValue)
         {
             if (existingUser.role_id != roleId.Value)
             {
-                var roleExists = await _roleRepository.GetByIdAsync(roleId.Value);
+                var roleExists = await _unitOfWork.Roles.GetByIdAsync(roleId.Value);
                 if (roleExists == null)
                 {
-                    throw new KeyNotFoundException($"Role with ID {roleId.Value} not found for update.");
+                    throw new NotFoundException("Role", "Id", roleId.Value);
                 }
                 existingUser.role_id = roleId.Value;
             }
         }
-        else if (roleId == null)
+        else if (roleId == null && existingUser.role_id != null)
         {
             existingUser.role_id = null;
         }
@@ -179,15 +181,15 @@ public class UserService : IUserService
         {
             if (existingUser.statistic_id != statisticId.Value)
             {
-                var statisticExists = await _statisticRepository.GetByIdAsync(statisticId.Value);
+                var statisticExists = await _unitOfWork.Statistics.GetByIdAsync(statisticId.Value);
                 if (statisticExists == null)
                 {
-                    throw new KeyNotFoundException($"Statistic with ID {statisticId.Value} not found for update.");
+                    throw new NotFoundException("Statistic", "Id", statisticId.Value);
                 }
                 existingUser.statistic_id = statisticId.Value;
             }
         }
-        else if (statisticId == null)
+        else if (statisticId == null && existingUser.statistic_id != null)
         {
             existingUser.statistic_id = null;
         }
@@ -197,15 +199,15 @@ public class UserService : IUserService
         {
             if (existingUser.opening_schedule_id != openingScheduleId.Value)
             {
-                var openingScheduleExists = await _openingScheduleRepository.GetByIdAsync(openingScheduleId.Value);
+                var openingScheduleExists = await _unitOfWork.OpeningSchedules.GetByIdAsync(openingScheduleId.Value);
                 if (openingScheduleExists == null)
                 {
-                    throw new KeyNotFoundException($"Opening Schedule with ID {openingScheduleId.Value} not found for update.");
+                    throw new NotFoundException("Opening Schedule", "Id", openingScheduleId.Value);
                 }
                 existingUser.opening_schedule_id = openingScheduleId.Value;
             }
         }
-        else if (openingScheduleId == null)
+        else if (openingScheduleId == null && existingUser.opening_schedule_id != null)
         {
             existingUser.opening_schedule_id = null;
         }
@@ -215,28 +217,40 @@ public class UserService : IUserService
         {
             if (existingUser.schedule_id != scheduleId.Value)
             {
-                var scheduleExists = await _scheduleRepository.GetByIdAsync(scheduleId.Value);
+                var scheduleExists = await _unitOfWork.Schedules.GetByIdAsync(scheduleId.Value);
                 if (scheduleExists == null)
                 {
-                    throw new KeyNotFoundException($"Schedule with ID {scheduleId.Value} not found for update.");
+                    throw new NotFoundException("Schedule", "Id", scheduleId.Value);
                 }
                 existingUser.schedule_id = scheduleId.Value;
             }
         }
-        else if (scheduleId == null)
+        else if (scheduleId == null && existingUser.schedule_id != null)
         {
             existingUser.schedule_id = null;
         }
 
-        await _userRepository.UpdateAsync(existingUser);
+        try
+        {
+            await _unitOfWork.Users.UpdateAsync(existingUser);
+            await _unitOfWork.CompleteAsync();
+        }
+        catch (DbUpdateException dbEx)
+        {
+            throw new ApiException("Có lỗi xảy ra khi cập nhật người dùng vào cơ sở dữ liệu.", dbEx, (int)HttpStatusCode.InternalServerError);
+        }
+        catch (Exception ex)
+        {
+            throw new ApiException("An unexpected error occurred during user update.", ex, (int)HttpStatusCode.InternalServerError);
+        }
     }
 
-    public async Task<bool> DeleteAsync(int id)
+    public async Task DeleteAsync(int id)
     {
-        var userToDelete = await _userRepository.GetByIdAsync(id);
+        var userToDelete = await _unitOfWork.Users.GetByIdAsync(id);
         if (userToDelete == null)
         {
-            return false;
+            throw new NotFoundException("User", "Id", id);
         }
 
         // Xóa file ảnh đại diện liên quan khỏi Azure Blob trước
@@ -249,11 +263,23 @@ public class UserService : IUserService
             catch (Exception ex)
             {
                 Console.WriteLine($"Error deleting avatar blob for user {id}: {ex.Message}");
-                // Tiếp tục mà không ném lỗi để không chặn việc xóa user nếu file không tồn tại/có vấn đề
+                // Ghi log nhưng không ném lỗi để không chặn việc xóa user nếu file không tồn tại/có vấn đề
             }
         }
 
-        return await _userRepository.DeleteAsync(id);
+        try
+        {
+            await _unitOfWork.Users.DeleteAsync(id);
+            await _unitOfWork.CompleteAsync();
+        }
+        catch (DbUpdateException dbEx)
+        {
+            throw new ApiException("Không thể xóa người dùng do có các bản ghi liên quan (ràng buộc khóa ngoại).", dbEx, (int)HttpStatusCode.Conflict); // 409 Conflict
+        }
+        catch (Exception ex)
+        {
+            throw new ApiException("An unexpected error occurred during user deletion.", ex, (int)HttpStatusCode.InternalServerError);
+        }
     }
 
     public async Task<IEnumerable<UserDto>> SearchUsersAsync(string? username = null, string? accountName = null, string? password = null,
@@ -263,7 +289,7 @@ public class UserService : IUserService
         // Quan trọng: KHÔNG NÊN tìm kiếm theo mật khẩu thô trong thực tế.
         // Nếu bạn cần tìm kiếm người dùng, hãy dùng username/account_name/email.
         // Biến `password` ở đây sẽ bị bỏ qua khi thực hiện tìm kiếm trên DB.
-        var users = await _userRepository.SearchUsersAsync(username, accountName, null, address, phoneNumber, isDisabled, createAt, birthday, roleId);
+        var users = await _unitOfWork.Users.SearchUsersAsync(username, accountName, null, address, phoneNumber, isDisabled, createAt, birthday, roleId);
         return users.Select(u => MapToUserDto(u));
     }
 
@@ -302,65 +328,80 @@ public class UserService : IUserService
         int? openingScheduleId,
         int? scheduleId)
     {
-        // 1. Kiểm tra trùng lặp username VÀ các khóa ngoại trước
-        if (!string.IsNullOrEmpty(username))
+        // 1. Validation dữ liệu đầu vào đơn giản
+        if (string.IsNullOrEmpty(username))
         {
-            var existingUser = await _userRepository.GetByUsernameAsync(username);
-            if (existingUser != null)
+             throw new ValidationException(new Dictionary<string, string[]>
             {
-                throw new ArgumentException($"Username '{username}' already exists.");
-            }
+                { "Username", new string[] { "Tên đăng nhập không được để trống." } }
+            });
+        }
+        if (string.IsNullOrEmpty(password))
+        {
+             throw new ValidationException(new Dictionary<string, string[]>
+            {
+                { "Password", new string[] { "Mật khẩu không được để trống." } }
+            });
         }
 
-        // Kiểm tra khóa ngoại Role
+        // 2. Kiểm tra trùng lặp username
+        var existingUser = await _unitOfWork.Users.GetByUsernameAsync(username);
+        if (existingUser != null)
+        {
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                { "Username", new string[] { $"Tên đăng nhập '{username}' đã tồn tại." } }
+            });
+        }
+
+        // 3. Kiểm tra khóa ngoại Role
         if (roleId.HasValue)
         {
-            var roleExists = await _roleRepository.GetByIdAsync(roleId.Value);
+            var roleExists = await _unitOfWork.Roles.GetByIdAsync(roleId.Value);
             if (roleExists == null)
             {
-                throw new KeyNotFoundException($"Role with ID {roleId.Value} not found.");
+                throw new NotFoundException("Role", "Id", roleId.Value);
             }
         }
 
-        // ... (Kiểm tra các khóa ngoại khác tương tự) ...
+        // 4. Kiểm tra các khóa ngoại khác
         if (statisticId.HasValue)
         {
-            var statisticExists = await _statisticRepository.GetByIdAsync(statisticId.Value);
+            var statisticExists = await _unitOfWork.Statistics.GetByIdAsync(statisticId.Value);
             if (statisticExists == null)
             {
-                throw new KeyNotFoundException($"Statistic with ID {statisticId.Value} not found.");
+                throw new NotFoundException("Statistic", "Id", statisticId.Value);
             }
         }
-
         if (openingScheduleId.HasValue)
         {
-            var openingScheduleExists = await _openingScheduleRepository.GetByIdAsync(openingScheduleId.Value);
+            var openingScheduleExists = await _unitOfWork.OpeningSchedules.GetByIdAsync(openingScheduleId.Value);
             if (openingScheduleExists == null)
             {
-                throw new KeyNotFoundException($"Opening Schedule with ID {openingScheduleId.Value} not found.");
+                throw new NotFoundException("Opening Schedule", "Id", openingScheduleId.Value);
             }
         }
-
         if (scheduleId.HasValue)
         {
-            var scheduleExists = await _scheduleRepository.GetByIdAsync(scheduleId.Value);
+            var scheduleExists = await _unitOfWork.Schedules.GetByIdAsync(scheduleId.Value);
             if (scheduleExists == null)
             {
-                throw new KeyNotFoundException($"Schedule with ID {scheduleId.Value} not found.");
+                throw new NotFoundException("Schedule", "Id", scheduleId.Value);
             }
         }
 
-        // 2. Tạo entity (chưa có avatar_url)
+        // 5. Tạo entity
         var userEntity = new user
         {
             username = username,
             account_name = accountName,
-            password = BCrypt.Net.BCrypt.HashPassword(password),
+            // --- ĐÃ THAY ĐỔI: Lưu mật khẩu THÔ (RẤT KHÔNG AN TOÀN) ---
+            password = password, // KHÔNG HASH - RẤT RỦI RO BẢO MẬT!
             address = address,
             phone_number = phoneNumber,
             is_disabled = isDisabled ?? false,
-            create_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Unspecified), // Đã khắc phục lỗi DateTime
-            avatar_url = null, // KHỞI TẠO LÀ NULL BAN ĐẦU
+            create_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Unspecified),
+            avatar_url = null,
             birthday = birthday,
             role_id = roleId,
             statistic_id = statisticId,
@@ -368,40 +409,36 @@ public class UserService : IUserService
             schedule_id = scheduleId
         };
 
-        // 3. THỬ lưu user vào database trước
+        // 6. Lưu user và xử lý avatar
         try
         {
-            var addedUser = await _userRepository.AddAsync(userEntity);
+            var addedUser = await _unitOfWork.Users.AddAsync(userEntity);
+            await _unitOfWork.CompleteAsync(); // Lưu thay đổi user trước
 
-            // 4. Nếu lưu user thành công, MỚI TIẾN HÀNH lưu ảnh
             if (avatarImageFile != null && avatarImageFile.Length > 0)
             {
-                // Lưu file vào Azure Blob Storage
                 string avatarUrl = await _fileStorageService.SaveFileAsync(avatarImageFile, "avatars");
-
-                // Cập nhật URL vào userEntity đã lưu
                 addedUser.avatar_url = avatarUrl;
-
-                // Lưu lại userEntity để cập nhật avatar_url
-                // Lưu ý: Cần một phương thức UpdateAsync nhẹ hơn trong UserRepository
-                // hoặc đơn giản là gọi SaveChanges() trên context của repository nếu bạn quản lý context
-                // Ví dụ: _context.Entry(addedUser).State = EntityState.Modified; await _context.SaveChangesAsync();
-                // Hoặc tốt hơn là _userRepository.UpdateAsync(addedUser);
-
-                // NếuUserRepository.UpdateAsync() yêu cầu cả entity, bạn cần lấy lại entity nếu AsNoTracking
-                // Để đơn giản, giả định _userRepository.UpdateAsync(addedUser) hoạt động.
-                await _userRepository.UpdateAsync(addedUser);
+                await _unitOfWork.Users.UpdateAsync(addedUser); // Cập nhật lại user với URL avatar
+                await _unitOfWork.CompleteAsync(); // Lưu thay đổi avatar URL
             }
 
             return MapToUserDto(addedUser);
         }
-        catch (Exception ex)
+        catch (DbUpdateException dbEx) // Bắt lỗi từ Entity Framework
         {
-            // 5. Nếu có bất kỳ lỗi nào xảy ra trong quá trình lưu user vào DB (hoặc lưu ảnh sau đó),
-            // thì userEntity không được tạo hoàn chỉnh (hoặc không được lưu).
-            // VÌ ảnh chưa được lưu, NÊN không cần rollback ảnh.
-            // Re-throw lỗi để Controller xử lý.
-            throw;
+            if (dbEx.InnerException?.Message?.Contains("duplicate key", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "DbError", new string[] { "Dữ liệu bạn nhập đã bị trùng, vui lòng kiểm tra lại." } }
+                }, dbEx);
+            }
+            throw new ApiException("Có lỗi xảy ra khi lưu người dùng vào cơ sở dữ liệu.", dbEx, (int)HttpStatusCode.InternalServerError);
+        }
+        catch (Exception ex) // Bắt các lỗi không mong muốn khác
+        {
+            throw new ApiException("An unexpected error occurred during user creation.", ex, (int)HttpStatusCode.InternalServerError);
         }
     }
 }

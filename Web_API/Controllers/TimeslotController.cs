@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Repository.Data;
 using Repository.Models;
+using Services.Exceptions;
 using Services.IServices;
 
 namespace Web_API.Controllers
@@ -21,39 +22,34 @@ namespace Web_API.Controllers
         public TimeslotController(ITimeslotService timeslotService) => _timeslotService = timeslotService;
 
         [HttpGet]
-        public async Task<IEnumerable<timeslot>> GetAll()
+        public async Task<ActionResult> GetAll()
         {
-            return await _timeslotService.GetAllAsync();
+            var timeslots = await _timeslotService.GetAllAsync();
+            return Ok(timeslots);
         }
 
         [HttpGet("{id}")]
         public async Task<ActionResult<TimeslotDto>> GetTimeslotById(int id)
         {
             var timeslot = await _timeslotService.GetByIDAsync(id);
-            if (timeslot == null)
-            {
-                return NotFound();
-            }
             return Ok(timeslot);
+        }
+        
+        [HttpGet("search")]
+        public async Task<ActionResult<IEnumerable<timeslot>>> SearchByStartTimeOrEndTime(
+            [FromQuery] TimeOnly? startTime,
+            [FromQuery] TimeOnly? endTime)
+        {
+            var timeslots = await _timeslotService.SearchByStartTimeOrEndTimeAsync(startTime, endTime);
+            return Ok(timeslots);
         }
 
         // POST: api/Timeslots
         [HttpPost]
         public async Task<ActionResult<TimeslotDto>> CreateTimeslot([FromBody] CreateTimeslotDto createTimeslotDto)
         {
-            try
-            {
-                var createdTimeslot = await _timeslotService.AddAsync(createTimeslotDto);
-                return CreatedAtAction(nameof(GetTimeslotById), new { id = createdTimeslot.TimeslotId }, createdTimeslot);
-            }
-            catch (ArgumentException ex) // Bắt lỗi validation thời gian
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while creating the timeslot.", error = ex.Message });
-            }
+            var createdTimeslot = await _timeslotService.AddAsync(createTimeslotDto);
+            return CreatedAtAction(nameof(GetTimeslotById), new { id = createdTimeslot.TimeslotId }, createdTimeslot);
         }
 
         // PUT: api/Timeslots/{id}
@@ -62,45 +58,25 @@ namespace Web_API.Controllers
         {
             if (id != updateTimeslotDto.TimeslotId)
             {
-                return BadRequest(new { message = "Timeslot ID in URL does not match ID in body." });
+                // Ném ValidationException thay vì BadRequest
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "TimeslotId", new string[] { "ID khung thời gian trong URL không khớp với ID trong body." } }
+                });
             }
 
-            try
-            {
-                await _timeslotService.UpdateAsync(updateTimeslotDto);
-                return NoContent();
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-            catch (ArgumentException ex) // Bắt lỗi validation thời gian
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while updating the timeslot.", error = ex.Message });
-            }
+            // Không còn try-catch ở đây, Service sẽ ném NotFoundException/ValidationException/ApiException
+            await _timeslotService.UpdateAsync(updateTimeslotDto);
+            return NoContent(); // 204 No Content for successful update
         }
 
         // DELETE: api/Timeslots/{id}
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTimeslot(int id)
         {
-            try
-            {
-                await _timeslotService.DeleteAsync(id);
-                return NoContent();
-            }
-            catch (KeyNotFoundException)
-            {
-                return NotFound();
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while deleting the timeslot.", error = ex.Message });
-            }
+            // Không còn try-catch ở đây, Service sẽ ném NotFoundException/ApiException
+            await _timeslotService.DeleteAsync(id);
+            return NoContent(); // 204 No Content for successful deletion
         }
     }
 }

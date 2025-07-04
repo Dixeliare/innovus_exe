@@ -8,6 +8,8 @@ namespace Repository.Data;
 
 public partial class AppDbContext : DbContext
 {
+    
+// "Host=localhost;Port=5432;Database=innovus_db;Username=postgres;Password=12345"
     public AppDbContext()
     {
     }
