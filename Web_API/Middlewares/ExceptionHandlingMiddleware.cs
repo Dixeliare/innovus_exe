@@ -45,63 +45,66 @@ public class ExceptionHandlingMiddleware
             switch (exception)
             {
                 case NotFoundException notFoundEx:
-                    statusCode = HttpStatusCode.NotFound;
-                    title = "Resource Not Found";
-                    detail = notFoundEx.Message;
-                    break;
+                statusCode = HttpStatusCode.NotFound;
+                title = "Resource Not Found";
+                detail = notFoundEx.Message; // Thông điệp Not Found đã cụ thể
+                break;
 
-                case ValidationException validationEx:
-                    statusCode = HttpStatusCode.BadRequest;
-                    title = "Validation Error";
-                    detail = validationEx.Message;
-                    errors = (Dictionary<string, string[]>?)validationEx.Errors; // Lỗi này sẽ được sửa nếu ValidationException.Errors có kiểu đúng
-                    break;
+            case ValidationException validationEx:
+                statusCode = HttpStatusCode.BadRequest;
+                title = "Validation Error";
+                // Lấy thông điệp lỗi cụ thể từ Errors dictionary cho detail
+                if (validationEx.Errors != null && validationEx.Errors.Any())
+                {
+                    // Lấy thông điệp của lỗi đầu tiên (ví dụ: lỗi ClassCode)
+                    detail = validationEx.Errors.First().Value.FirstOrDefault() ?? validationEx.Message;
+                }
+                else
+                {
+                    detail = validationEx.Message; // Fallback nếu dictionary Errors rỗng
+                }
+                errors = (Dictionary<string, string[]>?)validationEx.Errors; // Gán errors dictionary vào đây
+                break;
 
-                case ForbiddenException forbiddenEx:
-                    statusCode = HttpStatusCode.Forbidden;
-                    title = "Forbidden";
-                    detail = forbiddenEx.Message;
-                    break;
+            case ForbiddenException forbiddenEx:
+                statusCode = HttpStatusCode.Forbidden;
+                title = "Forbidden Access"; // Rõ ràng hơn
+                detail = forbiddenEx.Message; // Thông điệp Forbidden đã cụ thể
+                break;
 
-                case UnauthorizedAppException unauthorizedEx:
-                    statusCode = HttpStatusCode.Unauthorized;
-                    title = "Unauthorized Access";
-                    detail = unauthorizedEx.Message;
-                    break;
+            case UnauthorizedAppException unauthorizedEx:
+                statusCode = HttpStatusCode.Unauthorized;
+                title = "Unauthorized Access";
+                detail = unauthorizedEx.Message; // Thông điệp Unauthorized đã cụ thể
+                break;
 
-                case ApiException apiEx:
-                    statusCode = (HttpStatusCode)apiEx.StatusCode;
-                    title = statusCode.ToString();
-                    detail = apiEx.Message;
-                    break;
-                
-                // Sửa lỗi Local variable 'argEx' might not be initialized
-                // Bằng cách bắt ArgumentException chung, vì ArgumentNullException cũng kế thừa từ nó
-                case ArgumentException commonArgEx: // <-- Đã sửa ở đây, sử dụng commonArgEx
-                    statusCode = HttpStatusCode.BadRequest;
-                    title = "Bad Request";
-                    detail = commonArgEx.Message; // <-- Sử dụng commonArgEx
-                    break;
-                // Nếu bạn muốn xử lý riêng ArgumentNullException, hãy đặt nó trước ArgumentException
-                // case ArgumentNullException argNullEx:
-                //    statusCode = HttpStatusCode.BadRequest;
-                //    title = "Null Argument Error";
-                //    detail = argNullEx.Message;
-                //    break;
+            case ApiException apiEx:
+                statusCode = (HttpStatusCode)apiEx.StatusCode;
+                title = $"API Error - {statusCode}"; // Rõ ràng hơn, kèm mã lỗi
+                detail = apiEx.Message; // Thông điệp API Exception đã cụ thể
+                break;
 
-                case InvalidOperationException invalidOpEx:
-                    statusCode = HttpStatusCode.BadRequest;
-                    title = "Invalid Operation";
-                    detail = invalidOpEx.Message;
-                    break;
+            case ArgumentException commonArgEx:
+                statusCode = HttpStatusCode.BadRequest;
+                title = "Bad Request - Invalid Argument"; // Cụ thể hơn
+                detail = commonArgEx.Message; // Thông điệp ArgumentException đã cụ thể
+                break;
 
-                case Microsoft.EntityFrameworkCore.DbUpdateException dbUpdateEx:
-                    statusCode = HttpStatusCode.Conflict;
-                    title = "Database Conflict";
-                    detail = "A database update conflict occurred, possibly due to a unique constraint violation or related data issues.";
-                    // Sử dụng logger được truyền vào
-                    logger.LogError(dbUpdateEx, "DbUpdateException caught in middleware: {Message}", dbUpdateEx.Message); // <-- Đã sửa ở đây
-                    break;
+            case InvalidOperationException invalidOpEx:
+                statusCode = HttpStatusCode.BadRequest; // Hoặc Conflict nếu phù hợp hơn
+                title = "Invalid Operation";
+                detail = invalidOpEx.Message; // Thông điệp InvalidOperationException đã cụ thể
+                break;
+
+            case Microsoft.EntityFrameworkCore.DbUpdateException dbUpdateEx:
+                statusCode = HttpStatusCode.Conflict;
+                title = "Database Conflict";
+                // Đối với DbUpdateException, thường không nên tiết lộ thông điệp chi tiết ra frontend
+                // vì nó có thể chứa thông tin nhạy cảm về cấu trúc DB.
+                // Giữ lại thông điệp chung chung cho detail là tốt cho Production.
+                detail = "A database update conflict occurred, possibly due to a unique constraint violation or related data issues.";
+                logger.LogError(dbUpdateEx, "DbUpdateException caught in middleware: {Message}", dbUpdateEx.Message);
+                break;
             }
 
             context.Response.StatusCode = (int)statusCode;

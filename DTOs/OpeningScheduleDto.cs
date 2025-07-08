@@ -12,6 +12,10 @@ public class OpeningScheduleDto
         public string? Schedule { get; set; }
         public int? StudentQuantity { get; set; }
         public bool? IsAdvancedClass { get; set; }
+        public UserForOpeningScheduleDto? TeacherUser { get; set; } // Giả sử bạn có UserDto
+        
+        public int InstrumentId { get; set; } // Cột khóa ngoại
+        public InstrumentDto? Instrument { get; set; } 
     }
 
     // DTO dùng làm input khi tạo mới Lịch khai giảng (POST request body)
@@ -38,6 +42,11 @@ public class OpeningScheduleDto
         public int? StudentQuantity { get; set; }
 
         public bool? IsAdvancedClass { get; set; }
+        // <--- THÊM TRƯỜNG NÀY VÀO CreateOpeningScheduleDto
+        public int? TeacherUserId { get; set; }
+        
+        [Required(ErrorMessage = "Instrument is required.")]
+        public int InstrumentId { get; set; }
     }
 
     // DTO dùng làm input khi cập nhật Lịch khai giảng (PUT request body)
@@ -63,4 +72,13 @@ public class OpeningScheduleDto
         public int? StudentQuantity { get; set; }
 
         public bool? IsAdvancedClass { get; set; }
+        // <--- THÊM TRƯỜNG NÀY VÀO UpdateOpeningScheduleDto
+        public int? TeacherUserId { get; set; } 
+        
+        public int? InstrumentId { get; set; } 
+    }
+    
+    public class UserForOpeningScheduleDto
+    {
+        public string? AccountName { get; set; }
     }

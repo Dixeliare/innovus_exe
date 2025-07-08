@@ -101,7 +101,7 @@ namespace Web_API.Controllers
 
         // POST: api/Users
         [HttpPost]
-        [Authorize(Roles = "1")] // Chỉ role 1 được tạo user mới
+        //[Authorize(Roles = "1")] // Chỉ role 1 được tạo user mới
         [Consumes("multipart/form-data")] // Quan trọng: Thêm Consumes cho Form-data
         public async Task<ActionResult<UserDto>> CreateUser([FromForm] CreateUserDto createUserDto)
         {

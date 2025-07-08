@@ -1,10 +1,16 @@
 using System.ComponentModel.DataAnnotations;
+using DTOs;
 
 public class ClassDto
 {
     public int ClassId { get; set; }
     public string? ClassCode { get; set; }
     public int InstrumentId { get; set; }
+
+    public InstrumentDto? Instrument { get; set; }
+    
+    // THÊM DÒNG NÀY ĐỂ BAO GỒM DANH SÁCH USER
+    public List<UserDto>? Users { get; set; }
 
     // Navigation properties
     // Bạn có thể thêm các DTO cho class_session và user nếu muốn trả về thông tin chi tiết
@@ -31,4 +37,13 @@ public class UpdateClassDto
     public string? ClassCode { get; set; } // Có thể null khi update nếu không muốn thay đổi mã lớp
 
     public int? InstrumentId { get; set; } // Có thể null khi update nếu không muốn thay đổi nhạc cụ
+}
+
+public class ManageClassUsersDto
+{
+    [Required(ErrorMessage = "Class ID is required.")]
+    public int ClassId { get; set; }
+
+    [Required(ErrorMessage = "List of user IDs is required.")]
+    public List<int> UserIds { get; set; } = new List<int>();
 }

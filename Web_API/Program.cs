@@ -78,11 +78,17 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// builder.Services.AddControllers().AddJsonOptions(options =>
+// {
+//     options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+//     options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.Never;
+//     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.Preserve;
+// });
+
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
-    options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
-    options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.Never;
-    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.Preserve;
+    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    // options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.Never; // Dòng này thường không cần thiết
 });
 
 // builder.Services.AddControllers().AddJsonOptions(options =>
@@ -164,6 +170,9 @@ if (app.Environment.IsDevelopment() || enableSwagger)
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.UseMiddleware<Web_API.Middlewares.ExceptionHandlingMiddleware>();
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseHttpsRedirection();
@@ -172,3 +181,9 @@ app.UseCors("AllowAllOrigins");
 
 app.MapControllers();
 app.Run();
+
+
+
+// "Host=localhost;Port=5432;Database=innovus_updated_db;Username=postgres;Password=12345"
+
+// "Host=ep-lingering-poetry-a1gbdn8i-pooler.ap-southeast-1.aws.neon.tech;Port=5432;Database=neondb;Username=neondb_owner;Password=npg_5XSUwGDx9uNv;SslMode=Require"

@@ -19,6 +19,8 @@ public class UserDto
         public int? StatisticId { get; set; }
         public int? OpeningScheduleId { get; set; }
         public int? ScheduleId { get; set; }
+        
+        public RoleDto? Role { get; set; }
 
         // Có thể thêm DTO lồng nhau cho các mối quan hệ Many-to-One nếu cần chi tiết
         // public RoleDto? Role { get; set; }

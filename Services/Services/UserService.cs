@@ -13,31 +13,9 @@ namespace Services.Services;
 
 public class UserService : IUserService
 {
-    // private readonly IUserRepository _userRepository;
-    // private readonly IRoleRepository _roleRepository;
-    // private readonly IStatisticRepository _statisticRepository;
-    // private readonly IOpeningScheduleRepository _openingScheduleRepository;
-    // private readonly IScheduleRepository _scheduleRepository;
-    // private readonly IFileStorageService _fileStorageService; // Inject IFileStorageService
-    //
-    // public UserService(IUserRepository userRepository,
-    //                    IRoleRepository roleRepository,
-    //                    IStatisticRepository statisticRepository,
-    //                    IOpeningScheduleRepository openingScheduleRepository,
-    //                    IScheduleRepository scheduleRepository,
-    //                    IFileStorageService fileStorageService) // Thêm IFileStorageService vào constructor
-    // {
-    //     _userRepository = userRepository;
-    //     _roleRepository = roleRepository;
-    //     _statisticRepository = statisticRepository;
-    //     _openingScheduleRepository = openingScheduleRepository;
-    //     _scheduleRepository = scheduleRepository;
-    //     _fileStorageService = fileStorageService; // Khởi tạo
-    // }
-    
     private readonly IUnitOfWork _unitOfWork;
     private readonly IFileStorageService _fileStorageService;
-    
+
     public UserService(IUnitOfWork unitOfWork, IFileStorageService fileStorageService)
     {
         _unitOfWork = unitOfWork;
@@ -58,6 +36,7 @@ public class UserService : IUserService
         {
             return user;
         }
+
         throw new UnauthorizedAppException("Tên đăng nhập hoặc mật khẩu không hợp lệ.");
     }
 
@@ -74,6 +53,7 @@ public class UserService : IUserService
         {
             throw new NotFoundException("User", "Id", id);
         }
+
         return MapToUserDto(user);
     }
 
@@ -84,10 +64,10 @@ public class UserService : IUserService
         {
             throw new NotFoundException("User", "Username", username);
         }
+
         return MapToUserDto(user);
     }
 
-    
 
     // UPDATE User
     public async Task UpdateAsync(
@@ -126,10 +106,11 @@ public class UserService : IUserService
                     // Ghi log nhưng không ném để không chặn việc cập nhật user
                 }
             }
+
             string newAvatarUrl = await _fileStorageService.SaveFileAsync(avatarImageFile, "avatars");
             existingUser.avatar_url = newAvatarUrl;
         }
-        
+
         // Cập nhật các trường khác
         if (!string.IsNullOrEmpty(username))
         {
@@ -144,19 +125,40 @@ public class UserService : IUserService
                     });
                 }
             }
+
             existingUser.username = username;
         }
 
-        if (!string.IsNullOrEmpty(accountName)) { existingUser.account_name = accountName; }
+        if (!string.IsNullOrEmpty(accountName))
+        {
+            existingUser.account_name = accountName;
+        }
+
         if (!string.IsNullOrEmpty(newPassword)) // Nếu có mật khẩu mới, cập nhật nó THÔ
         {
             // --- ĐÃ THAY ĐỔI: Lưu mật khẩu THÔ mới (RẤT KHÔNG AN TOÀN) ---
             existingUser.password = newPassword; // KHÔNG HASH - RẤT RỦI RO BẢO MẬT!
         }
-        if (!string.IsNullOrEmpty(address)) { existingUser.address = address; }
-        if (!string.IsNullOrEmpty(phoneNumber)) { existingUser.phone_number = phoneNumber; }
-        if (isDisabled.HasValue) { existingUser.is_disabled = isDisabled.Value; }
-        if (birthday.HasValue) { existingUser.birthday = birthday.Value; }
+
+        if (!string.IsNullOrEmpty(address))
+        {
+            existingUser.address = address;
+        }
+
+        if (!string.IsNullOrEmpty(phoneNumber))
+        {
+            existingUser.phone_number = phoneNumber;
+        }
+
+        if (isDisabled.HasValue)
+        {
+            existingUser.is_disabled = isDisabled.Value;
+        }
+
+        if (birthday.HasValue)
+        {
+            existingUser.birthday = birthday.Value;
+        }
 
         // Cập nhật khóa ngoại Role
         if (roleId.HasValue)
@@ -168,6 +170,7 @@ public class UserService : IUserService
                 {
                     throw new NotFoundException("Role", "Id", roleId.Value);
                 }
+
                 existingUser.role_id = roleId.Value;
             }
         }
@@ -186,6 +189,7 @@ public class UserService : IUserService
                 {
                     throw new NotFoundException("Statistic", "Id", statisticId.Value);
                 }
+
                 existingUser.statistic_id = statisticId.Value;
             }
         }
@@ -204,6 +208,7 @@ public class UserService : IUserService
                 {
                     throw new NotFoundException("Opening Schedule", "Id", openingScheduleId.Value);
                 }
+
                 existingUser.opening_schedule_id = openingScheduleId.Value;
             }
         }
@@ -222,6 +227,7 @@ public class UserService : IUserService
                 {
                     throw new NotFoundException("Schedule", "Id", scheduleId.Value);
                 }
+
                 existingUser.schedule_id = scheduleId.Value;
             }
         }
@@ -237,11 +243,13 @@ public class UserService : IUserService
         }
         catch (DbUpdateException dbEx)
         {
-            throw new ApiException("Có lỗi xảy ra khi cập nhật người dùng vào cơ sở dữ liệu.", dbEx, (int)HttpStatusCode.InternalServerError);
+            throw new ApiException("Có lỗi xảy ra khi cập nhật người dùng vào cơ sở dữ liệu.", dbEx,
+                (int)HttpStatusCode.InternalServerError);
         }
         catch (Exception ex)
         {
-            throw new ApiException("An unexpected error occurred during user update.", ex, (int)HttpStatusCode.InternalServerError);
+            throw new ApiException("An unexpected error occurred during user update.", ex,
+                (int)HttpStatusCode.InternalServerError);
         }
     }
 
@@ -274,22 +282,26 @@ public class UserService : IUserService
         }
         catch (DbUpdateException dbEx)
         {
-            throw new ApiException("Không thể xóa người dùng do có các bản ghi liên quan (ràng buộc khóa ngoại).", dbEx, (int)HttpStatusCode.Conflict); // 409 Conflict
+            throw new ApiException("Không thể xóa người dùng do có các bản ghi liên quan (ràng buộc khóa ngoại).", dbEx,
+                (int)HttpStatusCode.Conflict); // 409 Conflict
         }
         catch (Exception ex)
         {
-            throw new ApiException("An unexpected error occurred during user deletion.", ex, (int)HttpStatusCode.InternalServerError);
+            throw new ApiException("An unexpected error occurred during user deletion.", ex,
+                (int)HttpStatusCode.InternalServerError);
         }
     }
 
-    public async Task<IEnumerable<UserDto>> SearchUsersAsync(string? username = null, string? accountName = null, string? password = null,
+    public async Task<IEnumerable<UserDto>> SearchUsersAsync(string? username = null, string? accountName = null,
+        string? password = null,
         string? address = null, string? phoneNumber = null, bool? isDisabled = null, DateTime? createAt = null,
         DateOnly? birthday = null, int? roleId = null)
     {
         // Quan trọng: KHÔNG NÊN tìm kiếm theo mật khẩu thô trong thực tế.
         // Nếu bạn cần tìm kiếm người dùng, hãy dùng username/account_name/email.
         // Biến `password` ở đây sẽ bị bỏ qua khi thực hiện tìm kiếm trên DB.
-        var users = await _unitOfWork.Users.SearchUsersAsync(username, accountName, null, address, phoneNumber, isDisabled, createAt, birthday, roleId);
+        var users = await _unitOfWork.Users.SearchUsersAsync(username, accountName, null, address, phoneNumber,
+            isDisabled, createAt, birthday, roleId);
         return users.Select(u => MapToUserDto(u));
     }
 
@@ -310,7 +322,14 @@ public class UserService : IUserService
             RoleId = model.role_id,
             StatisticId = model.statistic_id,
             OpeningScheduleId = model.opening_schedule_id,
-            ScheduleId = model.schedule_id
+            ScheduleId = model.schedule_id,
+            Role = model.role != null
+                ? new RoleDto
+                {
+                    RoleId = model.role.role_id,
+                    RoleName = model.role.role_name
+                }
+                : null
         };
     }
 
@@ -331,14 +350,15 @@ public class UserService : IUserService
         // 1. Validation dữ liệu đầu vào đơn giản
         if (string.IsNullOrEmpty(username))
         {
-             throw new ValidationException(new Dictionary<string, string[]>
+            throw new ValidationException(new Dictionary<string, string[]>
             {
                 { "Username", new string[] { "Tên đăng nhập không được để trống." } }
             });
         }
+
         if (string.IsNullOrEmpty(password))
         {
-             throw new ValidationException(new Dictionary<string, string[]>
+            throw new ValidationException(new Dictionary<string, string[]>
             {
                 { "Password", new string[] { "Mật khẩu không được để trống." } }
             });
@@ -373,6 +393,7 @@ public class UserService : IUserService
                 throw new NotFoundException("Statistic", "Id", statisticId.Value);
             }
         }
+
         if (openingScheduleId.HasValue)
         {
             var openingScheduleExists = await _unitOfWork.OpeningSchedules.GetByIdAsync(openingScheduleId.Value);
@@ -381,6 +402,7 @@ public class UserService : IUserService
                 throw new NotFoundException("Opening Schedule", "Id", openingScheduleId.Value);
             }
         }
+
         if (scheduleId.HasValue)
         {
             var scheduleExists = await _unitOfWork.Schedules.GetByIdAsync(scheduleId.Value);
@@ -434,11 +456,14 @@ public class UserService : IUserService
                     { "DbError", new string[] { "Dữ liệu bạn nhập đã bị trùng, vui lòng kiểm tra lại." } }
                 }, dbEx);
             }
-            throw new ApiException("Có lỗi xảy ra khi lưu người dùng vào cơ sở dữ liệu.", dbEx, (int)HttpStatusCode.InternalServerError);
+
+            throw new ApiException("Có lỗi xảy ra khi lưu người dùng vào cơ sở dữ liệu.", dbEx,
+                (int)HttpStatusCode.InternalServerError);
         }
         catch (Exception ex) // Bắt các lỗi không mong muốn khác
         {
-            throw new ApiException("An unexpected error occurred during user creation.", ex, (int)HttpStatusCode.InternalServerError);
+            throw new ApiException("An unexpected error occurred during user creation.", ex,
+                (int)HttpStatusCode.InternalServerError);
         }
     }
 }

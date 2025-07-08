@@ -22,4 +22,10 @@ public interface IUserRepository : IGenericRepository<user>
         DateOnly? birthday = null,
         int? roleId = null);
     
+    Task<user?> GetUserWithRoleAsync(int userId);
+    
+    // THÊM CÁC DÒNG NÀY:
+    Task<IEnumerable<user>> GetUsersByRoleIdsAsync(List<int> roleIds);
+    Task<IEnumerable<user>> GetUsersByRoleNamesAsync(List<string> roleNames);
+    
 }

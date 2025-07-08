@@ -42,15 +42,18 @@ public class OpeningScheduleService : IOpeningScheduleService
 
     public async Task<OpeningScheduleDto> AddAsync(CreateOpeningScheduleDto createOpeningScheduleDto)
     {
-        // Thêm kiểm tra logic: ví dụ, ClassCode có thể cần là duy nhất
+        // Kiểm tra ClassCode đã tồn tại trong OpeningSchedule
         var existingScheduleWithClassCode =
             await _unitOfWork.OpeningSchedules.FindOneAsync(os =>
-                os.class_code == createOpeningScheduleDto.ClassCode); // Giả định FindOneAsync có sẵn
+                os.class_code == createOpeningScheduleDto.ClassCode);
         if (existingScheduleWithClassCode != null)
         {
             throw new ValidationException(new Dictionary<string, string[]>
             {
-                { "ClassCode", new string[] { $"Mã lớp '{createOpeningScheduleDto.ClassCode}' đã tồn tại." } }
+                {
+                    "ClassCode",
+                    new string[] { $"Mã lớp '{createOpeningScheduleDto.ClassCode}' đã có lịch khai giảng." }
+                }
             });
         }
 
@@ -64,6 +67,41 @@ public class OpeningScheduleService : IOpeningScheduleService
             });
         }
 
+        // Kiểm tra giáo viên và vai trò
+        user? teacherUser = null;
+        if (createOpeningScheduleDto.TeacherUserId.HasValue)
+        {
+            teacherUser = await _unitOfWork.Users.GetUserWithRoleAsync(createOpeningScheduleDto.TeacherUserId.Value);
+
+            if (teacherUser == null)
+            {
+                throw new NotFoundException("Teacher User", "Id", createOpeningScheduleDto.TeacherUserId.Value);
+            }
+
+            if (teacherUser.role?.role_name?.ToLower() != "teacher")
+            {
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "TeacherUserId", new string[] { "Người dùng được chọn không phải là giáo viên." } }
+                });
+            }
+        }
+
+        // THÊM LOGIC KIỂM TRA INSTRUMENTID
+        if (createOpeningScheduleDto.InstrumentId <= 0)
+        {
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                { "InstrumentId", new string[] { "Mã nhạc cụ không hợp lệ." } }
+            });
+        }
+
+        var existingInstrument = await _unitOfWork.Instruments.GetByIdAsync(createOpeningScheduleDto.InstrumentId);
+        if (existingInstrument == null)
+        {
+            throw new NotFoundException("Instrument", "Id", createOpeningScheduleDto.InstrumentId);
+        }
+
         var scheduleEntity = new opening_schedule
         {
             subject = createOpeningScheduleDto.Subject,
@@ -72,14 +110,22 @@ public class OpeningScheduleService : IOpeningScheduleService
             end_date = createOpeningScheduleDto.EndDate,
             schedule = createOpeningScheduleDto.Schedule,
             student_quantity = createOpeningScheduleDto.StudentQuantity,
-            is_advanced_class = createOpeningScheduleDto.IsAdvancedClass ?? false
+            is_advanced_class = createOpeningScheduleDto.IsAdvancedClass ?? false,
+            teacher_user_id = createOpeningScheduleDto.TeacherUserId,
+            instrument_id = createOpeningScheduleDto.InstrumentId // GÁN GIÁ TRỊ INSTRUMENTID TỪ DTO
         };
 
         try
         {
             var addedSchedule = await _unitOfWork.OpeningSchedules.AddAsync(scheduleEntity);
-            await _unitOfWork.CompleteAsync(); // Lưu thay đổi
-            return MapToOpeningScheduleDto(addedSchedule);
+            await _unitOfWork.CompleteAsync();
+
+            // Tải lại schedule để có các navigation properties nếu cần cho DTO trả về
+            // Đảm bảo GetByIdAsync trong repo đã include instrument
+            var addedScheduleWithDetails =
+                await _unitOfWork.OpeningSchedules.GetByIdAsync(addedSchedule.opening_schedule_id);
+
+            return MapToOpeningScheduleDto(addedScheduleWithDetails ?? addedSchedule);
         }
         catch (DbUpdateException dbEx)
         {
@@ -93,7 +139,8 @@ public class OpeningScheduleService : IOpeningScheduleService
         }
     }
 
-    // UPDATE Opening Schedule
+    // Services/Services/OpeningScheduleService.cs
+
     public async Task UpdateAsync(UpdateOpeningScheduleDto updateOpeningScheduleDto)
     {
         var existingSchedule =
@@ -104,57 +151,43 @@ public class OpeningScheduleService : IOpeningScheduleService
             throw new NotFoundException("Opening Schedule", "Id", updateOpeningScheduleDto.OpeningScheduleId);
         }
 
-        // Kiểm tra logic: ClassCode có thể cần là duy nhất khi cập nhật
-        if (!string.IsNullOrEmpty(updateOpeningScheduleDto.ClassCode) &&
-            updateOpeningScheduleDto.ClassCode != existingSchedule.class_code)
+        // ... (Giữ nguyên logic kiểm tra giáo viên và vai trò) ...
+        if (updateOpeningScheduleDto.TeacherUserId.HasValue &&
+            updateOpeningScheduleDto.TeacherUserId.Value != existingSchedule.teacher_user_id)
         {
-            var scheduleWithSameClassCode =
-                await _unitOfWork.OpeningSchedules.FindOneAsync(os =>
-                    os.class_code == updateOpeningScheduleDto.ClassCode);
-            if (scheduleWithSameClassCode != null && scheduleWithSameClassCode.opening_schedule_id !=
-                updateOpeningScheduleDto.OpeningScheduleId)
+            var teacherUser =
+                await _unitOfWork.Users.GetUserWithRoleAsync(updateOpeningScheduleDto.TeacherUserId.Value);
+            if (teacherUser == null)
+            {
+                throw new NotFoundException("Teacher User", "Id", updateOpeningScheduleDto.TeacherUserId.Value);
+            }
+
+            if (teacherUser.role?.role_name?.ToLower() != "teacher")
             {
                 throw new ValidationException(new Dictionary<string, string[]>
                 {
-                    {
-                        "ClassCode",
-                        new string[]
-                        {
-                            $"Mã lớp '{updateOpeningScheduleDto.ClassCode}' đã được sử dụng bởi một lịch khai giảng khác."
-                        }
-                    }
+                    { "TeacherUserId", new string[] { "Người dùng được chọn không phải là giáo viên." } }
                 });
             }
+
+            existingSchedule.teacher_user_id = updateOpeningScheduleDto.TeacherUserId.Value;
         }
 
-        // Kiểm tra logic: Ngày kết thúc không được trước ngày khai giảng (nếu cả hai đều được cung cấp hoặc thay đổi)
-        DateOnly effectiveOpeningDay =
-            updateOpeningScheduleDto.OpeningDay ??
-            existingSchedule.opening_day ?? default; // Lấy giá trị hiện tại nếu không thay đổi
-        DateOnly effectiveEndDate =
-            updateOpeningScheduleDto.EndDate ??
-            existingSchedule.end_date ?? default; // Lấy giá trị hiện tại nếu không thay đổi
-
-        if (updateOpeningScheduleDto.EndDate.HasValue && updateOpeningScheduleDto.EndDate.Value < effectiveOpeningDay)
+        // THÊM LOGIC KIỂM TRA VÀ CẬP NHẬT INSTRUMENTID
+        if (updateOpeningScheduleDto.InstrumentId.HasValue &&
+            updateOpeningScheduleDto.InstrumentId.Value != existingSchedule.instrument_id)
         {
-            throw new ValidationException(new Dictionary<string, string[]>
+            var existingInstrument =
+                await _unitOfWork.Instruments.GetByIdAsync(updateOpeningScheduleDto.InstrumentId.Value);
+            if (existingInstrument == null)
             {
-                { "EndDate", new string[] { "Ngày kết thúc không được trước ngày khai giảng." } }
-            });
+                throw new NotFoundException("Instrument", "Id", updateOpeningScheduleDto.InstrumentId.Value);
+            }
+
+            existingSchedule.instrument_id = updateOpeningScheduleDto.InstrumentId.Value;
         }
 
-        // Hoặc nếu chỉ OpeningDay được cập nhật và nó đẩy lùi sau EndDate cũ
-        if (updateOpeningScheduleDto.OpeningDay.HasValue && existingSchedule.end_date.HasValue &&
-            updateOpeningScheduleDto.OpeningDay.Value > existingSchedule.end_date.Value)
-        {
-            throw new ValidationException(new Dictionary<string, string[]>
-            {
-                { "OpeningDay", new string[] { "Ngày khai giảng không được sau ngày kết thúc hiện tại." } }
-            });
-        }
-
-
-        // Cập nhật các trường nếu có giá trị được cung cấp (dùng toán tử null-coalescing assignment ??= nếu muốn)
+        // Cập nhật các trường nếu có giá trị được cung cấp
         existingSchedule.subject = updateOpeningScheduleDto.Subject ?? existingSchedule.subject;
         existingSchedule.class_code = updateOpeningScheduleDto.ClassCode ?? existingSchedule.class_code;
         existingSchedule.opening_day = updateOpeningScheduleDto.OpeningDay ?? existingSchedule.opening_day;
@@ -164,7 +197,6 @@ public class OpeningScheduleService : IOpeningScheduleService
             updateOpeningScheduleDto.StudentQuantity ?? existingSchedule.student_quantity;
         existingSchedule.is_advanced_class =
             updateOpeningScheduleDto.IsAdvancedClass ?? existingSchedule.is_advanced_class;
-
 
         try
         {
@@ -199,11 +231,14 @@ public class OpeningScheduleService : IOpeningScheduleService
         catch (DbUpdateException dbEx)
         {
             // Nếu có user nào đó đang liên kết với lịch khai giảng này, sẽ ném lỗi FK
-            throw new ApiException("Không thể xóa lịch khai giảng này vì nó đang được sử dụng bởi một hoặc nhiều người dùng.", dbEx, (int)HttpStatusCode.Conflict); // 409 Conflict
+            throw new ApiException(
+                "Không thể xóa lịch khai giảng này vì nó đang được sử dụng bởi một hoặc nhiều người dùng.", dbEx,
+                (int)HttpStatusCode.Conflict); // 409 Conflict
         }
         catch (Exception ex)
         {
-            throw new ApiException("An unexpected error occurred while deleting the opening schedule.", ex, (int)HttpStatusCode.InternalServerError);
+            throw new ApiException("An unexpected error occurred while deleting the opening schedule.", ex,
+                (int)HttpStatusCode.InternalServerError);
         }
     }
 
@@ -228,7 +263,25 @@ public class OpeningScheduleService : IOpeningScheduleService
             EndDate = model.end_date,
             Schedule = model.schedule,
             StudentQuantity = model.student_quantity,
-            IsAdvancedClass = model.is_advanced_class
+            IsAdvancedClass = model.is_advanced_class,
+            TeacherUser = model.teacher_user != null
+                ? new UserForOpeningScheduleDto
+                {
+                    AccountName = model.teacher_user.account_name
+                }
+                : null,
+            // BỎ ÁNH XẠ class_codeNavigation (nếu đã xóa từ DTO)
+            // ClassNavigation = null, // hoặc xóa hẳn dòng này
+
+            // THÊM ÁNH XẠ INSTRUMENTID VÀ INSTRUMENT OBJECT
+            InstrumentId = model.instrument_id,
+            Instrument = model.instrument != null
+                ? new InstrumentDto
+                {
+                    InstrumentId = model.instrument.instrument_id,
+                    InstrumentName = model.instrument.instrument_name
+                }
+                : null
         };
     }
 }

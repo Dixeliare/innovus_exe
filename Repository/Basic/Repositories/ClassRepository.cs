@@ -17,6 +17,7 @@ public class ClassRepository : GenericRepository<_class>, IClassRepository
         return await _dbSet
             .Include(c => c.class_sessions)
             .Include(u => u.users)
+            .Include(i => i.instrument)
             .AsSplitQuery()
             .ToListAsync();
     }
@@ -26,6 +27,7 @@ public class ClassRepository : GenericRepository<_class>, IClassRepository
         return await _dbSet
             .Include(c => c.class_sessions)
             .Include(u => u.users)
+            .Include(i => i.instrument)
             .AsSplitQuery()
             .FirstOrDefaultAsync(c => c.class_id == id);
     }
@@ -58,20 +60,29 @@ public class ClassRepository : GenericRepository<_class>, IClassRepository
     {
         IQueryable<_class> query = _dbSet;
 
-        // Kiểm tra xem có bất kỳ tham số tìm kiếm nào được cung cấp không
         if (instrumentId.HasValue || !string.IsNullOrEmpty(classCode))
         {
-            // Áp dụng điều kiện WHERE với logic OR
             query = query.Where(c =>
-                    (instrumentId.HasValue && c.instrument_id == instrumentId.Value) ||
-                    (!string.IsNullOrEmpty(classCode) && EF.Functions.ILike(c.class_code, $"%{classCode}%")) // Dùng ILike cho tìm kiếm không phân biệt hoa thường và partial match
+                (instrumentId.HasValue && c.instrument_id == instrumentId.Value) ||
+                (!string.IsNullOrEmpty(classCode) && EF.Functions.ILike(c.class_code, $"%{classCode}%"))
             );
         }
-        // Nếu cả hai tham số đều là null/empty, query sẽ không bị lọc và trả về tất cả.
-
-        // Bạn có thể thêm `.Include()` nếu muốn eager load các navigation properties
-        // Ví dụ: .Include(c => c.instrument) nếu bạn có navigation property đến bảng instrument
+        
+        // Đảm bảo Instrument được tải khi tìm kiếm để Service có thể ánh xạ tên nhạc cụ
+        query = query.Include(i => i.instrument);
 
         return await query.ToListAsync();
+    }
+
+    
+    // THÊM PHƯƠNG THỨC MỚI NÀY:
+    public async Task<_class?> GetClassWithUsersAsync(int classId)
+    {
+        return await _dbSet
+            .Include(c => c.instrument)
+            .Include(c => c.users) // Rất quan trọng: Bao gồm danh sách users
+            .ThenInclude(u => u.role) // Và bao gồm cả vai trò của mỗi user
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(c => c.class_id == classId);
     }
 }

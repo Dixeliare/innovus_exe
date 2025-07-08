@@ -35,7 +35,11 @@ public partial class user
 
     public virtual ICollection<attendance> attendances { get; set; } = new List<attendance>();
 
+    public virtual ICollection<consultation_request> consultation_requests { get; set; } = new List<consultation_request>();
+
     public virtual opening_schedule? opening_schedule { get; set; }
+
+    public virtual ICollection<opening_schedule> opening_schedules { get; set; } = new List<opening_schedule>();
 
     public virtual role? role { get; set; }
 

@@ -16,6 +16,8 @@ public class OpeningScheduleRepository : GenericRepository<opening_schedule>, IO
     {
         return await _dbSet
             .Include(u => u.users)
+            .Include(t => t.teacher_user) 
+            .Include(i => i.instrument)
             .AsSplitQuery()
             .ToListAsync();
     }
@@ -24,6 +26,8 @@ public class OpeningScheduleRepository : GenericRepository<opening_schedule>, IO
     {
         return await _dbSet
             .Include(u => u.users)
+            .Include(t => t.teacher_user) 
+            .Include(i => i.instrument)
             .AsSplitQuery()
             .FirstOrDefaultAsync(o => o.opening_schedule_id == id);
     }
@@ -59,7 +63,9 @@ public class OpeningScheduleRepository : GenericRepository<opening_schedule>, IO
         int? studentQuantity = null,
         bool? isAdvancedClass = null)
     {
-        IQueryable<opening_schedule> query = _dbSet;
+        IQueryable<opening_schedule> query = _dbSet
+            .Include(t => t.teacher_user)
+            .Include(i => i.instrument);
 
         // Áp dụng từng điều kiện tìm kiếm nếu tham số được cung cấp
         if (!string.IsNullOrEmpty(subject))

@@ -76,6 +76,75 @@ namespace Web_API.Controllers
             await _classService.DeleteAsync(id);
             return NoContent();
         }
+        
+        // THÊM ENDPOINT MỚI NÀY
+        [HttpGet("{id}/with-users")]
+        //[Authorize(Roles = "1,2")] // Cho phép các role có quyền xem thông tin lớp học với danh sách người dùng
+        public async Task<ActionResult<ClassDto>> GetClassWithUsers(int id)
+        {
+            var cls = await _classService.GetClassWithUsersByIdAsync(id);
+            return Ok(cls);
+        }
+        
+        
+        // Endpoint để lấy danh sách tất cả học viên và giáo viên có sẵn
+        [HttpGet("available-users")]
+        //[Authorize(Roles = "1,2")] // Ví dụ: chỉ role 1 (Admin) và 2 (quản lý) có thể xem
+        public async Task<ActionResult<IEnumerable<UserDto>>> GetAvailableStudentsAndTeachers()
+        {
+            var users = await _classService.GetAvailableStudentsAndTeachersAsync();
+            return Ok(users);
+        }
+
+        // Endpoint để gán (thay thế) danh sách học viên/giáo viên cho một lớp
+        // Điều này sẽ XÓA TẤT CẢ người dùng hiện có trong lớp và gán danh sách mới.
+        [HttpPut("{classId}/users")]
+        //[Authorize(Roles = "1")] // Ví dụ: chỉ role 1 (Admin) có thể gán người dùng
+        public async Task<IActionResult> AssignUsersToClass(int classId, [FromBody] ManageClassUsersDto dto)
+        {
+            if (classId != dto.ClassId)
+            {
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "ClassId", new string[] { "ID lớp học trong URL không khớp với ID trong body." } }
+                });
+            }
+            await _classService.AssignUsersToClassAsync(classId, dto.UserIds);
+            return NoContent(); // 204 No Content
+        }
+
+        // Endpoint để thêm người dùng vào một lớp hiện có
+        // Điều này sẽ THÊM người dùng vào danh sách hiện có, không xóa.
+        [HttpPost("{classId}/users/add")]
+        //[Authorize(Roles = "1")]
+        public async Task<IActionResult> AddUsersToClass(int classId, [FromBody] ManageClassUsersDto dto)
+        {
+            if (classId != dto.ClassId)
+            {
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "ClassId", new string[] { "ID lớp học trong URL không khớp với ID trong body." } }
+                });
+            }
+            await _classService.AddUsersToClassAsync(classId, dto.UserIds);
+            return NoContent();
+        }
+
+        // Endpoint để xóa người dùng khỏi một lớp hiện có
+        [HttpDelete("{classId}/users/remove")]
+        //[Authorize(Roles = "1")]
+        public async Task<IActionResult> RemoveUsersFromClass(int classId, [FromBody] ManageClassUsersDto dto)
+        {
+            if (classId != dto.ClassId)
+            {
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "ClassId", new string[] { "ID lớp học trong URL không khớp với ID trong body." } }
+                });
+            }
+            await _classService.RemoveUsersFromClassAsync(classId, dto.UserIds);
+            return NoContent();
+        }
 
     }
 }

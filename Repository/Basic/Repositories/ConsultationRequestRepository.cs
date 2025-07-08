@@ -17,6 +17,7 @@ public class ConsultationRequestRepository : GenericRepository<consultation_requ
         return await _dbSet
             .Include(c => c.consultation_topic)
             .Include(s => s.statistic)
+            .Include(h => h.handled_byNavigation)
             .AsSplitQuery()
             .ToListAsync();
     }
@@ -26,6 +27,7 @@ public class ConsultationRequestRepository : GenericRepository<consultation_requ
         return await _dbSet
             .Include(c => c.consultation_topic)
             .Include(s => s.statistic)
+            .Include(h => h.handled_byNavigation)
             .AsSplitQuery()
             .FirstOrDefaultAsync(s => s.consultation_request_id == id);
     }
@@ -64,7 +66,8 @@ public class ConsultationRequestRepository : GenericRepository<consultation_requ
 
         // Bao gồm các navigation property nếu muốn eager load thông tin liên quan khi tìm kiếm
         query = query.Include(cr => cr.consultation_topic)
-            .Include(cr => cr.statistic);
+            .Include(cr => cr.statistic)
+            .Include(cr => cr.handled_byNavigation);
 
         // Áp dụng từng điều kiện tìm kiếm nếu tham số được cung cấp
         if (!string.IsNullOrEmpty(fullname))
