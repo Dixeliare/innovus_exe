@@ -33,9 +33,15 @@ public partial class user
 
     public int? schedule_id { get; set; }
 
+    public string? email { get; set; }
+
+    public int gender_id { get; set; }
+
     public virtual ICollection<attendance> attendances { get; set; } = new List<attendance>();
 
     public virtual ICollection<consultation_request> consultation_requests { get; set; } = new List<consultation_request>();
+
+    public virtual gender gender { get; set; } = null!;
 
     public virtual opening_schedule? opening_schedule { get; set; }
 

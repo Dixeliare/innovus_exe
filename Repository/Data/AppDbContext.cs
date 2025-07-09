@@ -24,6 +24,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<document> documents { get; set; }
 
+    public virtual DbSet<gender> genders { get; set; }
+
     public virtual DbSet<genre> genres { get; set; }
 
     public virtual DbSet<instrument> instruments { get; set; }
@@ -172,6 +174,17 @@ public partial class AppDbContext : DbContext
                 .HasConstraintName("fk_document_instrument");
         });
 
+        modelBuilder.Entity<gender>(entity =>
+        {
+            entity.HasKey(e => e.gender_id).HasName("gender_pkey");
+
+            entity.ToTable("gender");
+
+            entity.HasIndex(e => e.gender_name, "gender_gender_name_key").IsUnique();
+
+            entity.Property(e => e.gender_name).HasMaxLength(50);
+        });
+
         modelBuilder.Entity<genre>(entity =>
         {
             entity.HasKey(e => e.genre_id).HasName("genre_pkey");
@@ -308,6 +321,8 @@ public partial class AppDbContext : DbContext
 
             entity.ToTable("user");
 
+            entity.HasIndex(e => e.email, "user_email_key").IsUnique();
+
             entity.HasIndex(e => e.schedule_id, "user_schedule_id_key").IsUnique();
 
             entity.HasIndex(e => e.username, "user_username_key").IsUnique();
@@ -315,10 +330,17 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.create_at)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("timestamp without time zone");
+            entity.Property(e => e.email).HasMaxLength(255);
+            entity.Property(e => e.gender_id).HasDefaultValue(3);
             entity.Property(e => e.is_disabled).HasDefaultValue(false);
             entity.Property(e => e.password).HasMaxLength(255);
             entity.Property(e => e.phone_number).HasMaxLength(255);
             entity.Property(e => e.username).HasMaxLength(255);
+
+            entity.HasOne(d => d.gender).WithMany(p => p.users)
+                .HasForeignKey(d => d.gender_id)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_user_gender");
 
             entity.HasOne(d => d.opening_schedule).WithMany(p => p.users)
                 .HasForeignKey(d => d.opening_schedule_id)

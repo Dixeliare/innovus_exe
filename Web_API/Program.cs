@@ -37,6 +37,7 @@ builder.Services.AddScoped<ISheetMusicRepository, SheetMusicRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IStatisticRepository, StatisticRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
+builder.Services.AddScoped<IGenderRepository, GenderRepository>();
 
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 #endregion
@@ -64,6 +65,7 @@ builder.Services.AddScoped<ISheetMusicService, SheetMusicService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IStatisticService, StatisticService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
+builder.Services.AddScoped<IGenderService, GenderService>();
 #endregion
 
 #region Azure service

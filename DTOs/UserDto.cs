@@ -20,6 +20,11 @@ public class UserDto
         public int? OpeningScheduleId { get; set; }
         public int? ScheduleId { get; set; }
         
+        public string? Email { get; set; }
+        public int GenderId { get; set; } // ID của giới tính
+        public GenderDto? Gender { get; set; } // Đối tượng Gender để hiển thị tên giới tính
+
+        // Các khóa ngoại khác (nếu cần hiển thị chi tiết)
         public RoleDto? Role { get; set; }
 
         // Có thể thêm DTO lồng nhau cho các mối quan hệ Many-to-One nếu cần chi tiết
@@ -59,6 +64,13 @@ public class UserDto
         public IFormFile? AvatarImageFile { get; set; } // Thêm thuộc tính này để nhận file (có thể là null)
 
         public DateOnly? Birthday { get; set; }
+        [Required(ErrorMessage = "Email is required.")]
+        [EmailAddress(ErrorMessage = "Invalid email format.")]
+        [StringLength(255, ErrorMessage = "Email cannot exceed 255 characters.")]
+        public string Email { get; set; } = null!;
+
+        [Required(ErrorMessage = "Gender ID is required.")]
+        public int GenderId { get; set; }
 
         public int? RoleId { get; set; }
         public int? StatisticId { get; set; }
@@ -98,6 +110,12 @@ public class UserDto
         public IFormFile? AvatarImageFile { get; set; } // Thêm thuộc tính này để nhận file (có thể là null)
 
         public DateOnly? Birthday { get; set; }
+        [EmailAddress(ErrorMessage = "Invalid email format.")]
+        [StringLength(255, ErrorMessage = "Email cannot exceed 255 characters.")]
+        public string? Email { get; set; } // Email có thể là null khi cập nhật nếu không muốn thay đổi
+
+        [Required(ErrorMessage = "Gender ID is required.")] // Thêm Required nếu luôn bắt buộc
+        public int GenderId { get; set; }
 
         public int? RoleId { get; set; }
         public int? StatisticId { get; set; }

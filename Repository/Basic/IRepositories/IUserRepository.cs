@@ -6,6 +6,7 @@ public interface IUserRepository : IGenericRepository<user>
 {
     Task<IEnumerable<user>> GetAllAsync();
     Task<user> GetByIdAsync(int id);
+    Task<user?> FindByEmailAsync(string email);
     Task<user?> GetByUsernameAsync(string username);
     // Task<user> AddAsync(user entity);
     // Task UpdateAsync(user entity);
@@ -20,7 +21,9 @@ public interface IUserRepository : IGenericRepository<user>
         bool? isDisabled = null,
         DateTime? createAt = null,
         DateOnly? birthday = null,
-        int? roleId = null);
+        int? roleId = null,
+        string? email = null, // Thêm email vào tham số tìm kiếm
+        int? genderId = null);
     
     Task<user?> GetUserWithRoleAsync(int userId);
     

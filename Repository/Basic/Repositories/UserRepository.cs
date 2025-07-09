@@ -16,6 +16,7 @@ public class UserRepository : GenericRepository<user>, IUserRepository
     public async Task<IEnumerable<user>> GetAllAsync()
     {
         return await _dbSet
+            .Include(g => g.gender)
             .Include(a => a.attendances)
             .Include(o => o.opening_schedule)
             .Include(r => r.role)
@@ -31,6 +32,7 @@ public class UserRepository : GenericRepository<user>, IUserRepository
     public async Task<user> GetByIdAsync(int id)
     {
         return await _dbSet.AsNoTracking()
+            .Include(u => u.gender) 
             .Include(a => a.attendances)
             .Include(o => o.opening_schedule)
             .Include(r => r.role)
@@ -45,7 +47,15 @@ public class UserRepository : GenericRepository<user>, IUserRepository
 
     public async Task<user?> GetByUsernameAsync(string username)
     {
-        return await _dbSet.AsNoTracking().Include(r => r.role).FirstOrDefaultAsync(u => u.username == username);
+        return await _dbSet.AsNoTracking()
+            .Include(u => u.gender) 
+            .Include(r => r.role)
+            .FirstOrDefaultAsync(u => u.username == username);
+    }
+    
+    public async Task<user?> FindByEmailAsync(string email)
+    {
+        return await _dbSet.AsNoTracking().FirstOrDefaultAsync(u => u.email == email);
     }
 
     // public async Task<user> AddAsync(user entity)
@@ -78,15 +88,17 @@ public class UserRepository : GenericRepository<user>, IUserRepository
         bool? isDisabled = null,
         DateTime? createAt = null,
         DateOnly? birthday = null,
-        int? roleId = null)
+        int? roleId = null,
+        string? email = null, // Thêm email
+        int? genderId = null)
     {
         IQueryable<user> query = _dbSet;
 
-        // Luôn bao gồm các navigation property bạn muốn trả về cùng kết quả
         query = query.Include(u => u.role)
             .Include(u => u.statistic)
             .Include(u => u.opening_schedule)
             .Include(u => u.schedule)
+            .Include(u => u.gender) // THÊM DÒNG NÀY
             .AsSplitQuery();
 
         var predicates = new List<Expression<Func<user, bool>>>();
@@ -102,13 +114,6 @@ public class UserRepository : GenericRepository<user>, IUserRepository
             var lowerAccountName = accountName.ToLower();
             predicates.Add(u => u.account_name != null && u.account_name.ToLower().Contains(lowerAccountName));
         }
-
-        // Không bao gồm tìm kiếm theo password thô ở đây.
-        // if (!string.IsNullOrEmpty(password))
-        // {
-        //     var lowerPassword = password.ToLower();
-        //     predicates.Add(u => u.password.ToLower().Contains(lowerPassword));
-        // }
 
         if (!string.IsNullOrEmpty(address))
         {
@@ -141,14 +146,29 @@ public class UserRepository : GenericRepository<user>, IUserRepository
         {
             predicates.Add(u => u.role_id == roleId.Value);
         }
+        
+        // THÊM ĐIỀU KIỆN TÌM KIẾM THEO EMAIL
+        if (!string.IsNullOrEmpty(email))
+        {
+            var lowerEmail = email.ToLower();
+            predicates.Add(u => u.email != null && u.email.ToLower().Contains(lowerEmail));
+        }
+
+        // THÊM ĐIỀU KIỆN TÌM KIẾM THEO GENDER ID
+        if (genderId.HasValue)
+        {
+            predicates.Add(u => u.gender_id == genderId.Value);
+        }
+
 
         if (predicates.Any())
         {
             Expression<Func<user, bool>> combinedPredicate = predicates.First();
             for (int i = 1; i < predicates.Count; i++)
             {
+                // Sử dụng AndAlso cho tìm kiếm kết hợp (AND)
                 combinedPredicate = Expression.Lambda<Func<user, bool>>(
-                    Expression.OrElse(combinedPredicate.Body, predicates[i].Body),
+                    Expression.AndAlso(combinedPredicate.Body, predicates[i].Body),
                     combinedPredicate.Parameters);
             }
 
@@ -161,6 +181,7 @@ public class UserRepository : GenericRepository<user>, IUserRepository
     public async Task<user?> GetUserWithRoleAsync(int userId)
     {
         return await _dbSet
+            .Include(u => u.gender) 
             .Include(u => u.role) // <--- Đảm bảo tải thông tin Role
             .FirstOrDefaultAsync(u => u.user_id == userId);
     }
@@ -169,7 +190,8 @@ public class UserRepository : GenericRepository<user>, IUserRepository
     public async Task<IEnumerable<user>> GetUsersByRoleIdsAsync(List<int> roleIds)
     {
         return await _dbSet
-            .Include(u => u.role) // Bao gồm thông tin vai trò
+            .Include(u => u.role)
+            .Include(u => u.gender)// Bao gồm thông tin vai trò
             .Where(u => u.role_id.HasValue && roleIds.Contains(u.role_id.Value))
             .AsSplitQuery()
             .ToListAsync();
@@ -189,7 +211,8 @@ public class UserRepository : GenericRepository<user>, IUserRepository
         }
 
         return await _dbSet
-            .Include(u => u.role) // Bao gồm thông tin vai trò
+            .Include(u => u.role)
+            .Include(u => u.gender)// Bao gồm thông tin vai trò
             .Where(u => u.role_id.HasValue && roleIds.Contains(u.role_id.Value))
             .AsSplitQuery()
             .ToListAsync();

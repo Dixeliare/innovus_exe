@@ -74,21 +74,78 @@ public class UserService : IUserService
         int userId,
         string? username,
         string? accountName,
-        string? newPassword, // Mật khẩu mới (nếu có)
+        string? newPassword,
         string? address,
         string? phoneNumber,
         bool? isDisabled,
-        IFormFile? avatarImageFile, // Có thể là null
+        IFormFile? avatarImageFile,
         DateOnly? birthday,
         int? roleId,
         int? statisticId,
         int? openingScheduleId,
-        int? scheduleId)
+        int? scheduleId,
+        string? email,
+        // genderId ở đây sẽ là int (nếu bạn đã thay đổi UpdateUserDto)
+        // Hoặc vẫn là int? nếu bạn giữ UpdateUserDto như cũ và xử lý validation trong service
+        int genderId // Sử dụng int ở đây, phản ánh việc nó luôn bắt buộc.
+        // Nếu bạn giữ UpdateUserDto là int?, thì vẫn là int? ở đây
+        // và thêm validation ở đầu hàm này.
+    )
     {
         var existingUser = await _unitOfWork.Users.GetByIdAsync(userId);
         if (existingUser == null)
         {
             throw new NotFoundException("User", "Id", userId);
+        }
+
+        // Nếu genderId được truyền vào, hãy đảm bảo nó hợp lệ và cập nhật
+        // Giả sử genderId là int trong UpdateUserDto và luôn được truyền
+        // Nếu UpdateUserDto.GenderId là int?, thì thêm kiểm tra genderId.HasValue
+
+        // BẮT ĐẦU CẬP NHẬT LOGIC CHO GENDERID
+        // Nếu genderId luôn là non-nullable và luôn được gửi từ client khi update
+        // Dòng này sẽ được sử dụng nếu genderId trong UpdateUserDto là int và có [Required]
+        if (existingUser.gender_id != genderId) // So sánh trực tiếp
+        {
+            var genderExists = await _unitOfWork.Genders.GetByIdAsync(genderId);
+            if (genderExists == null)
+            {
+                throw new NotFoundException("Gender", "Id", genderId);
+            }
+
+            existingUser.gender_id = genderId;
+        }
+        // KẾT THÚC CẬP NHẬT LOGIC CHO GENDERID
+
+
+        // Cập nhật username (có kiểm tra trùng lặp)
+        if (!string.IsNullOrEmpty(username) && existingUser.username != username)
+        {
+            var userWithSameUsername = await _unitOfWork.Users.GetByUsernameAsync(username);
+            if (userWithSameUsername != null && userWithSameUsername.user_id != userId)
+            {
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "Username", new string[] { $"Tên đăng nhập '{username}' đã tồn tại cho người dùng khác." } }
+                });
+            }
+
+            existingUser.username = username;
+        }
+
+        // Cập nhật email (có kiểm tra trùng lặp)
+        if (email != null && existingUser.email != email)
+        {
+            var userWithSameEmail = await _unitOfWork.Users.FindByEmailAsync(email);
+            if (userWithSameEmail != null && userWithSameEmail.user_id != userId)
+            {
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "Email", new string[] { $"Email '{email}' đã được sử dụng bởi tài khoản khác." } }
+                });
+            }
+
+            existingUser.email = email;
         }
 
         // Xử lý file ảnh mới nếu có
@@ -103,7 +160,6 @@ public class UserService : IUserService
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Error deleting old avatar for user {userId}: {ex.Message}");
-                    // Ghi log nhưng không ném để không chặn việc cập nhật user
                 }
             }
 
@@ -112,67 +168,27 @@ public class UserService : IUserService
         }
 
         // Cập nhật các trường khác
-        if (!string.IsNullOrEmpty(username))
+        existingUser.account_name = accountName ?? existingUser.account_name;
+        if (!string.IsNullOrEmpty(newPassword))
         {
-            if (existingUser.username != username)
+            existingUser.password = newPassword; // NHẮC NHỞ: Cần HASH MẬT KHẨU!
+        }
+
+        existingUser.address = address ?? existingUser.address;
+        existingUser.phone_number = phoneNumber ?? existingUser.phone_number;
+        existingUser.is_disabled = isDisabled ?? existingUser.is_disabled;
+        existingUser.birthday = birthday ?? existingUser.birthday;
+
+        // Cập nhật khóa ngoại Role (giữ nguyên logic nullable cho các trường khác nếu bạn muốn)
+        if (roleId.HasValue && existingUser.role_id != roleId.Value)
+        {
+            var roleExists = await _unitOfWork.Roles.GetByIdAsync(roleId.Value);
+            if (roleExists == null)
             {
-                var userWithSameUsername = await _unitOfWork.Users.GetByUsernameAsync(username);
-                if (userWithSameUsername != null && userWithSameUsername.user_id != userId)
-                {
-                    throw new ValidationException(new Dictionary<string, string[]>
-                    {
-                        { "Username", new string[] { $"Tên đăng nhập '{username}' đã tồn tại cho người dùng khác." } }
-                    });
-                }
+                throw new NotFoundException("Role", "Id", roleId.Value);
             }
 
-            existingUser.username = username;
-        }
-
-        if (!string.IsNullOrEmpty(accountName))
-        {
-            existingUser.account_name = accountName;
-        }
-
-        if (!string.IsNullOrEmpty(newPassword)) // Nếu có mật khẩu mới, cập nhật nó THÔ
-        {
-            // --- ĐÃ THAY ĐỔI: Lưu mật khẩu THÔ mới (RẤT KHÔNG AN TOÀN) ---
-            existingUser.password = newPassword; // KHÔNG HASH - RẤT RỦI RO BẢO MẬT!
-        }
-
-        if (!string.IsNullOrEmpty(address))
-        {
-            existingUser.address = address;
-        }
-
-        if (!string.IsNullOrEmpty(phoneNumber))
-        {
-            existingUser.phone_number = phoneNumber;
-        }
-
-        if (isDisabled.HasValue)
-        {
-            existingUser.is_disabled = isDisabled.Value;
-        }
-
-        if (birthday.HasValue)
-        {
-            existingUser.birthday = birthday.Value;
-        }
-
-        // Cập nhật khóa ngoại Role
-        if (roleId.HasValue)
-        {
-            if (existingUser.role_id != roleId.Value)
-            {
-                var roleExists = await _unitOfWork.Roles.GetByIdAsync(roleId.Value);
-                if (roleExists == null)
-                {
-                    throw new NotFoundException("Role", "Id", roleId.Value);
-                }
-
-                existingUser.role_id = roleId.Value;
-            }
+            existingUser.role_id = roleId.Value;
         }
         else if (roleId == null && existingUser.role_id != null)
         {
@@ -180,18 +196,15 @@ public class UserService : IUserService
         }
 
         // Cập nhật khóa ngoại Statistic
-        if (statisticId.HasValue)
+        if (statisticId.HasValue && existingUser.statistic_id != statisticId.Value)
         {
-            if (existingUser.statistic_id != statisticId.Value)
+            var statisticExists = await _unitOfWork.Statistics.GetByIdAsync(statisticId.Value);
+            if (statisticExists == null)
             {
-                var statisticExists = await _unitOfWork.Statistics.GetByIdAsync(statisticId.Value);
-                if (statisticExists == null)
-                {
-                    throw new NotFoundException("Statistic", "Id", statisticId.Value);
-                }
-
-                existingUser.statistic_id = statisticId.Value;
+                throw new NotFoundException("Statistic", "Id", statisticId.Value);
             }
+
+            existingUser.statistic_id = statisticId.Value;
         }
         else if (statisticId == null && existingUser.statistic_id != null)
         {
@@ -199,18 +212,15 @@ public class UserService : IUserService
         }
 
         // Cập nhật khóa ngoại OpeningSchedule
-        if (openingScheduleId.HasValue)
+        if (openingScheduleId.HasValue && existingUser.opening_schedule_id != openingScheduleId.Value)
         {
-            if (existingUser.opening_schedule_id != openingScheduleId.Value)
+            var openingScheduleExists = await _unitOfWork.OpeningSchedules.GetByIdAsync(openingScheduleId.Value);
+            if (openingScheduleExists == null)
             {
-                var openingScheduleExists = await _unitOfWork.OpeningSchedules.GetByIdAsync(openingScheduleId.Value);
-                if (openingScheduleExists == null)
-                {
-                    throw new NotFoundException("Opening Schedule", "Id", openingScheduleId.Value);
-                }
-
-                existingUser.opening_schedule_id = openingScheduleId.Value;
+                throw new NotFoundException("Opening Schedule", "Id", openingScheduleId.Value);
             }
+
+            existingUser.opening_schedule_id = openingScheduleId.Value;
         }
         else if (openingScheduleId == null && existingUser.opening_schedule_id != null)
         {
@@ -218,23 +228,21 @@ public class UserService : IUserService
         }
 
         // Cập nhật khóa ngoại Schedule
-        if (scheduleId.HasValue)
+        if (scheduleId.HasValue && existingUser.schedule_id != scheduleId.Value)
         {
-            if (existingUser.schedule_id != scheduleId.Value)
+            var scheduleExists = await _unitOfWork.Schedules.GetByIdAsync(scheduleId.Value);
+            if (scheduleExists == null)
             {
-                var scheduleExists = await _unitOfWork.Schedules.GetByIdAsync(scheduleId.Value);
-                if (scheduleExists == null)
-                {
-                    throw new NotFoundException("Schedule", "Id", scheduleId.Value);
-                }
-
-                existingUser.schedule_id = scheduleId.Value;
+                throw new NotFoundException("Schedule", "Id", scheduleId.Value);
             }
+
+            existingUser.schedule_id = scheduleId.Value;
         }
         else if (scheduleId == null && existingUser.schedule_id != null)
         {
             existingUser.schedule_id = null;
         }
+
 
         try
         {
@@ -243,6 +251,14 @@ public class UserService : IUserService
         }
         catch (DbUpdateException dbEx)
         {
+            if (dbEx.InnerException?.Message?.Contains("duplicate key", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "DbError", new string[] { "Dữ liệu bạn nhập đã bị trùng, vui lòng kiểm tra lại." } }
+                }, dbEx);
+            }
+
             throw new ApiException("Có lỗi xảy ra khi cập nhật người dùng vào cơ sở dữ liệu.", dbEx,
                 (int)HttpStatusCode.InternalServerError);
         }
@@ -292,16 +308,26 @@ public class UserService : IUserService
         }
     }
 
-    public async Task<IEnumerable<UserDto>> SearchUsersAsync(string? username = null, string? accountName = null,
-        string? password = null,
+
+    // public async Task<IEnumerable<UserDto>> SearchUsersAsync(
+    //     string? username = null, string? accountName = null,
+    //     string? address = null, string? phoneNumber = null, bool? isDisabled = null, DateTime? createAt = null,
+    //     DateOnly? birthday = null, int? roleId = null,
+    //     string? email = null, // THÊM TRƯỜNG EMAIL
+    //     int? genderId = null) // THÊM TRƯỜNG GENDER_ID
+    // {
+    //     var users = await _unitOfWork.Users.SearchUsersAsync(username, accountName, null, address, phoneNumber,
+    //         isDisabled, createAt, birthday, roleId, email, genderId);
+    //     return users.Select(u => MapToUserDto(u));
+    // }
+    
+    
+    public async Task<IEnumerable<UserDto>> SearchUsersAsync(string? username = null, string? accountName = null, string? password = null,
         string? address = null, string? phoneNumber = null, bool? isDisabled = null, DateTime? createAt = null,
-        DateOnly? birthday = null, int? roleId = null)
+        DateOnly? birthday = null, int? roleId = null, string? email = null, int? genderId = null)
     {
-        // Quan trọng: KHÔNG NÊN tìm kiếm theo mật khẩu thô trong thực tế.
-        // Nếu bạn cần tìm kiếm người dùng, hãy dùng username/account_name/email.
-        // Biến `password` ở đây sẽ bị bỏ qua khi thực hiện tìm kiếm trên DB.
         var users = await _unitOfWork.Users.SearchUsersAsync(username, accountName, null, address, phoneNumber,
-            isDisabled, createAt, birthday, roleId);
+            isDisabled, createAt, birthday, roleId, email, genderId);
         return users.Select(u => MapToUserDto(u));
     }
 
@@ -312,7 +338,6 @@ public class UserService : IUserService
             UserId = model.user_id,
             Username = model.username,
             AccountName = model.account_name,
-            // KHÔNG LẤY PASSWORD
             Address = model.address,
             PhoneNumber = model.phone_number,
             IsDisabled = model.is_disabled,
@@ -328,6 +353,15 @@ public class UserService : IUserService
                 {
                     RoleId = model.role.role_id,
                     RoleName = model.role.role_name
+                }
+                : null,
+            Email = model.email, // ÁNH XẠ EMAIL
+            GenderId = model.gender_id, // ÁNH XẠ GENDER_ID
+            Gender = model.gender != null // ÁNH XẠ ĐỐI TƯỢNG GENDER
+                ? new GenderDto
+                {
+                    GenderId = model.gender.gender_id,
+                    GenderName = model.gender.gender_name
                 }
                 : null
         };
@@ -345,9 +379,12 @@ public class UserService : IUserService
         int? roleId,
         int? statisticId,
         int? openingScheduleId,
-        int? scheduleId)
+        int? scheduleId,
+        string email, // THÊM TRƯỜNG EMAIL
+        int genderId // THÊM TRƯỜNG GENDER_ID
+    )
     {
-        // 1. Validation dữ liệu đầu vào đơn giản
+        // 1. Validation dữ liệu đầu vào cơ bản
         if (string.IsNullOrEmpty(username))
         {
             throw new ValidationException(new Dictionary<string, string[]>
@@ -365,8 +402,8 @@ public class UserService : IUserService
         }
 
         // 2. Kiểm tra trùng lặp username
-        var existingUser = await _unitOfWork.Users.GetByUsernameAsync(username);
-        if (existingUser != null)
+        var existingUserByUsername = await _unitOfWork.Users.GetByUsernameAsync(username);
+        if (existingUserByUsername != null)
         {
             throw new ValidationException(new Dictionary<string, string[]>
             {
@@ -374,7 +411,17 @@ public class UserService : IUserService
             });
         }
 
-        // 3. Kiểm tra khóa ngoại Role
+        // 3. Kiểm tra trùng lặp email
+        var existingUserByEmail = await _unitOfWork.Users.FindByEmailAsync(email);
+        if (existingUserByEmail != null)
+        {
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                { "Email", new string[] { $"Email '{email}' đã được sử dụng bởi tài khoản khác." } }
+            });
+        }
+
+        // 4. Kiểm tra khóa ngoại Role
         if (roleId.HasValue)
         {
             var roleExists = await _unitOfWork.Roles.GetByIdAsync(roleId.Value);
@@ -384,7 +431,14 @@ public class UserService : IUserService
             }
         }
 
-        // 4. Kiểm tra các khóa ngoại khác
+        // 5. Kiểm tra khóa ngoại Gender
+        var genderExists = await _unitOfWork.Genders.GetByIdAsync(genderId);
+        if (genderExists == null)
+        {
+            throw new NotFoundException("Gender", "Id", genderId);
+        }
+
+        // 6. Kiểm tra các khóa ngoại khác
         if (statisticId.HasValue)
         {
             var statisticExists = await _unitOfWork.Statistics.GetByIdAsync(statisticId.Value);
@@ -412,13 +466,12 @@ public class UserService : IUserService
             }
         }
 
-        // 5. Tạo entity
+        // 7. Tạo entity người dùng
         var userEntity = new user
         {
             username = username,
             account_name = accountName,
-            // --- ĐÃ THAY ĐỔI: Lưu mật khẩu THÔ (RẤT KHÔNG AN TOÀN) ---
-            password = password, // KHÔNG HASH - RẤT RỦI RO BẢO MẬT!
+            password = password, // NHẮC NHỞ: Cần HASH MẬT KHẨU!
             address = address,
             phone_number = phoneNumber,
             is_disabled = isDisabled ?? false,
@@ -428,26 +481,30 @@ public class UserService : IUserService
             role_id = roleId,
             statistic_id = statisticId,
             opening_schedule_id = openingScheduleId,
-            schedule_id = scheduleId
+            schedule_id = scheduleId,
+            email = email, // GÁN EMAIL
+            gender_id = genderId // GÁN GENDER_ID
         };
 
-        // 6. Lưu user và xử lý avatar
+        // 8. Lưu user và xử lý avatar
         try
         {
             var addedUser = await _unitOfWork.Users.AddAsync(userEntity);
-            await _unitOfWork.CompleteAsync(); // Lưu thay đổi user trước
+            await _unitOfWork.CompleteAsync();
 
             if (avatarImageFile != null && avatarImageFile.Length > 0)
             {
                 string avatarUrl = await _fileStorageService.SaveFileAsync(avatarImageFile, "avatars");
                 addedUser.avatar_url = avatarUrl;
-                await _unitOfWork.Users.UpdateAsync(addedUser); // Cập nhật lại user với URL avatar
-                await _unitOfWork.CompleteAsync(); // Lưu thay đổi avatar URL
+                await _unitOfWork.Users.UpdateAsync(addedUser);
+                await _unitOfWork.CompleteAsync();
             }
 
-            return MapToUserDto(addedUser);
+            // Tải lại user để có các navigation properties (role, gender) cho DTO trả về
+            var addedUserWithDetails = await _unitOfWork.Users.GetByIdAsync(addedUser.user_id);
+            return MapToUserDto(addedUserWithDetails ?? addedUser);
         }
-        catch (DbUpdateException dbEx) // Bắt lỗi từ Entity Framework
+        catch (DbUpdateException dbEx)
         {
             if (dbEx.InnerException?.Message?.Contains("duplicate key", StringComparison.OrdinalIgnoreCase) == true)
             {
@@ -460,7 +517,7 @@ public class UserService : IUserService
             throw new ApiException("Có lỗi xảy ra khi lưu người dùng vào cơ sở dữ liệu.", dbEx,
                 (int)HttpStatusCode.InternalServerError);
         }
-        catch (Exception ex) // Bắt các lỗi không mong muốn khác
+        catch (Exception ex)
         {
             throw new ApiException("An unexpected error occurred during user creation.", ex,
                 (int)HttpStatusCode.InternalServerError);

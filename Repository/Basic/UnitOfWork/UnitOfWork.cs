@@ -26,6 +26,7 @@ public class UnitOfWork: IUnitOfWork
     public IUserFavoriteSheetRepository UserFavoriteSheets { get; }
     public IUserRepository Users { get; }
     public IWeekRepository Weeks { get; }
+    public IGenderRepository Genders { get; }
 
     public UnitOfWork(AppDbContext context)
     {
@@ -49,6 +50,7 @@ public class UnitOfWork: IUnitOfWork
         UserFavoriteSheets = new UserFavoriteSheetRepository(_context);
         Users = new UserRepository(_context);
         Weeks = new WeekRepository(_context);
+        Genders = new GenderRepository(_context);
     }
 
 
