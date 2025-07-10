@@ -7,8 +7,6 @@ public partial class opening_schedule
 {
     public int opening_schedule_id { get; set; }
 
-    public string? subject { get; set; }
-
     public string? class_code { get; set; }
 
     public DateOnly? opening_day { get; set; }

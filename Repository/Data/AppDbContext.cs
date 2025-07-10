@@ -220,7 +220,6 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.is_advanced_class).HasDefaultValue(false);
             entity.Property(e => e.schedule).HasMaxLength(255);
             entity.Property(e => e.student_quantity).HasDefaultValue(0);
-            entity.Property(e => e.subject).HasMaxLength(255);
 
             entity.HasOne(d => d.instrument).WithMany(p => p.opening_schedules)
                 .HasForeignKey(d => d.instrument_id)

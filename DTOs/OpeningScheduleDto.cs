@@ -5,7 +5,6 @@ namespace DTOs;
 public class OpeningScheduleDto
     {
         public int OpeningScheduleId { get; set; }
-        public string? Subject { get; set; }
         public string? ClassCode { get; set; }
         public DateOnly? OpeningDay { get; set; }
         public DateOnly? EndDate { get; set; }
@@ -21,9 +20,6 @@ public class OpeningScheduleDto
     // DTO dùng làm input khi tạo mới Lịch khai giảng (POST request body)
     public class CreateOpeningScheduleDto
     {
-        [Required(ErrorMessage = "Subject is required.")]
-        [StringLength(200, ErrorMessage = "Subject cannot exceed 200 characters.")]
-        public string Subject { get; set; } = null!;
 
         [Required(ErrorMessage = "Class Code is required.")]
         [StringLength(50, ErrorMessage = "Class Code cannot exceed 50 characters.")]
@@ -54,9 +50,6 @@ public class OpeningScheduleDto
     {
         [Required(ErrorMessage = "Opening Schedule ID is required for update.")]
         public int OpeningScheduleId { get; set; }
-
-        [StringLength(200, ErrorMessage = "Subject cannot exceed 200 characters.")]
-        public string? Subject { get; set; }
 
         [StringLength(50, ErrorMessage = "Class Code cannot exceed 50 characters.")]
         public string? ClassCode { get; set; }

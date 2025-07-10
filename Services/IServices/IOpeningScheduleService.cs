@@ -12,7 +12,6 @@ public interface IOpeningScheduleService
     Task DeleteAsync(int id);
 
     Task<IEnumerable<OpeningScheduleDto>> SearchOpeningSchedulesAsync(
-        string? subject = null,
         string? classCode = null,
         DateOnly? openingDay = null,
         DateOnly? endDate = null,

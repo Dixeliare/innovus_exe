@@ -104,7 +104,6 @@ public class OpeningScheduleService : IOpeningScheduleService
 
         var scheduleEntity = new opening_schedule
         {
-            subject = createOpeningScheduleDto.Subject,
             class_code = createOpeningScheduleDto.ClassCode,
             opening_day = createOpeningScheduleDto.OpeningDay,
             end_date = createOpeningScheduleDto.EndDate,
@@ -188,7 +187,6 @@ public class OpeningScheduleService : IOpeningScheduleService
         }
 
         // Cập nhật các trường nếu có giá trị được cung cấp
-        existingSchedule.subject = updateOpeningScheduleDto.Subject ?? existingSchedule.subject;
         existingSchedule.class_code = updateOpeningScheduleDto.ClassCode ?? existingSchedule.class_code;
         existingSchedule.opening_day = updateOpeningScheduleDto.OpeningDay ?? existingSchedule.opening_day;
         existingSchedule.end_date = updateOpeningScheduleDto.EndDate ?? existingSchedule.end_date;
@@ -242,12 +240,11 @@ public class OpeningScheduleService : IOpeningScheduleService
         }
     }
 
-    public async Task<IEnumerable<OpeningScheduleDto>> SearchOpeningSchedulesAsync(string? subject = null,
+    public async Task<IEnumerable<OpeningScheduleDto>> SearchOpeningSchedulesAsync(
         string? classCode = null, DateOnly? openingDay = null,
         DateOnly? endDate = null, string? schedule = null, int? studentQuantity = null, bool? isAdvancedClass = null)
     {
-        var schedules = await _unitOfWork.OpeningSchedules.SearchOpeningSchedulesAsync(
-            subject, classCode, openingDay, endDate, schedule, studentQuantity, isAdvancedClass);
+        var schedules = await _unitOfWork.OpeningSchedules.SearchOpeningSchedulesAsync(classCode, openingDay, endDate, schedule, studentQuantity, isAdvancedClass);
         // Map kết quả tìm kiếm sang DTO
         return schedules.Select(MapToOpeningScheduleDto);
     }
@@ -257,7 +254,6 @@ public class OpeningScheduleService : IOpeningScheduleService
         return new OpeningScheduleDto
         {
             OpeningScheduleId = model.opening_schedule_id,
-            Subject = model.subject,
             ClassCode = model.class_code,
             OpeningDay = model.opening_day,
             EndDate = model.end_date,
