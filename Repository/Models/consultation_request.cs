@@ -21,7 +21,13 @@ public partial class consultation_request
 
     public int? consultation_topic_id { get; set; }
 
+    public int? handled_by { get; set; }
+
+    public DateTime? handled_at { get; set; }
+
     public virtual consultation_topic? consultation_topic { get; set; }
+
+    public virtual user? handled_byNavigation { get; set; }
 
     public virtual statistic? statistic { get; set; }
 }

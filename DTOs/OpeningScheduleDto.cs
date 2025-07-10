@@ -5,21 +5,21 @@ namespace DTOs;
 public class OpeningScheduleDto
     {
         public int OpeningScheduleId { get; set; }
-        public string? Subject { get; set; }
         public string? ClassCode { get; set; }
         public DateOnly? OpeningDay { get; set; }
         public DateOnly? EndDate { get; set; }
         public string? Schedule { get; set; }
         public int? StudentQuantity { get; set; }
         public bool? IsAdvancedClass { get; set; }
+        public UserForOpeningScheduleDto? TeacherUser { get; set; } // Giả sử bạn có UserDto
+        
+        public int InstrumentId { get; set; } // Cột khóa ngoại
+        public InstrumentDto? Instrument { get; set; } 
     }
 
     // DTO dùng làm input khi tạo mới Lịch khai giảng (POST request body)
     public class CreateOpeningScheduleDto
     {
-        [Required(ErrorMessage = "Subject is required.")]
-        [StringLength(200, ErrorMessage = "Subject cannot exceed 200 characters.")]
-        public string Subject { get; set; } = null!;
 
         [Required(ErrorMessage = "Class Code is required.")]
         [StringLength(50, ErrorMessage = "Class Code cannot exceed 50 characters.")]
@@ -38,6 +38,11 @@ public class OpeningScheduleDto
         public int? StudentQuantity { get; set; }
 
         public bool? IsAdvancedClass { get; set; }
+        // <--- THÊM TRƯỜNG NÀY VÀO CreateOpeningScheduleDto
+        public int? TeacherUserId { get; set; }
+        
+        [Required(ErrorMessage = "Instrument is required.")]
+        public int InstrumentId { get; set; }
     }
 
     // DTO dùng làm input khi cập nhật Lịch khai giảng (PUT request body)
@@ -45,9 +50,6 @@ public class OpeningScheduleDto
     {
         [Required(ErrorMessage = "Opening Schedule ID is required for update.")]
         public int OpeningScheduleId { get; set; }
-
-        [StringLength(200, ErrorMessage = "Subject cannot exceed 200 characters.")]
-        public string? Subject { get; set; }
 
         [StringLength(50, ErrorMessage = "Class Code cannot exceed 50 characters.")]
         public string? ClassCode { get; set; }
@@ -63,4 +65,13 @@ public class OpeningScheduleDto
         public int? StudentQuantity { get; set; }
 
         public bool? IsAdvancedClass { get; set; }
+        // <--- THÊM TRƯỜNG NÀY VÀO UpdateOpeningScheduleDto
+        public int? TeacherUserId { get; set; } 
+        
+        public int? InstrumentId { get; set; } 
+    }
+    
+    public class UserForOpeningScheduleDto
+    {
+        public string? AccountName { get; set; }
     }

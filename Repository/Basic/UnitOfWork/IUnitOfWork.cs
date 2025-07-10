@@ -22,6 +22,7 @@ public interface IUnitOfWork: IDisposable
     IUserFavoriteSheetRepository UserFavoriteSheets { get; }
     IUserRepository Users { get; }
     IWeekRepository Weeks { get; }
+    IGenderRepository Genders { get; }
     
     Task<int> CompleteAsync();
 }

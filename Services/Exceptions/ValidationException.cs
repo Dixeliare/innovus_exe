@@ -6,7 +6,8 @@ public class ValidationException : Exception
 
     // Constructor 1: Chỉ có lỗi dạng dictionary
     public ValidationException(IDictionary<string, string[]> errors)
-        : base("Một hoặc nhiều lỗi xác thực đã xảy ra.")
+        // Lấy thông điệp lỗi đầu tiên từ dictionary để làm thông điệp chính
+        : base(errors != null && errors.Any() ? errors.First().Value.First() : "Một hoặc nhiều lỗi xác thực đã xảy ra.")
     {
         Errors = errors ?? new Dictionary<string, string[]>();
     }

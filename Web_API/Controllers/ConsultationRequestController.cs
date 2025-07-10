@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using DTOs;
 using Microsoft.AspNetCore.Http;
@@ -68,10 +69,52 @@ namespace Web_API.Controllers
                 });
             }
 
-            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ValidationException/ApiException nếu có lỗi.
-            await _consultationRequestService.UpdateAsync(updateConsultationRequestDto);
+            // --- LẤY ID NGƯỜI DÙNG HIỆN TẠI TỪ CLAIMS ---
+            int? currentUserId = null;
+            // Giả sử ID người dùng của bạn được lưu trữ trong claim NameIdentifier
+            var userIdClaim = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier); 
+            if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int parsedUserId))
+            {
+                currentUserId = parsedUserId;
+            }
+            // Tùy chọn: Nếu xác thực là bắt buộc cho hành động này, bạn có thể ném một ngoại lệ ở đây
+            // if (currentUserId == null)
+            // {
+            //     return Unauthorized("Người dùng chưa được xác thực hoặc không thể truy xuất ID người dùng.");
+            // }
+            // --- KẾT THÚC LẤY ID NGƯỜI DÙNG HIỆN TẠI ---
+
+            await _consultationRequestService.UpdateAsync(updateConsultationRequestDto, currentUserId); // <--- TRUYỀN ID NGƯỜI DÙNG HIỆN TẠI
             return NoContent();
         }
+        
+        [HttpPatch("{id}/contact-status")] // Sử dụng PATCH cho cập nhật một phần
+        public async Task<IActionResult> UpdateConsultationRequestContactStatus(int id, [FromBody] UpdateConsultationRequestContactStatusDto dto)
+        {
+            if (id != dto.ConsultationRequestId)
+            {
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "ConsultationRequestId", new string[] { "ID yêu cầu tư vấn trong URL không khớp với ID trong body." } }
+                });
+            }
+
+            int? currentUserId = null;
+            var userIdClaim = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier); 
+            if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int parsedUserId))
+            {
+                currentUserId = parsedUserId;
+            }
+            
+            // Tùy chọn: Nếu việc cập nhật trạng thái yêu cầu xác thực, bạn có thể kiểm tra ở đây
+            // if (!currentUserId.HasValue)
+            // {
+            //     return Unauthorized("Người dùng chưa được xác thực.");
+            // }
+
+            await _consultationRequestService.UpdateConsultationRequestContactStatusAsync(dto, currentUserId);
+            return NoContent(); // Trả về 204 No Content nếu thành công
+        } 
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteConsultationRequest(int id)

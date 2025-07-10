@@ -11,7 +11,6 @@ public interface IOpeningScheduleRepository: IGenericRepository<opening_schedule
     // Task<bool> DeleteAsync(int id);
 
     Task<IEnumerable<opening_schedule>> SearchOpeningSchedulesAsync(
-        string? subject = null,
         string? classCode = null,
         DateOnly? openingDay = null,
         DateOnly? endDate = null,

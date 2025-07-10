@@ -30,23 +30,32 @@ public interface IUserService
         int? roleId,
         int? statisticId,
         int? openingScheduleId,
-        int? scheduleId);
+        int? scheduleId,
+        string email, // THÊM TRƯỜNG EMAIL
+        int genderId);
 
     // Thay đổi UpdateAsync để nhận IFormFile và các thuộc tính khác
     Task UpdateAsync(
         int userId,
         string? username,
         string? accountName,
-        string? newPassword, // Mật khẩu thô mới (nếu có)
+        string? newPassword,
         string? address,
         string? phoneNumber,
         bool? isDisabled,
-        IFormFile? avatarImageFile, // Có thể là null
+        IFormFile? avatarImageFile,
         DateOnly? birthday,
         int? roleId,
         int? statisticId,
         int? openingScheduleId,
-        int? scheduleId);
+        int? scheduleId,
+        string? email,
+        // genderId ở đây sẽ là int (nếu bạn đã thay đổi UpdateUserDto)
+        // Hoặc vẫn là int? nếu bạn giữ UpdateUserDto như cũ và xử lý validation trong service
+        int genderId // Sử dụng int ở đây, phản ánh việc nó luôn bắt buộc.
+        // Nếu bạn giữ UpdateUserDto là int?, thì vẫn là int? ở đây
+        // và thêm validation ở đầu hàm này.
+    );
 
     // Sẽ ném NotFoundException nếu không tìm thấy, không trả về bool
     Task DeleteAsync(int id);
@@ -60,5 +69,7 @@ public interface IUserService
         bool? isDisabled = null,
         DateTime? createAt = null,
         DateOnly? birthday = null,
-        int? roleId = null);
+        int? roleId = null,
+        string? email = null, // THÊM TRƯỜNG EMAIL
+        int? genderId = null);
 }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
+using System.Net;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
@@ -62,7 +63,7 @@ namespace Web_API.Controllers
             var token = new JwtSecurityToken(_config["Jwt:Issuer"]
                 , _config["Jwt:Audience"]
                 , claims
-                , expires: DateTime.Now.AddMinutes(120)
+                , expires: DateTime.UtcNow.AddMinutes(120)    //Now => UtcNow
                 , signingCredentials: credentials
             );
 
@@ -74,7 +75,8 @@ namespace Web_API.Controllers
         public sealed record LoginRequest(string UserName, string Password);
 
         [HttpGet]
-        [Authorize(Roles = "1,2")] // Cho phép cả role 1 và 2 xem danh sách users
+        [ProducesResponseType(typeof(IEnumerable<UserDto>), (int)HttpStatusCode.OK)]
+        //[Authorize(Roles = "1,2")] // Cho phép cả role 1 và 2 xem danh sách users
         public async Task<ActionResult<IEnumerable<UserDto>>> GetAllAsync()
         {
             var users = await _userService.GetAllAsync();
@@ -82,7 +84,9 @@ namespace Web_API.Controllers
         }
 
         [HttpGet("{id}")]
-        [Authorize(Roles = "1,2")] // Cho phép cả role 1 và 2 xem user theo ID
+        [ProducesResponseType(typeof(UserDto), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        //[Authorize(Roles = "1,2")] // Cho phép cả role 1 và 2 xem user theo ID
         public async Task<ActionResult<UserDto>> GetUserById(int id)
         {
             var user = await _userService.GetByIdAsync(id);
@@ -91,7 +95,9 @@ namespace Web_API.Controllers
 
         // GET: api/Users/username/{username}
         [HttpGet("username/{username}")]
-        [Authorize(Roles = "1,2")] // Cho phép cả role 1 và 2 xem user theo username
+        [ProducesResponseType(typeof(UserDto), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        //[Authorize(Roles = "1,2")] // Cho phép cả role 1 và 2 xem user theo username
         public async Task<ActionResult<UserDto>> GetUserByUsername(string username)
         {
             var user = await _userService.GetByUsernameAsync(username);
@@ -101,8 +107,11 @@ namespace Web_API.Controllers
 
         // POST: api/Users
         [HttpPost]
-        [Authorize(Roles = "1")] // Chỉ role 1 được tạo user mới
-        [Consumes("multipart/form-data")] // Quan trọng: Thêm Consumes cho Form-data
+        //[Authorize(Roles = "1")] // Chỉ role 1 được tạo user mới
+        [Consumes("multipart/form-data")] // Quan trọng để nhận file
+        [ProducesResponseType(typeof(UserDto), (int)HttpStatusCode.Created)]
+        [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+        // Quan trọng: Thêm Consumes cho Form-data
         public async Task<ActionResult<UserDto>> CreateUser([FromForm] CreateUserDto createUserDto)
         {
             if (!ModelState.IsValid)
@@ -123,7 +132,9 @@ namespace Web_API.Controllers
                 createUserDto.RoleId,
                 createUserDto.StatisticId,
                 createUserDto.OpeningScheduleId,
-                createUserDto.ScheduleId
+                createUserDto.ScheduleId,
+                createUserDto.Email,
+                createUserDto.GenderId
             );
             return CreatedAtAction(nameof(GetUserById), new { id = createdUser.UserId }, createdUser);
         }
@@ -131,7 +142,10 @@ namespace Web_API.Controllers
         // PUT: api/Users/{id}
         [HttpPut("{id}")]
         [Authorize(Roles = "1,2")]
-        [Consumes("multipart/form-data")] // Quan trọng: Thêm Consumes cho Form-data
+        [Consumes("multipart/form-data")] // Quan trọng để nhận file
+        [ProducesResponseType((int)HttpStatusCode.NoContent)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        [ProducesResponseType((int)HttpStatusCode.BadRequest)]// Quan trọng: Thêm Consumes cho Form-data
         public async Task<IActionResult> UpdateUser(int id, [FromForm] UpdateUserDto updateUserDto)
         {
             if (id != updateUserDto.UserId)
@@ -162,7 +176,9 @@ namespace Web_API.Controllers
                 updateUserDto.RoleId,
                 updateUserDto.StatisticId,
                 updateUserDto.OpeningScheduleId,
-                updateUserDto.ScheduleId
+                updateUserDto.ScheduleId,
+                updateUserDto.Email,
+                updateUserDto.GenderId
             );
             return NoContent();
         }
@@ -179,6 +195,7 @@ namespace Web_API.Controllers
 
         // GET: api/Users/search
         [HttpGet("search")]
+        [ProducesResponseType(typeof(IEnumerable<UserDto>), (int)HttpStatusCode.OK)]
         [Authorize(Roles = "1,2")] // Cho phép cả role 1 và 2 tìm kiếm user
         public async Task<ActionResult<IEnumerable<UserDto>>> SearchUsers(
             [FromQuery] string? username,
@@ -189,9 +206,11 @@ namespace Web_API.Controllers
             [FromQuery] bool? isDisabled,
             [FromQuery] DateTime? createAt,
             [FromQuery] DateOnly? birthday,
-            [FromQuery] int? roleId)
+            [FromQuery] int? roleId,
+            [FromQuery] string? email, 
+            [FromQuery] int? genderId)
         {
-            var users = await _userService.SearchUsersAsync(username, accountName, password, address, phoneNumber, isDisabled, createAt, birthday, roleId);
+            var users = await _userService.SearchUsersAsync(username, accountName, password, address, phoneNumber, isDisabled, createAt, birthday, roleId, email, genderId);
             return Ok(users); // Service đã trả về UserDto
         }
 

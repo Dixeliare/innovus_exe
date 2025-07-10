@@ -1,19 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Repository.Models;
 
 namespace Repository.Data;
 
 public partial class AppDbContext : DbContext
 {
-    
-// "Host=localhost;Port=5432;Database=innovus_db;Username=postgres;Password=12345"
-    public AppDbContext()
-    {
-    }
-
     public AppDbContext(DbContextOptions<AppDbContext> options)
         : base(options)
     {
@@ -30,6 +23,8 @@ public partial class AppDbContext : DbContext
     public virtual DbSet<consultation_topic> consultation_topics { get; set; }
 
     public virtual DbSet<document> documents { get; set; }
+
+    public virtual DbSet<gender> genders { get; set; }
 
     public virtual DbSet<genre> genres { get; set; }
 
@@ -55,33 +50,6 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<week> weeks { get; set; }
 
-//     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-// #warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
-//         => optionsBuilder.UseNpgsql("Host=localhost;Port=5432;Database=innovus_db;Username=postgres;Password=12345");
-
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-        // Kiểm tra nếu optionsBuilder đã được cấu hình (để tránh cấu hình lại khi dùng DI)
-        if (!optionsBuilder.IsConfigured)
-        {
-            optionsBuilder
-                .UseNpgsql(GetConnectionString("DefaultConnection")) // Thay đổi từ UseSqlServer sang UseNpgsql
-                .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
-        }
-    }
-
-    // Phương thức tĩnh để lấy chuỗi kết nối từ appsettings.json
-    public static string GetConnectionString(string connectionStringName)
-    {
-        var config = new ConfigurationBuilder()
-            .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
-            .AddJsonFile("appsettings.json")
-            .Build();
-
-        string connectionString = config.GetConnectionString(connectionStringName);
-        return connectionString;
-    }
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<_class>(entity =>
@@ -93,6 +61,11 @@ public partial class AppDbContext : DbContext
             entity.HasIndex(e => e.class_code, "class_class_code_key").IsUnique();
 
             entity.Property(e => e.class_code).HasMaxLength(255);
+
+            entity.HasOne(d => d.instrument).WithMany(p => p._classes)
+                .HasForeignKey(d => d.instrument_id)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_class_instrument");
 
             entity.HasMany(d => d.users).WithMany(p => p.classes)
                 .UsingEntity<Dictionary<string, object>>(
@@ -122,12 +95,10 @@ public partial class AppDbContext : DbContext
 
             entity.HasOne(d => d.class_session).WithMany(p => p.attendances)
                 .HasForeignKey(d => d.class_session_id)
-                .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_attendance_class_session");
 
             entity.HasOne(d => d.user).WithMany(p => p.attendances)
                 .HasForeignKey(d => d.user_id)
-                .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_attendance_user");
         });
 
@@ -151,7 +122,6 @@ public partial class AppDbContext : DbContext
 
             entity.HasOne(d => d.week).WithMany(p => p.class_sessions)
                 .HasForeignKey(d => d.week_id)
-                .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_class_session_week");
         });
 
@@ -170,6 +140,11 @@ public partial class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_consultation_request_topic");
 
+            entity.HasOne(d => d.handled_byNavigation).WithMany(p => p.consultation_requests)
+                .HasForeignKey(d => d.handled_by)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_consultation_request_handled_by");
+
             entity.HasOne(d => d.statistic).WithMany(p => p.consultation_requests)
                 .HasForeignKey(d => d.statistic_id)
                 .OnDelete(DeleteBehavior.SetNull)
@@ -182,8 +157,7 @@ public partial class AppDbContext : DbContext
 
             entity.ToTable("consultation_topic");
 
-            entity.HasIndex(e => e.consultation_topic_name, "consultation_topic_consultation_topic_name_key")
-                .IsUnique();
+            entity.HasIndex(e => e.consultation_topic_name, "consultation_topic_consultation_topic_name_key").IsUnique();
 
             entity.Property(e => e.consultation_topic_name).HasMaxLength(255);
         });
@@ -198,6 +172,17 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.instrument_id)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_document_instrument");
+        });
+
+        modelBuilder.Entity<gender>(entity =>
+        {
+            entity.HasKey(e => e.gender_id).HasName("gender_pkey");
+
+            entity.ToTable("gender");
+
+            entity.HasIndex(e => e.gender_name, "gender_gender_name_key").IsUnique();
+
+            entity.Property(e => e.gender_name).HasMaxLength(50);
         });
 
         modelBuilder.Entity<genre>(entity =>
@@ -231,10 +216,20 @@ public partial class AppDbContext : DbContext
             entity.HasIndex(e => e.class_code, "opening_schedule_class_code_key").IsUnique();
 
             entity.Property(e => e.class_code).HasMaxLength(255);
+            entity.Property(e => e.instrument_id).HasDefaultValue(1);
             entity.Property(e => e.is_advanced_class).HasDefaultValue(false);
             entity.Property(e => e.schedule).HasMaxLength(255);
             entity.Property(e => e.student_quantity).HasDefaultValue(0);
-            entity.Property(e => e.subject).HasMaxLength(255);
+
+            entity.HasOne(d => d.instrument).WithMany(p => p.opening_schedules)
+                .HasForeignKey(d => d.instrument_id)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_opening_schedule_instrument");
+
+            entity.HasOne(d => d.teacher_user).WithMany(p => p.opening_schedules)
+                .HasForeignKey(d => d.teacher_user_id)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_opening_schedule_teacher_user");
         });
 
         modelBuilder.Entity<role>(entity =>
@@ -325,6 +320,8 @@ public partial class AppDbContext : DbContext
 
             entity.ToTable("user");
 
+            entity.HasIndex(e => e.email, "user_email_key").IsUnique();
+
             entity.HasIndex(e => e.schedule_id, "user_schedule_id_key").IsUnique();
 
             entity.HasIndex(e => e.username, "user_username_key").IsUnique();
@@ -332,10 +329,17 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.create_at)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("timestamp without time zone");
+            entity.Property(e => e.email).HasMaxLength(255);
+            entity.Property(e => e.gender_id).HasDefaultValue(3);
             entity.Property(e => e.is_disabled).HasDefaultValue(false);
             entity.Property(e => e.password).HasMaxLength(255);
             entity.Property(e => e.phone_number).HasMaxLength(255);
             entity.Property(e => e.username).HasMaxLength(255);
+
+            entity.HasOne(d => d.gender).WithMany(p => p.users)
+                .HasForeignKey(d => d.gender_id)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_user_gender");
 
             entity.HasOne(d => d.opening_schedule).WithMany(p => p.users)
                 .HasForeignKey(d => d.opening_schedule_id)

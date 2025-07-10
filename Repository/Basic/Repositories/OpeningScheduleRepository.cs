@@ -16,6 +16,8 @@ public class OpeningScheduleRepository : GenericRepository<opening_schedule>, IO
     {
         return await _dbSet
             .Include(u => u.users)
+            .Include(t => t.teacher_user) 
+            .Include(i => i.instrument)
             .AsSplitQuery()
             .ToListAsync();
     }
@@ -24,6 +26,8 @@ public class OpeningScheduleRepository : GenericRepository<opening_schedule>, IO
     {
         return await _dbSet
             .Include(u => u.users)
+            .Include(t => t.teacher_user) 
+            .Include(i => i.instrument)
             .AsSplitQuery()
             .FirstOrDefaultAsync(o => o.opening_schedule_id == id);
     }
@@ -51,7 +55,6 @@ public class OpeningScheduleRepository : GenericRepository<opening_schedule>, IO
     // }
     
     public async Task<IEnumerable<opening_schedule>> SearchOpeningSchedulesAsync(
-        string? subject = null,
         string? classCode = null,
         DateOnly? openingDay = null,
         DateOnly? endDate = null,
@@ -59,13 +62,15 @@ public class OpeningScheduleRepository : GenericRepository<opening_schedule>, IO
         int? studentQuantity = null,
         bool? isAdvancedClass = null)
     {
-        IQueryable<opening_schedule> query = _dbSet;
+        IQueryable<opening_schedule> query = _dbSet
+            .Include(t => t.teacher_user)
+            .Include(i => i.instrument);
 
         // Áp dụng từng điều kiện tìm kiếm nếu tham số được cung cấp
-        if (!string.IsNullOrEmpty(subject))
-        {
-            query = query.Where(o => EF.Functions.ILike(o.subject, $"%{subject}%"));
-        }
+        // if (!string.IsNullOrEmpty(subject)) // Đã xóa điều kiện này
+        // {
+        //     query = query.Where(o => EF.Functions.ILike(o.subject, $"%{subject}%"));
+        // }
 
         if (!string.IsNullOrEmpty(classCode))
         {
@@ -96,9 +101,6 @@ public class OpeningScheduleRepository : GenericRepository<opening_schedule>, IO
         {
             query = query.Where(o => o.is_advanced_class == isAdvancedClass.Value);
         }
-
-        // Bạn có thể thêm .Include() nếu muốn eager load các navigation properties
-        // Ví dụ: .Include(o => o.users)
 
         return await query.ToListAsync();
     }

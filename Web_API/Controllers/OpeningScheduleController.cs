@@ -34,7 +34,7 @@ namespace Web_API.Controllers
             [FromQuery] DateOnly? endDate = null, [FromQuery] string? schedule = null,
             [FromQuery] int? studentQuantity = null, [FromQuery] bool? isAdvancedClass = null)
         {
-            var schedules = await _openingScheduleService.SearchOpeningSchedulesAsync(subject, classCode, openingDay, endDate, schedule, studentQuantity, isAdvancedClass);
+            var schedules = await _openingScheduleService.SearchOpeningSchedulesAsync(classCode, openingDay, endDate, schedule, studentQuantity, isAdvancedClass);
             return Ok(schedules); // Service đã trả về DTO
         }
 
