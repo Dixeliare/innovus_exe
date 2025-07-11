@@ -134,7 +134,8 @@ namespace Web_API.Controllers
                 createUserDto.OpeningScheduleId,
                 createUserDto.ScheduleId,
                 createUserDto.Email,
-                createUserDto.GenderId
+                createUserDto.GenderId,
+                createUserDto.ClassId 
             );
             return CreatedAtAction(nameof(GetUserById), new { id = createdUser.UserId }, createdUser);
         }

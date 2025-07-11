@@ -15,11 +15,13 @@ public class UserService : IUserService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IFileStorageService _fileStorageService;
+    private readonly IClassService _classService; // Thêm ClassService để tương tác với lớp học
 
-    public UserService(IUnitOfWork unitOfWork, IFileStorageService fileStorageService)
+    public UserService(IUnitOfWork unitOfWork, IFileStorageService fileStorageService, IClassService classService)
     {
         _unitOfWork = unitOfWork;
         _fileStorageService = fileStorageService;
+        _classService = classService; // Khởi tạo ClassService
     }
 
     // Phương thức Login (sẽ kiểm tra mật khẩu đã hash)
@@ -381,7 +383,8 @@ public class UserService : IUserService
         int? openingScheduleId,
         int? scheduleId,
         string email, // THÊM TRƯỜNG EMAIL
-        int genderId // THÊM TRƯỜNG GENDER_ID
+        int genderId, // THÊM TRƯỜNG GENDER_ID
+        int? classId = null
     )
     {
         // 1. Validation dữ liệu đầu vào cơ bản
@@ -456,6 +459,16 @@ public class UserService : IUserService
                 throw new NotFoundException("Opening Schedule", "Id", openingScheduleId.Value);
             }
         }
+        
+        // KIỂM TRA CLASSID NẾU CÓ
+        if (classId.HasValue)
+        {
+            var classExists = await _unitOfWork.Classes.GetById(classId.Value);
+            if (classExists == null)
+            {
+                throw new NotFoundException("Class", "Id", classId.Value);
+            }
+        }
 
         if (scheduleId.HasValue)
         {
@@ -498,6 +511,13 @@ public class UserService : IUserService
                 addedUser.avatar_url = avatarUrl;
                 await _unitOfWork.Users.UpdateAsync(addedUser);
                 await _unitOfWork.CompleteAsync();
+            }
+
+            // GÁN USER VÀO LỚP NẾU CLASSID ĐƯỢC CUNG CẤP
+            if (classId.HasValue)
+            {
+                // Sử dụng ClassService để thêm người dùng vào lớp
+                await _classService.AddUsersToClassAsync(classId.Value, new List<int> { addedUser.user_id });
             }
 
             // Tải lại user để có các navigation properties (role, gender) cho DTO trả về

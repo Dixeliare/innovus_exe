@@ -76,6 +76,8 @@ public class UserDto
         public int? StatisticId { get; set; }
         public int? OpeningScheduleId { get; set; }
         public int? ScheduleId { get; set; }
+        // THÊM TRƯỜNG NÀY ĐỂ NHẬN CLASS ID TỪ FRONTEND
+        public int? ClassId { get; set; }
     }
 
     // DTO dùng làm input khi cập nhật Người dùng (PUT request body)

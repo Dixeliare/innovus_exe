@@ -32,7 +32,8 @@ public interface IUserService
         int? openingScheduleId,
         int? scheduleId,
         string email, // THÊM TRƯỜNG EMAIL
-        int genderId);
+        int genderId,
+        int? classId = null);
 
     // Thay đổi UpdateAsync để nhận IFormFile và các thuộc tính khác
     Task UpdateAsync(

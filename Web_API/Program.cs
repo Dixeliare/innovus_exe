@@ -185,6 +185,7 @@ app.MapControllers();
 app.Run();
 
 
+// "Host=shortline.proxy.rlwy.net;Port=56746;Username=postgres;Password=AeFjmbZKuSjploofxcnXtNTmIUIZCIUk;Database=railway;SSL Mode=Require;Trust Server Certificate=true"
 
 // "Host=localhost;Port=5432;Database=innovus_updated_db;Username=postgres;Password=12345"
 
