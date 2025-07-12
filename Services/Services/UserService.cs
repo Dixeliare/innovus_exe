@@ -365,7 +365,8 @@ public class UserService : IUserService
                     GenderId = model.gender.gender_id,
                     GenderName = model.gender.gender_name
                 }
-                : null
+                : null,
+            ClassIds = model.classes?.Select(c => c.class_id).ToList()
         };
     }
 

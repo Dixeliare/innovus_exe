@@ -26,6 +26,8 @@ public class UserDto
 
         // Các khóa ngoại khác (nếu cần hiển thị chi tiết)
         public RoleDto? Role { get; set; }
+        
+        public List<int>? ClassIds { get; set; } 
 
         // Có thể thêm DTO lồng nhau cho các mối quan hệ Many-to-One nếu cần chi tiết
         // public RoleDto? Role { get; set; }
