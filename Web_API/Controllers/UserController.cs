@@ -221,7 +221,8 @@ namespace Web_API.Controllers
                 updateUserDto.OpeningScheduleId,
                 updateUserDto.ScheduleId,
                 updateUserDto.Email,
-                updateUserDto.GenderId
+                updateUserDto.GenderId,
+                updateUserDto.ClassIds
             );
             return NoContent();
         }

@@ -125,4 +125,6 @@ public class UserDto
         public int? StatisticId { get; set; }
         public int? OpeningScheduleId { get; set; }
         public int? ScheduleId { get; set; }
+        
+        public List<int>? ClassIds { get; set; }
     }

@@ -7,7 +7,7 @@ public partial class opening_schedule
 {
     public int opening_schedule_id { get; set; }
 
-    public string? class_code { get; set; }
+    public string class_code { get; set; } = null!;
 
     public DateOnly? opening_day { get; set; }
 
@@ -22,6 +22,8 @@ public partial class opening_schedule
     public int? teacher_user_id { get; set; }
 
     public int instrument_id { get; set; }
+
+    public virtual _class? _class { get; set; }
 
     public virtual instrument instrument { get; set; } = null!;
 

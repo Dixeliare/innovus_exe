@@ -11,6 +11,8 @@ public partial class _class
 
     public int instrument_id { get; set; }
 
+    public virtual opening_schedule class_codeNavigation { get; set; } = null!;
+
     public virtual ICollection<class_session> class_sessions { get; set; } = new List<class_session>();
 
     public virtual instrument instrument { get; set; } = null!;

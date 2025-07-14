@@ -89,9 +89,10 @@ public class UserService : IUserService
         string? email,
         // genderId ở đây sẽ là int (nếu bạn đã thay đổi UpdateUserDto)
         // Hoặc vẫn là int? nếu bạn giữ UpdateUserDto như cũ và xử lý validation trong service
-        int genderId // Sử dụng int ở đây, phản ánh việc nó luôn bắt buộc.
+        int genderId, // Sử dụng int ở đây, phản ánh việc nó luôn bắt buộc.
         // Nếu bạn giữ UpdateUserDto là int?, thì vẫn là int? ở đây
         // và thêm validation ở đầu hàm này.
+        List<int>? classIds
     )
     {
         var existingUser = await _unitOfWork.Users.GetByIdAsync(userId);
@@ -244,6 +245,44 @@ public class UserService : IUserService
         {
             existingUser.schedule_id = null;
         }
+        
+        // --- BẮT ĐẦU LOGIC CẬP NHẬT DANH SÁCH LỚP HỌC (Many-to-Many) ---
+        if (classIds != null) // Nếu client gửi danh sách ID lớp học (không phải null)
+        {
+            // Lấy danh sách ID các lớp học hiện tại của người dùng
+            var currentClassIds = existingUser.classes.Select(c => c.class_id).ToHashSet();
+            var incomingClassIdsHashSet = classIds.ToHashSet();
+
+            // 1. Loại bỏ các lớp không còn trong danh sách mới
+            var classesToRemove = existingUser.classes
+                .Where(c => !incomingClassIdsHashSet.Contains(c.class_id))
+                .ToList();
+            foreach (var classToRemove in classesToRemove)
+            {
+                existingUser.classes.Remove(classToRemove);
+            }
+
+            // 2. Thêm các lớp mới chưa có trong danh sách hiện tại
+            var classIdsToAdd = incomingClassIdsHashSet
+                .Where(id => !currentClassIds.Contains(id))
+                .ToList();
+
+            foreach (var classIdToAdd in classIdsToAdd)
+            {
+                // Kiểm tra xem lớp có tồn tại không
+                var classToAdd = await _unitOfWork.Classes.GetById(classIdToAdd);
+                if (classToAdd == null)
+                {
+                    // Nếu bất kỳ ID lớp nào được yêu cầu không tồn tại, ném ngoại lệ
+                    throw new NotFoundException("Class", "Id", classIdToAdd);
+                }
+                existingUser.classes.Add(classToAdd);
+            }
+        }
+        // Ghi chú: Nếu classIds là null, không có thay đổi nào được thực hiện đối với danh sách lớp.
+        // Nếu classIds là một List<int> rỗng ([]), tất cả các lớp hiện có sẽ bị xóa.
+        // --- KẾT THÚC LOGIC CẬP NHẬT DANH SÁCH LỚP HỌC ---
+
 
 
         try

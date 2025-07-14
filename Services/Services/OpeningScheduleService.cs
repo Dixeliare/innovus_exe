@@ -87,7 +87,7 @@ public class OpeningScheduleService : IOpeningScheduleService
             }
         }
 
-        // THÊM LOGIC KIỂM TRA INSTRUMENTID
+        // Kiểm tra InstrumentId
         if (createOpeningScheduleDto.InstrumentId <= 0)
         {
             throw new ValidationException(new Dictionary<string, string[]>
@@ -102,6 +102,9 @@ public class OpeningScheduleService : IOpeningScheduleService
             throw new NotFoundException("Instrument", "Id", createOpeningScheduleDto.InstrumentId);
         }
 
+        // --- Bắt đầu thay đổi ở đây ---
+
+        // 1. Tạo entity opening_schedule
         var scheduleEntity = new opening_schedule
         {
             class_code = createOpeningScheduleDto.ClassCode,
@@ -111,34 +114,44 @@ public class OpeningScheduleService : IOpeningScheduleService
             student_quantity = createOpeningScheduleDto.StudentQuantity,
             is_advanced_class = createOpeningScheduleDto.IsAdvancedClass ?? false,
             teacher_user_id = createOpeningScheduleDto.TeacherUserId,
-            instrument_id = createOpeningScheduleDto.InstrumentId // GÁN GIÁ TRỊ INSTRUMENTID TỪ DTO
+            instrument_id = createOpeningScheduleDto.InstrumentId
         };
 
         try
         {
-            var addedSchedule = await _unitOfWork.OpeningSchedules.AddAsync(scheduleEntity);
-            await _unitOfWork.CompleteAsync();
+            // Thêm opening_schedule vào DbContext
+            _unitOfWork.OpeningSchedules.AddAsync(scheduleEntity); // Gọi phương thức Add từ GenericRepository
+
+            // 2. Tạo entity _class tự động với cùng class_code và instrument_id
+            var classEntity = new _class
+            {
+                class_code = createOpeningScheduleDto.ClassCode,
+                instrument_id = createOpeningScheduleDto.InstrumentId
+            };
+            
+            // Thêm class vào DbContext
+            _unitOfWork.Classes.AddAsync(classEntity); // Gọi phương thức Add từ GenericRepository
+
+            // 3. Lưu cả hai thay đổi (opening_schedule và _class) trong một transaction
+            await _unitOfWork.CompleteAsync(); 
 
             // Tải lại schedule để có các navigation properties nếu cần cho DTO trả về
-            // Đảm bảo GetByIdAsync trong repo đã include instrument
             var addedScheduleWithDetails =
-                await _unitOfWork.OpeningSchedules.GetByIdAsync(addedSchedule.opening_schedule_id);
+                await _unitOfWork.OpeningSchedules.GetByIdAsync(scheduleEntity.opening_schedule_id);
 
-            return MapToOpeningScheduleDto(addedScheduleWithDetails ?? addedSchedule);
+            return MapToOpeningScheduleDto(addedScheduleWithDetails ?? scheduleEntity);
         }
         catch (DbUpdateException dbEx)
         {
-            throw new ApiException("Có lỗi xảy ra khi thêm lịch khai giảng vào cơ sở dữ liệu.", dbEx,
+            throw new ApiException("Có lỗi xảy ra khi thêm lịch khai giảng hoặc lớp học vào cơ sở dữ liệu.", dbEx,
                 (int)HttpStatusCode.InternalServerError);
         }
         catch (Exception ex)
         {
-            throw new ApiException("An unexpected error occurred while adding the opening schedule.", ex,
+            throw new ApiException("An unexpected error occurred while adding the opening schedule and class.", ex,
                 (int)HttpStatusCode.InternalServerError);
         }
     }
-
-    // Services/Services/OpeningScheduleService.cs
 
     public async Task UpdateAsync(UpdateOpeningScheduleDto updateOpeningScheduleDto)
     {
@@ -223,6 +236,38 @@ public class OpeningScheduleService : IOpeningScheduleService
 
         try
         {
+            // Kiểm tra xem có class nào liên kết với opening_schedule này không
+            var relatedClass = await _unitOfWork.Classes.FindOneAsync(c => c.class_code == scheduleToDelete.class_code);
+
+            if (relatedClass != null)
+            {
+                // Trước khi xóa opening_schedule, cần xóa hoặc điều chỉnh class liên quan.
+                // Nếu muốn tự động xóa class khi xóa opening_schedule, bạn cần cấu hình Cascade Delete trong DbContext
+                // Hoặc xóa class một cách tường minh ở đây.
+                // Lưu ý: Nếu có học viên đang trong lớp này, việc xóa lớp có thể gặp lỗi ràng buộc khóa ngoại.
+                // Cần xử lý các ràng buộc này (ví dụ: chuyển học viên sang lớp khác, hoặc xóa học viên khỏi lớp trước).
+                
+                // Để đơn giản, ở đây ta sẽ kiểm tra các ràng buộc:
+                var hasRelatedSessions = await _unitOfWork.ClassSessions.AnyAsync(cs => cs.class_id == relatedClass.class_id);
+                if (hasRelatedSessions)
+                {
+                    throw new ApiException("Không thể xóa lịch khai giảng này vì lớp học liên quan có các buổi học.", null, (int)HttpStatusCode.Conflict);
+                }
+
+                var hasRelatedUsersInClass = relatedClass.users.Any(); // Kiểm tra xem có người dùng nào liên kết với lớp không
+                // Nếu GetById trong ClassRepository không include users, cần dùng FindOneAsync để kiểm tra user_class join table
+                var hasUsersInJoinTable = await _unitOfWork.Users.AnyAsync(u => u.classes.Any(c => c.class_id == relatedClass.class_id));
+
+                if (hasUsersInJoinTable)
+                {
+                    throw new ApiException("Không thể xóa lịch khai giảng này vì lớp học liên quan có người dùng (học viên/giáo viên) đang tham gia.", null, (int)HttpStatusCode.Conflict);
+                }
+
+                // Nếu không có ràng buộc, tiến hành xóa class trước
+                await _unitOfWork.Classes.DeleteAsync(relatedClass.class_id);
+            }
+
+            // Sau khi xử lý class liên quan, xóa opening_schedule
             await _unitOfWork.OpeningSchedules.DeleteAsync(id);
             await _unitOfWork.CompleteAsync(); // Lưu thay đổi
         }
@@ -230,8 +275,8 @@ public class OpeningScheduleService : IOpeningScheduleService
         {
             // Nếu có user nào đó đang liên kết với lịch khai giảng này, sẽ ném lỗi FK
             throw new ApiException(
-                "Không thể xóa lịch khai giảng này vì nó đang được sử dụng bởi một hoặc nhiều người dùng.", dbEx,
-                (int)HttpStatusCode.Conflict); // 409 Conflict
+                "Có lỗi xảy ra khi xóa lịch khai giảng khỏi cơ sở dữ liệu. Vui lòng kiểm tra các ràng buộc liên quan.", dbEx,
+                (int)HttpStatusCode.InternalServerError); // 409 Conflict
         }
         catch (Exception ex)
         {
@@ -266,10 +311,6 @@ public class OpeningScheduleService : IOpeningScheduleService
                     AccountName = model.teacher_user.account_name
                 }
                 : null,
-            // BỎ ÁNH XẠ class_codeNavigation (nếu đã xóa từ DTO)
-            // ClassNavigation = null, // hoặc xóa hẳn dòng này
-
-            // THÊM ÁNH XẠ INSTRUMENTID VÀ INSTRUMENT OBJECT
             InstrumentId = model.instrument_id,
             Instrument = model.instrument != null
                 ? new InstrumentDto

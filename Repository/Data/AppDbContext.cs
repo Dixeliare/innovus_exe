@@ -62,6 +62,11 @@ public partial class AppDbContext : DbContext
 
             entity.Property(e => e.class_code).HasMaxLength(255);
 
+            entity.HasOne(d => d.class_codeNavigation).WithOne(p => p._class)
+                .HasPrincipalKey<opening_schedule>(p => p.class_code)
+                .HasForeignKey<_class>(d => d.class_code)
+                .HasConstraintName("fk_class_class_code");
+
             entity.HasOne(d => d.instrument).WithMany(p => p._classes)
                 .HasForeignKey(d => d.instrument_id)
                 .OnDelete(DeleteBehavior.Restrict)

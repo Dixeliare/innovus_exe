@@ -53,9 +53,10 @@ public interface IUserService
         string? email,
         // genderId ở đây sẽ là int (nếu bạn đã thay đổi UpdateUserDto)
         // Hoặc vẫn là int? nếu bạn giữ UpdateUserDto như cũ và xử lý validation trong service
-        int genderId // Sử dụng int ở đây, phản ánh việc nó luôn bắt buộc.
+        int genderId, // Sử dụng int ở đây, phản ánh việc nó luôn bắt buộc.
         // Nếu bạn giữ UpdateUserDto là int?, thì vẫn là int? ở đây
         // và thêm validation ở đầu hàm này.
+        List<int>? classIds
     );
 
     // Sẽ ném NotFoundException nếu không tìm thấy, không trả về bool
