@@ -7,10 +7,13 @@ namespace Repository.Basic.Repositories;
 
 public class ClassRepository : GenericRepository<_class>, IClassRepository
 {
+    private readonly AppDbContext _context; 
+    
     public ClassRepository(AppDbContext context) : base(context)
     {
-        
+        _context = context;
     }
+    
 
     public async Task<IEnumerable<_class>> GetAll()
     {
@@ -75,14 +78,54 @@ public class ClassRepository : GenericRepository<_class>, IClassRepository
     }
 
     
-    // THÊM PHƯƠNG THỨC MỚI NÀY:
+    // THÊM PHƯƠNG THỨC NÀY NẾU CHƯA CÓ HOẶC CẦN CHỈNH SỬA
     public async Task<_class?> GetClassWithUsersAsync(int classId)
     {
         return await _dbSet
             .Include(c => c.instrument)
-            .Include(c => c.users) // Rất quan trọng: Bao gồm danh sách users
-            .ThenInclude(u => u.role) // Và bao gồm cả vai trò của mỗi user
+            .Include(c => c.users)
+            .ThenInclude(u => u.role)
             .AsSplitQuery()
             .FirstOrDefaultAsync(c => c.class_id == classId);
+    }
+    
+    // SỬA LỖI Ở ĐÂY: DÙNG _dbSet thay vì _dbSetcontext.Classes hoặc _context.Classes
+    public async Task<_class?> GetByIdWithDetails(int id)
+    {
+        return await _dbSet // Đã sửa
+            .Include(c => c.instrument)
+            .Include(c => c.class_sessions)
+            .ThenInclude(cs => cs.week)
+            .Include(c => c.class_sessions)
+            .ThenInclude(cs => cs.time_slot)
+            .Include(c => c.users)
+            .FirstOrDefaultAsync(c => c.class_id == id);
+    }
+
+    // SỬA LỖI Ở ĐÂY: DÙNG _context.Users để truy cập DbSet của User
+    public async Task<IEnumerable<_class>> GetClassesByUserId(int userId)
+    {
+        return await _context.users // Đã sửa
+            .Where(u => u.user_id == userId)
+            .SelectMany(u => u.classes)
+            .Include(c => c.instrument)
+            .Include(c => c.class_sessions)
+            .ThenInclude(cs => cs.week)
+            .Include(c => c.class_sessions)
+            .ThenInclude(cs => cs.time_slot)
+            .ToListAsync();
+    }
+
+    // SỬA LỖI Ở ĐÂY: DÙNG _dbSet thay vì _context.Classes
+    public async Task<IEnumerable<_class>> GetAllWithDetails()
+    {
+        return await _dbSet // Đã sửa
+            .Include(c => c.instrument)
+            .Include(c => c.class_sessions)
+            .ThenInclude(cs => cs.week)
+            .Include(c => c.class_sessions)
+            .ThenInclude(cs => cs.time_slot)
+            .Include(c => c.users)
+            .ToListAsync();
     }
 }

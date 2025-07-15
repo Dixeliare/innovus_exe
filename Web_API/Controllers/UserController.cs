@@ -173,8 +173,6 @@ namespace Web_API.Controllers
                 createUserDto.Birthday,
                 createUserDto.RoleId,
                 createUserDto.StatisticId,
-                createUserDto.OpeningScheduleId,
-                createUserDto.ScheduleId,
                 createUserDto.Email,
                 createUserDto.GenderId,
                 createUserDto.ClassId 
@@ -218,8 +216,6 @@ namespace Web_API.Controllers
                 updateUserDto.Birthday,
                 updateUserDto.RoleId,
                 updateUserDto.StatisticId,
-                updateUserDto.OpeningScheduleId,
-                updateUserDto.ScheduleId,
                 updateUserDto.Email,
                 updateUserDto.GenderId,
                 updateUserDto.ClassIds
@@ -258,5 +254,36 @@ namespace Web_API.Controllers
             return Ok(users); // Service đã trả về UserDto
         }
 
+        [HttpGet("personal-schedule")]
+        [Authorize] // Yêu cầu xác thực
+        [ProducesResponseType(typeof(PersonalScheduleDto), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        public async Task<ActionResult<PersonalScheduleDto>> GetPersonalSchedule(
+            [FromQuery] DateOnly? startDate = null,
+            [FromQuery] DateOnly? endDate = null)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (userIdClaim == null || !int.TryParse(userIdClaim, out int userId))
+            {
+                return Unauthorized(new { message = "Không tìm thấy User ID trong token hoặc định dạng không hợp lệ." });
+            }
+
+            try
+            {
+                var schedule = await _userService.GetPersonalScheduleAsync(userId, startDate, endDate);
+                return Ok(schedule);
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode((int)HttpStatusCode.InternalServerError, new { message = "Đã xảy ra lỗi khi truy xuất thời khóa biểu cá nhân.", details = ex.Message });
+            }
+        }
     }
 }

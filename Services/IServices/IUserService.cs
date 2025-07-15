@@ -29,8 +29,6 @@ public interface IUserService
         DateOnly? birthday,
         int? roleId,
         int? statisticId,
-        int? openingScheduleId,
-        int? scheduleId,
         string email, // THÊM TRƯỜNG EMAIL
         int genderId,
         int? classId = null);
@@ -48,8 +46,6 @@ public interface IUserService
         DateOnly? birthday,
         int? roleId,
         int? statisticId,
-        int? openingScheduleId,
-        int? scheduleId,
         string? email,
         // genderId ở đây sẽ là int (nếu bạn đã thay đổi UpdateUserDto)
         // Hoặc vẫn là int? nếu bạn giữ UpdateUserDto như cũ và xử lý validation trong service
@@ -74,4 +70,10 @@ public interface IUserService
         int? roleId = null,
         string? email = null, // THÊM TRƯỜNG EMAIL
         int? genderId = null);
+    
+    // Phương thức mới để lấy thời khóa biểu cá nhân
+    Task<PersonalScheduleDto> GetPersonalScheduleAsync(
+        int userId, 
+        DateOnly? startDate = null,
+        DateOnly? endDate = null);
 }

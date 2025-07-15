@@ -84,8 +84,6 @@ public class UserService : IUserService
         DateOnly? birthday,
         int? roleId,
         int? statisticId,
-        int? openingScheduleId,
-        int? scheduleId,
         string? email,
         // genderId ở đây sẽ là int (nếu bạn đã thay đổi UpdateUserDto)
         // Hoặc vẫn là int? nếu bạn giữ UpdateUserDto như cũ và xử lý validation trong service
@@ -214,38 +212,6 @@ public class UserService : IUserService
             existingUser.statistic_id = null;
         }
 
-        // Cập nhật khóa ngoại OpeningSchedule
-        if (openingScheduleId.HasValue && existingUser.opening_schedule_id != openingScheduleId.Value)
-        {
-            var openingScheduleExists = await _unitOfWork.OpeningSchedules.GetByIdAsync(openingScheduleId.Value);
-            if (openingScheduleExists == null)
-            {
-                throw new NotFoundException("Opening Schedule", "Id", openingScheduleId.Value);
-            }
-
-            existingUser.opening_schedule_id = openingScheduleId.Value;
-        }
-        else if (openingScheduleId == null && existingUser.opening_schedule_id != null)
-        {
-            existingUser.opening_schedule_id = null;
-        }
-
-        // Cập nhật khóa ngoại Schedule
-        if (scheduleId.HasValue && existingUser.schedule_id != scheduleId.Value)
-        {
-            var scheduleExists = await _unitOfWork.Schedules.GetByIdAsync(scheduleId.Value);
-            if (scheduleExists == null)
-            {
-                throw new NotFoundException("Schedule", "Id", scheduleId.Value);
-            }
-
-            existingUser.schedule_id = scheduleId.Value;
-        }
-        else if (scheduleId == null && existingUser.schedule_id != null)
-        {
-            existingUser.schedule_id = null;
-        }
-        
         // --- BẮT ĐẦU LOGIC CẬP NHẬT DANH SÁCH LỚP HỌC (Many-to-Many) ---
         if (classIds != null) // Nếu client gửi danh sách ID lớp học (không phải null)
         {
@@ -276,13 +242,13 @@ public class UserService : IUserService
                     // Nếu bất kỳ ID lớp nào được yêu cầu không tồn tại, ném ngoại lệ
                     throw new NotFoundException("Class", "Id", classIdToAdd);
                 }
+
                 existingUser.classes.Add(classToAdd);
             }
         }
         // Ghi chú: Nếu classIds là null, không có thay đổi nào được thực hiện đối với danh sách lớp.
         // Nếu classIds là một List<int> rỗng ([]), tất cả các lớp hiện có sẽ bị xóa.
         // --- KẾT THÚC LOGIC CẬP NHẬT DANH SÁCH LỚP HỌC ---
-
 
 
         try
@@ -361,9 +327,10 @@ public class UserService : IUserService
     //         isDisabled, createAt, birthday, roleId, email, genderId);
     //     return users.Select(u => MapToUserDto(u));
     // }
-    
-    
-    public async Task<IEnumerable<UserDto>> SearchUsersAsync(string? username = null, string? accountName = null, string? password = null,
+
+
+    public async Task<IEnumerable<UserDto>> SearchUsersAsync(string? username = null, string? accountName = null,
+        string? password = null,
         string? address = null, string? phoneNumber = null, bool? isDisabled = null, DateTime? createAt = null,
         DateOnly? birthday = null, int? roleId = null, string? email = null, int? genderId = null)
     {
@@ -387,8 +354,6 @@ public class UserService : IUserService
             Birthday = model.birthday,
             RoleId = model.role_id,
             StatisticId = model.statistic_id,
-            OpeningScheduleId = model.opening_schedule_id,
-            ScheduleId = model.schedule_id,
             Role = model.role != null
                 ? new RoleDto
                 {
@@ -420,8 +385,6 @@ public class UserService : IUserService
         DateOnly? birthday,
         int? roleId,
         int? statisticId,
-        int? openingScheduleId,
-        int? scheduleId,
         string email, // THÊM TRƯỜNG EMAIL
         int genderId, // THÊM TRƯỜNG GENDER_ID
         int? classId = null
@@ -491,15 +454,6 @@ public class UserService : IUserService
             }
         }
 
-        if (openingScheduleId.HasValue)
-        {
-            var openingScheduleExists = await _unitOfWork.OpeningSchedules.GetByIdAsync(openingScheduleId.Value);
-            if (openingScheduleExists == null)
-            {
-                throw new NotFoundException("Opening Schedule", "Id", openingScheduleId.Value);
-            }
-        }
-        
         // KIỂM TRA CLASSID NẾU CÓ
         if (classId.HasValue)
         {
@@ -507,15 +461,6 @@ public class UserService : IUserService
             if (classExists == null)
             {
                 throw new NotFoundException("Class", "Id", classId.Value);
-            }
-        }
-
-        if (scheduleId.HasValue)
-        {
-            var scheduleExists = await _unitOfWork.Schedules.GetByIdAsync(scheduleId.Value);
-            if (scheduleExists == null)
-            {
-                throw new NotFoundException("Schedule", "Id", scheduleId.Value);
             }
         }
 
@@ -533,8 +478,6 @@ public class UserService : IUserService
             birthday = birthday,
             role_id = roleId,
             statistic_id = statisticId,
-            opening_schedule_id = openingScheduleId,
-            schedule_id = scheduleId,
             email = email, // GÁN EMAIL
             gender_id = genderId // GÁN GENDER_ID
         };
@@ -582,5 +525,66 @@ public class UserService : IUserService
             throw new ApiException("An unexpected error occurred during user creation.", ex,
                 (int)HttpStatusCode.InternalServerError);
         }
+    }
+
+    public async Task<PersonalScheduleDto> GetPersonalScheduleAsync(int userId, DateOnly? startDate = null,
+        DateOnly? endDate = null)
+    {
+        var user = await _unitOfWork.Users.GetUserWithClassesAndRoleAsync(userId); // Sử dụng phương thức tải chi tiết
+        if (user == null)
+        {
+            throw new NotFoundException("User", "Id", userId);
+        }
+
+        var personalSchedule = new PersonalScheduleDto
+        {
+            UserId = user.user_id,
+            Username = user.username,
+            AccountName = user.account_name
+        };
+
+        // Lọc các buổi học theo ngày nếu startDate và endDate được cung cấp
+        var filteredSessions = new List<PersonalClassSessionDto>();
+
+        foreach (var cls in user.classes)
+        {
+            if (cls.class_sessions != null)
+            {
+                foreach (var session in cls.class_sessions)
+                {
+                    // Áp dụng bộ lọc ngày
+                    if (startDate.HasValue && session.date < startDate.Value) continue;
+                    if (endDate.HasValue && session.date > endDate.Value) continue;
+
+                    if (session.week != null && session.time_slot != null)
+                    {
+                        filteredSessions.Add(new PersonalClassSessionDto
+                        {
+                            ClassSessionId = session.class_session_id,
+                            SessionNumber = session.session_number,
+                            Date = session.date,
+                            RoomCode = session.room_code,
+                            WeekId = session.week_id,
+                            ClassId = session.class_id,
+                            TimeSlotId = session.time_slot_id,
+                            WeekNumber =
+                                session.week.week_number ?? 0, // Đảm bảo không null nếu WeekNumber là nullable int
+                            DayOfWeek = session.week.day_of_week ??
+                                        default, // Đảm bảo không null nếu DayOfWeek là nullable DateOnly
+                            ClassCode = cls.class_code,
+                            InstrumentName = cls.instrument?.instrument_name, // Lấy tên nhạc cụ từ Class
+                            StartTime = session.time_slot.start_time,
+                            EndTime = session.time_slot.end_time
+                        });
+                    }
+                }
+            }
+        }
+
+        // Sắp xếp các buổi học theo ngày, thời gian bắt đầu
+        personalSchedule.ScheduledSessions = filteredSessions.OrderBy(s => s.Date)
+            .ThenBy(s => s.StartTime)
+            .ToList();
+        return personalSchedule;
     }
 }

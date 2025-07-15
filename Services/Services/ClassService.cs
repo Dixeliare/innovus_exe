@@ -236,8 +236,6 @@ public class ClassService : IClassService
                 Birthday = u.birthday,
                 RoleId = u.role_id,
                 StatisticId = u.statistic_id,
-                OpeningScheduleId = u.opening_schedule_id,
-                ScheduleId = u.schedule_id,
                 Role = u.role != null ? new RoleDto
                 {
                     RoleId = u.role.role_id,
@@ -290,8 +288,6 @@ public class ClassService : IClassService
             Birthday = u.birthday,
             RoleId = u.role_id,
             StatisticId = u.statistic_id,
-            OpeningScheduleId = u.opening_schedule_id,
-            ScheduleId = u.schedule_id,
             Role = u.role != null ? new RoleDto
             {
                 RoleId = u.role.role_id,

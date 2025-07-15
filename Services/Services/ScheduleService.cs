@@ -16,6 +16,7 @@ public class ScheduleService : IScheduleService
     // private readonly IScheduleRepository _scheduleRepository;
 
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IWeekService _weekService;
 
     // Số tháng lịch trình cần duy trì trong tương lai
     private const int MONTHS_TO_ENSURE_IN_FUTURE = 6;
@@ -26,9 +27,10 @@ public class ScheduleService : IScheduleService
 
     // public ScheduleService(IScheduleRepository scheduleRepository) => _scheduleRepository = scheduleRepository;
 
-    public ScheduleService(IUnitOfWork unitOfWork)
+    public ScheduleService(IUnitOfWork unitOfWork, IWeekService weekService)
     {
         _unitOfWork = unitOfWork;
+        _weekService = weekService; // GÁN
     }
 
     public async Task<IEnumerable<ScheduleDto>> GetAllAsync()
@@ -188,6 +190,7 @@ public class ScheduleService : IScheduleService
         try
         {
             await EnsureFutureSchedulesInternalAsync(currentMonthStart);
+            await EnsureWeeksForExistingSchedulesAsync(); 
             await CleanupOldSchedulesInternalAsync(currentMonthStart);
 
             // Đây là nơi quan trọng: Commit TẤT CẢ các thay đổi của unit of work
@@ -242,6 +245,14 @@ public class ScheduleService : IScheduleService
             foreach (var s in schedulesToAdd)
             {
                 await _unitOfWork.Schedules.AddAsync(s);
+                if (s.schedule_id > 0) // Kiểm tra an toàn
+                {
+                    await GenerateWeeksForMonthAsync(s.schedule_id, s.month_year.Value);
+                }
+                else
+                {
+                    Console.WriteLine($"[ScheduleService] - WARNING: schedule_id for {s.month_year.Value} is 0. Weeks will not be generated immediately. This might require calling CompleteAsync() earlier or restructuring.");
+                }
             }
             Console.WriteLine($"[ScheduleService] - Created {schedulesToAdd.Count} new schedules.");
         }
@@ -267,6 +278,13 @@ public class ScheduleService : IScheduleService
                 $"[ScheduleService] - Found {oldSchedules.Count} old schedules to delete before {cutoffDate.Month}/{cutoffDate.Year}.");
             foreach (var s in oldSchedules)
             {
+                // Khi xóa schedule, các week liên quan sẽ bị xóa theo cascade (nếu DB cấu hình đúng)
+                // HOẶC bạn cần tự xóa các week trước, nếu không có cascade:
+                var weeksToDelete = await _unitOfWork.Weeks.GetWeeksByScheduleIdAsync(s.schedule_id);
+                foreach (var week in weeksToDelete)
+                {
+                    await _unitOfWork.Weeks.DeleteAsync(week.week_id);
+                }
                 await _unitOfWork.Schedules.DeleteAsync(s.schedule_id);
             }
             Console.WriteLine($"[ScheduleService] - Deleted {oldSchedules.Count} old schedules.");
@@ -276,6 +294,74 @@ public class ScheduleService : IScheduleService
             Console.WriteLine("[ScheduleService] - No old schedules to delete.");
         }
     }
+    
+    // PHƯƠNG THỨC MỚI ĐỂ TẠO WEEKS CHO MỘT THÁNG CỤ THỂ
+    private async Task GenerateWeeksForMonthAsync(int scheduleId, DateOnly monthYear)
+    {
+        Console.WriteLine($"[ScheduleService] - Generating weeks for schedule ID {scheduleId} ({monthYear.Month}/{monthYear.Year})...");
+
+        var startOfMonth = new DateOnly(monthYear.Year, monthYear.Month, 1);
+        var endOfMonth = startOfMonth.AddMonths(1).AddDays(-1); // Ngày cuối cùng của tháng
+
+        int currentWeekNumber = 1; // Bắt đầu từ tuần 1 cho mỗi tháng
+        DateOnly currentDay = startOfMonth;
+
+        while (currentDay <= endOfMonth)
+        {
+            // Tính toán week_number. Ví dụ đơn giản: cứ 7 ngày một lần thì tăng week_number
+            // Điều này đảm bảo week_number là tuần tự trong phạm vi của tháng.
+            int daysSinceMonthStart = currentDay.DayNumber - startOfMonth.DayNumber;
+            currentWeekNumber = (daysSinceMonthStart / 7) + 1;
+
+
+            var createWeekDto = new CreateWeekDto
+            {
+                ScheduleId = scheduleId,
+                DayOfWeek = currentDay,
+                WeekNumber = currentWeekNumber
+            };
+
+            await _weekService.AddAsync(createWeekDto); // Thêm week thông qua WeekService
+            Console.WriteLine($"[ScheduleService] -- Created week: ScheduleId={scheduleId}, Day={currentDay}, WeekNumber={currentWeekNumber}");
+
+            currentDay = currentDay.AddDays(1); // Di chuyển đến ngày tiếp theo
+        }
+        Console.WriteLine($"[ScheduleService] - Finished generating weeks for schedule ID {scheduleId}.");
+    }
+    
+    // Phương thức mới để đảm bảo tất cả các schedule hiện có đều có weeks
+    private async Task EnsureWeeksForExistingSchedulesAsync()
+    {
+        Console.WriteLine("[ScheduleService] Checking existing schedules for missing weeks...");
+
+        // Lấy tất cả các schedule hiện có
+        var allSchedules = await _unitOfWork.Schedules.GetAllAsync();
+
+        foreach (var schedule in allSchedules)
+        {
+            if (!schedule.month_year.HasValue)
+            {
+                Console.WriteLine($"[ScheduleService] - Skipping schedule ID {schedule.schedule_id} because month_year is null.");
+                continue;
+            }
+
+            // Kiểm tra xem schedule này đã có bất kỳ week nào chưa
+            var existingWeeks = await _unitOfWork.Weeks.GetWeeksByScheduleIdAsync(schedule.schedule_id);
+
+            if (!existingWeeks.Any())
+            {
+                // Nếu chưa có week nào, thì tạo week cho schedule này
+                Console.WriteLine($"[ScheduleService] - Schedule ID {schedule.schedule_id} ({schedule.month_year.Value.Month}/{schedule.month_year.Value.Year}) has no weeks. Generating them now...");
+                await GenerateWeeksForMonthAsync(schedule.schedule_id, schedule.month_year.Value);
+            }
+            else
+            {
+                // Console.WriteLine($"[ScheduleService] - Schedule ID {schedule.schedule_id} ({schedule.month_year.Value.Month}/{schedule.month_year.Value.Year}) already has {existingWeeks.Count()} weeks.");
+            }
+        }
+        Console.WriteLine("[ScheduleService] Finished checking existing schedules for missing weeks.");
+    }
+
 
     private ScheduleDto MapToScheduleDto(schedule model)
     {

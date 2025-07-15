@@ -327,8 +327,6 @@ public partial class AppDbContext : DbContext
 
             entity.HasIndex(e => e.email, "user_email_key").IsUnique();
 
-            entity.HasIndex(e => e.schedule_id, "user_schedule_id_key").IsUnique();
-
             entity.HasIndex(e => e.username, "user_username_key").IsUnique();
 
             entity.Property(e => e.create_at)
@@ -346,20 +344,10 @@ public partial class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_user_gender");
 
-            entity.HasOne(d => d.opening_schedule).WithMany(p => p.users)
-                .HasForeignKey(d => d.opening_schedule_id)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_user_opening_schedule");
-
             entity.HasOne(d => d.role).WithMany(p => p.users)
                 .HasForeignKey(d => d.role_id)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_user_role");
-
-            entity.HasOne(d => d.schedule).WithOne(p => p.user)
-                .HasForeignKey<user>(d => d.schedule_id)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_user_schedule_personal");
 
             entity.HasOne(d => d.statistic).WithMany(p => p.users)
                 .HasForeignKey(d => d.statistic_id)

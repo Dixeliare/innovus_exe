@@ -18,9 +18,7 @@ public class UserRepository : GenericRepository<user>, IUserRepository
         return await _dbSet
             .Include(g => g.gender)
             .Include(a => a.attendances)
-            .Include(o => o.opening_schedule)
             .Include(r => r.role)
-            .Include(s => s.schedule)
             .Include(s => s.statistic)
             .Include(u => u.user_favorite_sheets)
             .Include(c => c.classes)
@@ -34,9 +32,7 @@ public class UserRepository : GenericRepository<user>, IUserRepository
         return await _dbSet.AsNoTracking()
             .Include(u => u.gender) 
             .Include(a => a.attendances)
-            .Include(o => o.opening_schedule)
             .Include(r => r.role)
-            .Include(s => s.schedule)
             .Include(s => s.statistic)
             .Include(u => u.user_favorite_sheets)
             .Include(c => c.classes)
@@ -96,8 +92,6 @@ public class UserRepository : GenericRepository<user>, IUserRepository
 
         query = query.Include(u => u.role)
             .Include(u => u.statistic)
-            .Include(u => u.opening_schedule)
-            .Include(u => u.schedule)
             .Include(u => u.gender) // THÊM DÒNG NÀY
             .AsSplitQuery();
 
@@ -216,5 +210,20 @@ public class UserRepository : GenericRepository<user>, IUserRepository
             .Where(u => u.role_id.HasValue && roleIds.Contains(u.role_id.Value))
             .AsSplitQuery()
             .ToListAsync();
+    }
+    
+    public async Task<user?> GetUserWithClassesAndRoleAsync(int userId)
+    {
+        return await _dbSet
+            .Include(u => u.role)
+            .Include(u => u.classes) // Tải các lớp mà người dùng tham gia
+            .ThenInclude(c => c.instrument) // Tải nhạc cụ của lớp
+            .Include(u => u.classes)
+            .ThenInclude(c => c.class_sessions) // Tải các buổi học của lớp
+            .ThenInclude(cs => cs.week) // Tải tuần của buổi học
+            .Include(u => u.classes)
+            .ThenInclude(c => c.class_sessions)
+            .ThenInclude(cs => cs.time_slot) // Tải khung thời gian của buổi học
+            .FirstOrDefaultAsync(u => u.user_id == userId);
     }
 }

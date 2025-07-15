@@ -28,6 +28,4 @@ public partial class opening_schedule
     public virtual instrument instrument { get; set; } = null!;
 
     public virtual user? teacher_user { get; set; }
-
-    public virtual ICollection<user> users { get; set; } = new List<user>();
 }

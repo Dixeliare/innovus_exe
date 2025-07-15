@@ -11,7 +11,5 @@ public partial class schedule
 
     public string? note { get; set; }
 
-    public virtual user? user { get; set; }
-
     public virtual ICollection<week> weeks { get; set; } = new List<week>();
 }

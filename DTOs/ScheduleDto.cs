@@ -38,3 +38,12 @@ public class UpdateScheduleDto
 
     // KHÔNG có UserId ở đây
 }
+
+
+public class PersonalScheduleDto
+{
+    public int UserId { get; set; }
+    public string? Username { get; set; }
+    public string? AccountName { get; set; }
+    public List<PersonalClassSessionDto> ScheduledSessions { get; set; } = new List<PersonalClassSessionDto>();
+}

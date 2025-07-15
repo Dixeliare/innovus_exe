@@ -16,7 +16,6 @@ public class ScheduleRepository : GenericRepository<schedule>, IScheduleReposito
     {
         var items = await _dbSet
             .Include(w => w.weeks)
-            .Include(u => u.user )
             .AsSplitQuery()
             .ToListAsync();
         return items ?? new List<schedule>();
@@ -26,7 +25,6 @@ public class ScheduleRepository : GenericRepository<schedule>, IScheduleReposito
     {
         var item = await _dbSet
             .Include(w => w.weeks)
-            .Include(u => u.user)
             .AsSplitQuery()
             .FirstOrDefaultAsync(s => s.schedule_id == id);
         return item ?? new schedule();
@@ -36,7 +34,6 @@ public class ScheduleRepository : GenericRepository<schedule>, IScheduleReposito
     {
         var query = _dbSet
             .Include(w => w.weeks)
-            .Include(u => u.user)
             .AsSplitQuery()// Giữ nguyên việc include user
             .AsQueryable(); // Bắt đầu xây dựng query
 
@@ -75,7 +72,6 @@ public class ScheduleRepository : GenericRepository<schedule>, IScheduleReposito
     {
         var query = _context.schedules
             .Include(w => w.weeks)
-            .Include(u => u.user)
             .AsSplitQuery()
             .AsQueryable(); // Bắt đầu xây dựng query
 

@@ -15,7 +15,6 @@ public class OpeningScheduleRepository : GenericRepository<opening_schedule>, IO
     public async Task<IEnumerable<opening_schedule>> GetAllAsync()
     {
         return await _dbSet
-            .Include(u => u.users)
             .Include(t => t.teacher_user) 
             .Include(i => i.instrument)
             .AsSplitQuery()
@@ -25,7 +24,6 @@ public class OpeningScheduleRepository : GenericRepository<opening_schedule>, IO
     public async Task<opening_schedule> GetByIdAsync(int id)
     {
         return await _dbSet
-            .Include(u => u.users)
             .Include(t => t.teacher_user) 
             .Include(i => i.instrument)
             .AsSplitQuery()
