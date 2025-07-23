@@ -12,126 +12,214 @@ using Repository.Models;
 using Services.IServices;
 using Services.Exceptions;
 using ValidationException = Services.Exceptions.ValidationException;
+using System.Net;
+using Microsoft.AspNetCore.Authorization; // Thêm namespace này cho HttpStatusCode
 
 namespace Web_API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    //[Authorize] // Thêm Authorize nếu bạn muốn bảo vệ endpoint này
     public class WeekController : ControllerBase
     {
         private readonly IWeekService _weekService;
         
         public WeekController(IWeekService weekService) => _weekService = weekService;
         
+        /// <summary>
+        /// Lấy tất cả các tuần.
+        /// </summary>
         [HttpGet]
-        public async Task<IEnumerable<week>> GetAll()
+        [ProducesResponseType(typeof(IEnumerable<WeekDto>), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)] // Thêm loại phản hồi lỗi
+        public async Task<ActionResult<IEnumerable<WeekDto>>> GetAll()
         {
-            return await _weekService.GetAllAsync();
+            try
+            {
+                var weeks = await _weekService.GetAllAsync();
+                return Ok(weeks);
+            }
+            catch (Exception ex)
+            {
+                // Log lỗi ở đây nếu bạn có logger
+                return StatusCode((int)HttpStatusCode.InternalServerError, new { message = "An error occurred while retrieving all weeks.", details = ex.Message });
+            }
         }
 
+        /// <summary>
+        /// Lấy thông tin tuần theo ID.
+        /// </summary>
         [HttpGet("{id}")]
-        public async Task<week> GetById(int id)
+        [ProducesResponseType(typeof(WeekDto), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        public async Task<ActionResult<WeekDto>> GetById(int id)
         {
-            return await _weekService.GetByIdAsync(id);
+            try
+            {
+                var week = await _weekService.GetByIdAsync(id);
+                return Ok(week);
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode((int)HttpStatusCode.InternalServerError, new { message = $"An error occurred while retrieving week with ID {id}.", details = ex.Message });
+            }
         }
 
+        /// <summary>
+        /// Lấy danh sách tuần theo ID lịch trình.
+        /// </summary>
         [HttpGet("BySchedule/{scheduleId}")]
+        [ProducesResponseType(typeof(IEnumerable<WeekDto>), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)] // ScheduleId not found
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
         public async Task<ActionResult<IEnumerable<WeekDto>>> GetWeeksByScheduleId(int scheduleId)
         {
-            // Nếu scheduleId không tồn tại, WeekService sẽ ném NotFoundException,
-            // Middleware sẽ bắt và trả về 404.
-            var weeks = await _weekService.GetWeeksByScheduleIdAsync(scheduleId);
-            
-            // Bạn có thể chọn cách xử lý nếu danh sách rỗng:
-            // 1. Trả về 200 OK với mảng rỗng (thường là phổ biến nhất nếu đây là kết quả hợp lệ)
-            if (!weeks.Any())
+            try
             {
-                return Ok(new List<WeekDto>()); // Trả về 200 OK với danh sách rỗng
+                var weeks = await _weekService.GetWeeksByScheduleIdAsync(scheduleId);
+                // Return 200 OK with an empty list if no weeks are found for a valid scheduleId.
+                return Ok(weeks); 
             }
-            return Ok(weeks);
-
-            // 2. Hoặc trả về 404 Not Found nếu bạn coi việc không có tuần nào là lỗi
-            // if (!weeks.Any())
-            // {
-            //     throw new NotFoundException($"No weeks found for schedule ID {scheduleId}.");
-            // }
-            // return Ok(weeks);
+            catch (NotFoundException ex) // Bắt NotFoundException nếu ScheduleId không tồn tại
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode((int)HttpStatusCode.InternalServerError, new { message = $"An error occurred while retrieving weeks for schedule ID {scheduleId}.", details = ex.Message });
+            }
         }
 
-        // POST: api/Weeks
+        /// <summary>
+        /// Tạo tuần mới.
+        /// </summary>
         [HttpPost]
+        [ProducesResponseType(typeof(WeekDto), (int)HttpStatusCode.Created)]
+        [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)] // For invalid foreign keys like ScheduleId
+        [ProducesResponseType((int)HttpStatusCode.Conflict)] // For duplicate entries (e.g., WeekNumberInMonth)
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
         public async Task<ActionResult<WeekDto>> CreateWeek([FromBody] CreateWeekDto createWeekDto)
         {
-            // XÓA KHỐI TRY-CATCH NÀY!
-            // Middleware sẽ bắt KeyNotFoundException (thay thế bằng NotFoundException),
-            // ValidationException, hoặc ApiException và trả về phản hồi thích hợp.
-            // try
-            // {
-            var createdWeek = await _weekService.AddAsync(createWeekDto);
-            // CreatedAtAction sẽ trả về HTTP 201 Created
-            return CreatedAtAction(nameof(GetById), new { id = createdWeek.WeekId }, createdWeek);
-            // }
-            // catch (KeyNotFoundException ex) { return BadRequest(new { message = ex.Message }); }
-            // catch (Exception ex) { return StatusCode(500, new { message = "...", error = ex.Message }); }
+            try
+            {
+                var createdWeek = await _weekService.AddAsync(createWeekDto);
+                return CreatedAtAction(nameof(GetById), new { id = createdWeek.WeekId }, createdWeek);
+            }
+            catch (ValidationException ex)
+            {
+                return BadRequest(new { errors = ex.Errors });
+            }
+            catch (NotFoundException ex) // Bắt NotFoundException nếu ScheduleId không tồn tại
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ApiException ex) // Bắt các lỗi nghiệp vụ khác có thể được ném từ service
+            {
+                return StatusCode(ex.StatusCode, new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode((int)HttpStatusCode.InternalServerError, new { message = "An error occurred during week creation.", details = ex.Message });
+            }
         }
 
-        // PUT: api/Weeks/{id}
+        /// <summary>
+        /// Cập nhật thông tin tuần.
+        /// </summary>
         [HttpPut("{id}")]
+        [ProducesResponseType((int)HttpStatusCode.NoContent)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        [ProducesResponseType((int)HttpStatusCode.BadRequest)] // For ID mismatch or validation errors
+        [ProducesResponseType((int)HttpStatusCode.Conflict)] // For duplicate entries (e.g., WeekNumberInMonth)
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
         public async Task<IActionResult> UpdateWeek(int id, [FromBody] UpdateWeekDto updateWeekDto)
         {
             if (id != updateWeekDto.WeekId)
             {
-                // Thay vì BadRequest, bạn có thể ném ValidationException ở đây hoặc trong Service
-                throw new ValidationException(new Dictionary<string, string[]>
-                {
-                    { "WeekId", new string[] { "ID tuần trong URL không khớp với ID trong body." } }
-                });
-                // return BadRequest(new { message = "Week ID in URL does not match ID in body." });
+                return BadRequest(new { message = "ID tuần trong URL không khớp với ID trong body." });
             }
 
-            // XÓA KHỐI TRY-CATCH NÀY!
-            // Middleware sẽ bắt NotFoundException, ValidationException, ApiException và trả về phản hồi thích hợp.
-            // try
-            // {
-            await _weekService.UpdateAsync(updateWeekDto);
-            // NoContent() trả về HTTP 204 No Content (thành công nhưng không có nội dung trả về)
-            return NoContent();
-            // }
-            // catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
-            // catch (Exception ex) { return StatusCode(500, new { message = "...", error = ex.Message }); }
+            try
+            {
+                await _weekService.UpdateAsync(updateWeekDto);
+                return NoContent(); // 204 No Content
+            }
+            catch (ValidationException ex)
+            {
+                return BadRequest(new { errors = ex.Errors });
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ApiException ex)
+            {
+                return StatusCode(ex.StatusCode, new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode((int)HttpStatusCode.InternalServerError, new { message = $"An error occurred while updating week with ID {id}.", details = ex.Message });
+            }
         }
 
-        [HttpGet("search_by_day_of_week_or_schedule_id")]
-        public async Task<IEnumerable<week>> SearchByDayOfWeekOrScheduleId([FromQuery] DateOnly? dayOfWeek,[FromQuery] int? scheduleId)
+        /// <summary>
+        /// Tìm kiếm tuần theo ID lịch trình và/hoặc số tuần trong tháng.
+        /// </summary>
+        [HttpGet("search")] // Đổi endpoint cho rõ ràng hơn
+        [ProducesResponseType(typeof(IEnumerable<WeekDto>), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        public async Task<ActionResult<IEnumerable<WeekDto>>> SearchWeeks(
+            [FromQuery] int? scheduleId, 
+            [FromQuery] int? weekNumberInMonth) // Đã đổi tên tham số để khớp với service
         {
-            return await _weekService.SearchWeeksAsync(dayOfWeek, scheduleId);
+            try
+            {
+                var weeks = await _weekService.SearchWeeksAsync(scheduleId, weekNumberInMonth);
+                return Ok(weeks); 
+            }
+            catch (Exception ex)
+            {
+                return StatusCode((int)HttpStatusCode.InternalServerError, new { message = "An error occurred during week search.", details = ex.Message });
+            }
         }
 
+        /// <summary>
+        /// Xóa tuần theo ID.
+        /// </summary>
         [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete([FromBody] int id)
+        [ProducesResponseType((int)HttpStatusCode.NoContent)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        [ProducesResponseType((int)HttpStatusCode.Conflict)] // If there are related entities preventing deletion
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        public async Task<IActionResult> Delete(int id)
         {
-            // XÓA KHỐI TRY-CATCH NÀY!
-            // Middleware sẽ bắt NotFoundException, ApiException và trả về phản hồi thích hợp.
-            // try
-            // {
-            var deleted = await _weekService.DeleteAsync(id);
-            if (deleted)
+            try
             {
-                return NoContent(); // HTTP 204 No Content
+                var result = await _weekService.DeleteAsync(id);
+                if (!result) // Mặc dù service nên ném NotFoundException, đây là một fallback an toàn.
+                {
+                    return NotFound(new { message = $"Week with ID {id} not found." });
+                }
+                return NoContent();
             }
-            else
+            catch (NotFoundException ex)
             {
-                // Nếu DeleteAsync trả về false (do không tìm thấy), Service đã ném NotFoundException
-                // Vậy nên đoạn code này có thể không bao giờ được chạy nếu Service ném Exception
-                // Hoặc bạn có thể ném một lỗi ở đây nếu service không ném mà chỉ trả về false
-                // throw new NotFoundException("Week", "Id", id); // Ví dụ
-                return NotFound(new { message = $"Week with ID {id} not found or could not be deleted." });
+                return NotFound(new { message = ex.Message });
             }
-            // }
-            // catch (Exception ex)
-            // {
-            //     return StatusCode(500, new { message = "An error occurred while deleting the week.", error = ex.Message });
-            // }
+            catch (ApiException ex)
+            {
+                return StatusCode(ex.StatusCode, new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                    return StatusCode((int)HttpStatusCode.InternalServerError, new { message = $"An error occurred while deleting week with ID {id}.", details = ex.Message });
+            }
         }
     }
 }

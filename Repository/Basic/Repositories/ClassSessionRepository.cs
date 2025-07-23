@@ -18,7 +18,7 @@ public class ClassSessionRepository : GenericRepository<class_session>, IClassSe
             .Include(c => c._class)
             .Include(a => a.attendances)
             .Include(t => t.time_slot)
-            .Include(w => w.week)
+            .Include(d=>d.day)
             .AsSplitQuery()
             .ToListAsync();
         
@@ -31,68 +31,141 @@ public class ClassSessionRepository : GenericRepository<class_session>, IClassSe
             .Include(c => c._class)
             .Include(a => a.attendances)
             .Include(t => t.time_slot)
-            .Include(w => w.week)
+            .Include(d=>d.day)
             .AsSplitQuery()
             .FirstOrDefaultAsync(c => c.class_session_id == id);
         return item ?? new class_session();
     }
 
-    // public async Task<class_session> AddAsync(class_session entity)
-    // {
-    //     _context.class_sessions.Add(entity);
-    //     await _context.SaveChangesAsync();
-    //     return entity;
-    // }
-    //
-    // public async Task UpdateAsync(class_session entity)
-    // {
-    //     _context.class_sessions.Update(entity);
-    //     await _context.SaveChangesAsync();
-    // }
-    //
-    // public async Task<bool> DeleteAsync(int id)
-    // {
-    //     var item = await _context.class_sessions.FindAsync(id);
-    //
-    //     if (item == null)
-    //     {
-    //         return false;
-    //     }
-    //     
-    //     _context.class_sessions.Remove(item);
-    //     return await _context.SaveChangesAsync() > 0;
-    // }
-    
-    public async Task<IEnumerable<class_session>> SearchClassSessionsAsync(
+    public async Task<IEnumerable<class_session>> GetAllClassSessionsWithDetailsAsync()
+    {
+        return await _dbSet
+            .Include(cs => cs._class) // Using _class
+                .ThenInclude(c => c.instrument) // Assuming _class has an Instrument navigation property
+            .Include(cs => cs.day)
+                .ThenInclude(d => d.week) // Include Day's Week
+            .Include(cs => cs.time_slot)
+            .AsSplitQuery()
+            .ToListAsync();
+    }
+
+    public async Task<class_session?> GetClassSessionByIdWithDetailsAsync(int id)
+    {
+        return await _dbSet
+            .Include(cs => cs._class)
+                .ThenInclude(c => c.instrument)
+            .Include(cs => cs.day)
+                .ThenInclude(d => d.week)
+            .Include(cs => cs.time_slot)
+            .FirstOrDefaultAsync(cs => cs.class_session_id == id);
+    }
+
+    public async Task<IEnumerable<class_session>> GetClassSessionsByClassIdWithDetailsAsync(int classId)
+    {
+        return await _dbSet
+            .Where(cs => cs.class_id == classId)
+            .Include(cs => cs._class)
+                .ThenInclude(c => c.instrument)
+            .Include(cs => cs.day)
+                .ThenInclude(d => d.week)
+            .Include(cs => cs.time_slot)
+            .AsSplitQuery()
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<class_session>> GetClassSessionsByDayIdWithDetailsAsync(int dayId)
+    {
+        return await _dbSet
+            .Where(cs => cs.day_id == dayId)
+            .Include(cs => cs._class)
+                .ThenInclude(c => c.instrument)
+            .Include(cs => cs.day)
+                .ThenInclude(d => d.week)
+            .Include(cs => cs.time_slot)
+            .AsSplitQuery()
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<class_session>> SearchClassSessionsWithDetailsAsync(
+        int? sessionNumber = null,
         DateOnly? date = null,
         string? roomCode = null,
-        int? weekId = null,
         int? classId = null,
+        int? dayId = null,
         int? timeSlotId = null)
     {
         IQueryable<class_session> query = _dbSet;
 
-        // Kiểm tra xem có bất kỳ tham số tìm kiếm nào được cung cấp không
-        if (date.HasValue ||
-            !string.IsNullOrEmpty(roomCode) ||
-            weekId.HasValue ||
-            classId.HasValue ||
-            timeSlotId.HasValue)
+        if (sessionNumber.HasValue)
         {
-            // Áp dụng điều kiện WHERE với logic OR
-            query = query.Where(cs =>
-                (date.HasValue && cs.date == date.Value) ||
-                (!string.IsNullOrEmpty(roomCode) && EF.Functions.ILike(cs.room_code, $"%{roomCode}%")) || // Sử dụng ILike cho tìm kiếm không phân biệt hoa thường và partial match
-                (weekId.HasValue && cs.week_id == weekId.Value) ||
-                (classId.HasValue && cs.class_id == classId.Value) ||
-                (timeSlotId.HasValue && cs.time_slot_id == timeSlotId.Value)
-            );
+            query = query.Where(cs => cs.session_number == sessionNumber.Value);
         }
-        // Nếu tất cả các tham số đều là null/empty, query sẽ không bị lọc và trả về tất cả.
+        if (date.HasValue)
+        {
+            query = query.Where(cs => cs.date == date.Value);
+        }
+        if (!string.IsNullOrWhiteSpace(roomCode))
+        {
+            query = query.Where(cs => cs.room_code.Contains(roomCode));
+        }
+        if (classId.HasValue)
+        {
+            query = query.Where(cs => cs.class_id == classId.Value);
+        }
+        if (dayId.HasValue)
+        {
+            query = query.Where(cs => cs.day_id == dayId.Value);
+        }
+        if (timeSlotId.HasValue)
+        {
+            query = query.Where(cs => cs.time_slot_id == timeSlotId.Value);
+        }
 
-        // Bạn có thể thêm `.Include()` nếu muốn eager load các navigation properties
-        // Ví dụ: .Include(cs => cs.week).Include(cs => cs.time_slot)
-        // để lấy thông tin của week và timeslot cùng lúc.
+        return await query
+            .Include(cs => cs._class)
+                .ThenInclude(c => c.instrument)
+            .Include(cs => cs.day)
+                .ThenInclude(d => d.week)
+            .Include(cs => cs.time_slot)
+            .AsSplitQuery()
+            .ToListAsync();
+    }
+
+    // Search method without eager loading (for internal use, like uniqueness checks)
+    public async Task<IEnumerable<class_session>> SearchClassSessionsAsync(
+        int? sessionNumber = null,
+        DateOnly? date = null,
+        string? roomCode = null,
+        int? classId = null,
+        int? dayId = null,
+        int? timeSlotId = null)
+    {
+        IQueryable<class_session> query = _dbSet;
+
+        if (sessionNumber.HasValue)
+        {
+            query = query.Where(cs => cs.session_number == sessionNumber.Value);
+        }
+        if (date.HasValue)
+        {
+            query = query.Where(cs => cs.date == date.Value);
+        }
+        if (!string.IsNullOrWhiteSpace(roomCode))
+        {
+            query = query.Where(cs => cs.room_code.Contains(roomCode));
+        }
+        if (classId.HasValue)
+        {
+            query = query.Where(cs => cs.class_id == classId.Value);
+        }
+        if (dayId.HasValue)
+        {
+            query = query.Where(cs => cs.day_id == dayId.Value);
+        }
+        if (timeSlotId.HasValue)
+        {
+            query = query.Where(cs => cs.time_slot_id == timeSlotId.Value);
+        }
 
         return await query.ToListAsync();
     }

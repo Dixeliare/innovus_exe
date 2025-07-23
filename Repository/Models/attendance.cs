@@ -7,8 +7,6 @@ public partial class attendance
 {
     public int attendance_id { get; set; }
 
-    public bool? status { get; set; }
-
     public DateTime? check_at { get; set; }
 
     public string? note { get; set; }
@@ -17,7 +15,11 @@ public partial class attendance
 
     public int class_session_id { get; set; }
 
+    public int status_id { get; set; }
+
     public virtual class_session class_session { get; set; } = null!;
+
+    public virtual attendance_status status { get; set; } = null!;
 
     public virtual user user { get; set; } = null!;
 }

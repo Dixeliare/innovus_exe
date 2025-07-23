@@ -13,7 +13,7 @@ public partial class class_session
 
     public string room_code { get; set; } = null!;
 
-    public int week_id { get; set; }
+    public int day_id { get; set; }
 
     public int class_id { get; set; }
 
@@ -23,7 +23,7 @@ public partial class class_session
 
     public virtual ICollection<attendance> attendances { get; set; } = new List<attendance>();
 
-    public virtual timeslot time_slot { get; set; } = null!;
+    public virtual day day { get; set; } = null!;
 
-    public virtual week week { get; set; } = null!;
+    public virtual timeslot time_slot { get; set; } = null!;
 }

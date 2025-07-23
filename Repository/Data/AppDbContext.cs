@@ -16,11 +16,15 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<attendance> attendances { get; set; }
 
+    public virtual DbSet<attendance_status> attendance_statuses { get; set; }
+
     public virtual DbSet<class_session> class_sessions { get; set; }
 
     public virtual DbSet<consultation_request> consultation_requests { get; set; }
 
     public virtual DbSet<consultation_topic> consultation_topics { get; set; }
+
+    public virtual DbSet<day> days { get; set; }
 
     public virtual DbSet<document> documents { get; set; }
 
@@ -94,17 +98,37 @@ public partial class AppDbContext : DbContext
 
             entity.ToTable("attendance");
 
+            entity.HasIndex(e => new { e.user_id, e.class_session_id }, "uq_user_class_session").IsUnique();
+
             entity.Property(e => e.check_at)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("timestamp without time zone");
+            entity.Property(e => e.status_id).HasDefaultValue(0);
 
             entity.HasOne(d => d.class_session).WithMany(p => p.attendances)
                 .HasForeignKey(d => d.class_session_id)
                 .HasConstraintName("fk_attendance_class_session");
 
+            entity.HasOne(d => d.status).WithMany(p => p.attendances)
+                .HasForeignKey(d => d.status_id)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("fk_attendance_status");
+
             entity.HasOne(d => d.user).WithMany(p => p.attendances)
                 .HasForeignKey(d => d.user_id)
                 .HasConstraintName("fk_attendance_user");
+        });
+
+        modelBuilder.Entity<attendance_status>(entity =>
+        {
+            entity.HasKey(e => e.status_id).HasName("attendance_status_pkey");
+
+            entity.ToTable("attendance_status");
+
+            entity.HasIndex(e => e.status_name, "attendance_status_status_name_key").IsUnique();
+
+            entity.Property(e => e.status_id).ValueGeneratedNever();
+            entity.Property(e => e.status_name).HasMaxLength(50);
         });
 
         modelBuilder.Entity<class_session>(entity =>
@@ -120,14 +144,14 @@ public partial class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_class_session_class");
 
+            entity.HasOne(d => d.day).WithMany(p => p.class_sessions)
+                .HasForeignKey(d => d.day_id)
+                .HasConstraintName("fk_class_session_days");
+
             entity.HasOne(d => d.time_slot).WithMany(p => p.class_sessions)
                 .HasForeignKey(d => d.time_slot_id)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_class_session_timeslot");
-
-            entity.HasOne(d => d.week).WithMany(p => p.class_sessions)
-                .HasForeignKey(d => d.week_id)
-                .HasConstraintName("fk_class_session_week");
         });
 
         modelBuilder.Entity<consultation_request>(entity =>
@@ -165,6 +189,19 @@ public partial class AppDbContext : DbContext
             entity.HasIndex(e => e.consultation_topic_name, "consultation_topic_consultation_topic_name_key").IsUnique();
 
             entity.Property(e => e.consultation_topic_name).HasMaxLength(255);
+        });
+
+        modelBuilder.Entity<day>(entity =>
+        {
+            entity.HasKey(e => e.day_id).HasName("days_pkey");
+
+            entity.Property(e => e.day_of_week_name).HasMaxLength(10);
+            entity.Property(e => e.is_active).HasDefaultValue(true);
+
+            entity.HasOne(d => d.week).WithMany(p => p.days)
+                .HasForeignKey(d => d.week_id)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_days_weeks");
         });
 
         modelBuilder.Entity<document>(entity =>
@@ -389,13 +426,13 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<week>(entity =>
         {
-            entity.HasKey(e => e.week_id).HasName("week_pkey");
+            entity.HasKey(e => e.week_id).HasName("weeks_pkey");
 
-            entity.ToTable("week");
+            entity.Property(e => e.num_active_days).HasDefaultValue(0);
 
             entity.HasOne(d => d.schedule).WithMany(p => p.weeks)
                 .HasForeignKey(d => d.schedule_id)
-                .HasConstraintName("fk_week_schedule");
+                .HasConstraintName("fk_weeks_schedule");
         });
 
         OnModelCreatingPartial(modelBuilder);

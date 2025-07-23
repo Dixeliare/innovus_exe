@@ -95,7 +95,7 @@ public class ClassRepository : GenericRepository<_class>, IClassRepository
         return await _dbSet // Đã sửa
             .Include(c => c.instrument)
             .Include(c => c.class_sessions)
-            .ThenInclude(cs => cs.week)
+            .ThenInclude(cs => cs.day)
             .Include(c => c.class_sessions)
             .ThenInclude(cs => cs.time_slot)
             .Include(c => c.users)
@@ -110,7 +110,7 @@ public class ClassRepository : GenericRepository<_class>, IClassRepository
             .SelectMany(u => u.classes)
             .Include(c => c.instrument)
             .Include(c => c.class_sessions)
-            .ThenInclude(cs => cs.week)
+            .ThenInclude(cs => cs.day)
             .Include(c => c.class_sessions)
             .ThenInclude(cs => cs.time_slot)
             .ToListAsync();
@@ -122,10 +122,22 @@ public class ClassRepository : GenericRepository<_class>, IClassRepository
         return await _dbSet // Đã sửa
             .Include(c => c.instrument)
             .Include(c => c.class_sessions)
-            .ThenInclude(cs => cs.week)
+            .ThenInclude(cs => cs.day)
             .Include(c => c.class_sessions)
             .ThenInclude(cs => cs.time_slot)
             .Include(c => c.users)
             .ToListAsync();
+    }
+    
+    public async Task<_class?> GetClassWithSessionsAndTimeSlotsAndDayAndWeekAndInstrumentAsync(int classId)
+    {
+        return await _dbSet
+            .Include(c => c.instrument) // Include instrument for the class
+            .Include(c => c.class_sessions) // Include class sessions
+            .ThenInclude(cs => cs.day) // Then include the Day for each ClassSession
+            .ThenInclude(d => d.week) // And the Week for each Day
+            .Include(c => c.class_sessions) // Re-include to branch for TimeSlot
+            .ThenInclude(cs => cs.time_slot) // Then include the TimeSlot for each ClassSession
+            .FirstOrDefaultAsync(c => c.class_id == classId);
     }
 }

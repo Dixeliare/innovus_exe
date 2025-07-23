@@ -7,9 +7,18 @@ public interface IAttendanceService
 {
     Task<IEnumerable<AttendanceDto>> GetAllAsync();
     Task<AttendanceDto> GetByIdAsync(int id);
+    Task<IEnumerable<AttendanceDto>> GetAttendancesByUserIdAsync(int userId);
+    Task<IEnumerable<AttendanceDto>> GetAttendancesByClassSessionIdAsync(int classSessionId);
     Task<AttendanceDto> AddAsync(CreateAttendanceDto createAttendanceDto);
     Task UpdateAsync(UpdateAttendanceDto updateAttendanceDto);
     Task DeleteAsync(int id);
-    Task<IEnumerable<AttendanceDto>> SearchAttendancesAsync(bool? status = null, string? note = null);
+
+    // ĐÃ SỬA: Thay đổi kiểu tham số status từ bool? thành int? statusId
+    Task<IEnumerable<AttendanceDto>> SearchAttendancesAsync(
+        int? statusId = null, // Đã thay đổi
+        string? note = null,
+        int? userId = null,
+        int? classSessionId = null
+    );
 
 }

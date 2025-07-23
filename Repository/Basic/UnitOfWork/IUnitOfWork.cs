@@ -23,6 +23,7 @@ public interface IUnitOfWork: IDisposable
     IUserRepository Users { get; }
     IWeekRepository Weeks { get; }
     IGenderRepository Genders { get; }
+    IDayRepository Days { get; }
     
     Task<int> CompleteAsync();
 }

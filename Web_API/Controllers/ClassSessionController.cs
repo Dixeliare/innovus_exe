@@ -10,75 +10,259 @@ using Repository.Data;
 using Repository.Models;
 using Services.Exceptions;
 using Services.IServices;
+using System.Net; // Thêm namespace này cho HttpStatusCode
+using Microsoft.AspNetCore.Authorization; // Thêm cho Authorize
 
 namespace Web_API.Controllers
 {
-    [Route("api/[controller]")]
     [ApiController]
+    [Route("api/[controller]")]
+    //[Authorize] // Áp dụng cho toàn bộ controller
     public class ClassSessionController : ControllerBase
     {
         private readonly IClassSessionService _classSessionService;
-        
-        public ClassSessionController(IClassSessionService classSessionService) => _classSessionService = classSessionService;
 
+        public ClassSessionController(IClassSessionService classSessionService)
+        {
+            _classSessionService = classSessionService;
+        }
+
+        /// <summary>
+        /// Lấy tất cả các buổi học với thông tin chi tiết.
+        /// </summary>
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<ClassSessionDto>>> GetAllAsync() // Trả về DTOs
+        [ProducesResponseType(typeof(IEnumerable<PersonalClassSessionDto>), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        public async Task<IActionResult> GetAllClassSessions()
         {
-            var classSessions = await _classSessionService.GetAllAsync();
-            return Ok(classSessions);
+            try
+            {
+                var sessions = await _classSessionService.GetAllAsync();
+                return Ok(sessions);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode((int)HttpStatusCode.InternalServerError,
+                    new { message = "An error occurred while retrieving class sessions.", details = ex.Message });
+            }
         }
 
+        /// <summary>
+        /// Lấy thông tin buổi học chi tiết theo ID.
+        /// </summary>
         [HttpGet("{id}")]
-        public async Task<ActionResult<ClassSessionDto>> GetClassSessionById(int id) // Trả về DTO
+        [ProducesResponseType(typeof(PersonalClassSessionDto), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        public async Task<IActionResult> GetClassSessionById(int id)
         {
-            // Service sẽ ném NotFoundException nếu không tìm thấy
-            var classSession = await _classSessionService.GetByIdAsync(id);
-            return Ok(classSession); // Service đã trả về DTO
+            try
+            {
+                var session = await _classSessionService.GetByIdAsync(id);
+                return Ok(session);
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode((int)HttpStatusCode.InternalServerError,
+                    new { message = $"An error occurred: {ex.Message}" });
+            }
         }
 
-        [HttpGet("search_by")] // Đổi tên đường dẫn cho rõ ràng hơn
-        public async Task<ActionResult<IEnumerable<ClassSessionDto>>> SearchClassSessions( // Trả về DTOs
-            [FromQuery] DateOnly? date = null,
-            [FromQuery] string? roomCode = null,
-            [FromQuery] int? weekId = null,
-            [FromQuery] int? classId = null,
-            [FromQuery] int? timeSlotId = null)
+        /// <summary>
+        /// Lấy danh sách buổi học chi tiết theo ID lớp.
+        /// </summary>
+        [HttpGet("byClass/{classId}")]
+        [ProducesResponseType(typeof(IEnumerable<PersonalClassSessionDto>), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        public async Task<IActionResult> GetClassSessionsByClassId(int classId)
         {
-            var classSessions = await _classSessionService.SearchClassSessionsAsync(date, roomCode, weekId, classId, timeSlotId);
-            return Ok(classSessions); // Service đã trả về DTOs
+            try
+            {
+                var sessions = await _classSessionService.GetClassSessionsByClassIdAsync(classId);
+                return Ok(sessions);
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode((int)HttpStatusCode.InternalServerError,
+                    new { message = $"An error occurred: {ex.Message}" });
+            }
         }
 
+        /// <summary>
+        /// Lấy danh sách buổi học chi tiết theo ID ngày.
+        /// </summary>
+        [HttpGet("byDay/{dayId}")]
+        [ProducesResponseType(typeof(IEnumerable<PersonalClassSessionDto>), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        public async Task<IActionResult> GetClassSessionsByDayId(int dayId)
+        {
+            try
+            {
+                var sessions = await _classSessionService.GetClassSessionsByDayIdAsync(dayId);
+                return Ok(sessions);
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode((int)HttpStatusCode.InternalServerError,
+                    new { message = $"An error occurred: {ex.Message}" });
+            }
+        }
+
+        /// <summary>
+        /// Tạo buổi học mới.
+        /// </summary>
         [HttpPost]
-        public async Task<ActionResult<ClassSessionDto>> CreateClassSession([FromBody] CreateClassSessionDto createClassSessionDto)
+        [ProducesResponseType(typeof(BaseClassSessionDto),
+            (int)HttpStatusCode.Created)] // Changed to BaseClassSessionDto
+        [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        [ProducesResponseType((int)HttpStatusCode.Conflict)]
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        public async Task<IActionResult> CreateClassSession([FromBody] CreateClassSessionDto createClassSessionDto)
         {
-            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ValidationException/ApiException nếu có lỗi.
-            var createdClassSession = await _classSessionService.AddAsync(createClassSessionDto);
-            return CreatedAtAction(nameof(GetClassSessionById), new { id = createdClassSession.ClassSessionId }, createdClassSession);
+            try
+            {
+                var newSession = await _classSessionService.AddAsync(createClassSessionDto);
+                // After creation, you might want to fetch the full PersonalClassSessionDto
+                // return CreatedAtAction(nameof(GetClassSessionById), new { id = newSession.ClassSessionId }, newSession);
+                // Or just return the BaseClassSessionDto if it's sufficient for create response
+                return StatusCode((int)HttpStatusCode.Created, newSession);
+            }
+            catch (ValidationException ex)
+            {
+                return BadRequest(new { errors = ex.Errors });
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ApiException ex)
+            {
+                return StatusCode(ex.StatusCode, new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode((int)HttpStatusCode.InternalServerError,
+                    new { message = $"An error occurred: {ex.Message}" });
+            }
         }
 
-        // PUT: api/ClassSessions/{id}
+        /// <summary>
+        /// Cập nhật thông tin buổi học.
+        /// </summary>
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateClassSession(int id, [FromBody] UpdateClassSessionDto updateClassSessionDto)
+        [ProducesResponseType((int)HttpStatusCode.NoContent)]
+        [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        [ProducesResponseType((int)HttpStatusCode.Conflict)]
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        public async Task<IActionResult> UpdateClassSession(int id,
+            [FromBody] UpdateClassSessionDto updateClassSessionDto)
         {
             if (id != updateClassSessionDto.ClassSessionId)
             {
-                throw new ValidationException(new Dictionary<string, string[]>
-                {
-                    { "ClassSessionId", new string[] { "ID buổi học trong URL không khớp với ID trong body." } }
-                });
+                return BadRequest(new { message = "ID trong URL và ID trong request body không khớp." });
             }
 
-            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ValidationException/ApiException nếu có lỗi.
-            await _classSessionService.UpdateAsync(updateClassSessionDto);
-            return NoContent();
+            try
+            {
+                await _classSessionService.UpdateAsync(updateClassSessionDto);
+                return NoContent();
+            }
+            catch (ValidationException ex)
+            {
+                return BadRequest(new { errors = ex.Errors });
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ApiException ex)
+            {
+                return StatusCode(ex.StatusCode, new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode((int)HttpStatusCode.InternalServerError,
+                    new { message = $"An error occurred: {ex.Message}" });
+            }
         }
 
-        [HttpDelete("{id}")] // Xóa theo ID từ URL
-        public async Task<IActionResult> DeleteClassSession(int id) // Trả về IActionResult
+        /// <summary>
+        /// Xóa buổi học theo ID.
+        /// </summary>
+        [HttpDelete("{id}")]
+        [ProducesResponseType((int)HttpStatusCode.NoContent)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        [ProducesResponseType((int)HttpStatusCode.Conflict)]
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        public async Task<IActionResult> DeleteClassSession(int id)
         {
-            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ApiException nếu có lỗi.
-            await _classSessionService.DeleteAsync(id);
-            return NoContent();
+            try
+            {
+                var result = await _classSessionService.DeleteAsync(id);
+                if (!result)
+                {
+                    return NotFound(new { message = $"Class Session with ID {id} not found." });
+                }
+
+                return NoContent();
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ApiException ex)
+            {
+                return StatusCode(ex.StatusCode, new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode((int)HttpStatusCode.InternalServerError,
+                    new { message = $"An error occurred: {ex.Message}" });
+            }
+        }
+
+        /// <summary>
+        /// Tìm kiếm buổi học theo các tiêu chí.
+        /// </summary>
+        [HttpGet("search")]
+        [ProducesResponseType(typeof(IEnumerable<PersonalClassSessionDto>), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        public async Task<IActionResult> SearchClassSessions(
+            [FromQuery] int? sessionNumber = null,
+            [FromQuery] DateOnly? date = null,
+            [FromQuery] string? roomCode = null,
+            [FromQuery] int? classId = null,
+            [FromQuery] int? dayId = null,
+            [FromQuery] int? timeSlotId = null)
+        {
+            try
+            {
+                var sessions = await _classSessionService.SearchClassSessionsAsync(
+                    sessionNumber, date, roomCode, classId, dayId, timeSlotId
+                );
+                return Ok(sessions);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode((int)HttpStatusCode.InternalServerError,
+                    new { message = $"An error occurred during search: {ex.Message}" });
+            }
         }
     }
 }

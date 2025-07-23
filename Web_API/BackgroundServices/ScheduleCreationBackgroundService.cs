@@ -30,9 +30,14 @@ public class ScheduleCreationBackgroundService : BackgroundService
         {
             // Chờ đợi đến đầu ngày tiếp theo (hoặc bạn có thể chọn một thời điểm cụ thể)
             // Đây là cách đơn giản để đảm bảo nó chạy ít nhất một lần mỗi ngày
-            var nextRunTime = DateTime.UtcNow.AddDays(1).Date.AddHours(2); // Ví dụ: 2 giờ sáng UTC
+            // Ví dụ: 2 giờ sáng UTC
+            var nextRunTime = DateTime.UtcNow.AddDays(1).Date.AddHours(2);
             var delayTime = nextRunTime - DateTime.UtcNow;
-            if (delayTime < TimeSpan.Zero) delayTime = TimeSpan.FromSeconds(5); // Nếu đã qua giờ, chạy sau 5s
+            
+            // Nếu đã qua giờ chạy trong ngày hiện tại, chạy sau một khoảng thời gian ngắn
+            if (delayTime < TimeSpan.Zero) {
+                 delayTime = TimeSpan.FromSeconds(5); // Chờ 5 giây nếu đã quá giờ chạy hôm nay
+            }
 
             _logger.LogInformation(
                 $"Next schedule management run at: {nextRunTime:yyyy-MM-dd HH:mm:ss} UTC (in {delayTime.TotalHours:F1} hours)");
@@ -60,6 +65,7 @@ public class ScheduleCreationBackgroundService : BackgroundService
     private async Task RunScheduleManagementOnce(CancellationToken stoppingToken)
     {
         // Kiểm tra chỉ chạy một lần mỗi ngày
+        // So sánh chỉ ngày (Date) để đảm bảo nó chạy mỗi ngày một lần, bất kể giờ chạy
         if (_lastRunDate.Date == DateTime.UtcNow.Date)
         {
             _logger.LogInformation("Schedule Management: Already ran today. Skipping.");
@@ -73,8 +79,15 @@ public class ScheduleCreationBackgroundService : BackgroundService
             var scheduleService = scope.ServiceProvider.GetRequiredService<IScheduleService>();
             try
             {
-                await scheduleService.EnsureScheduleExistenceAndCleanupAsync();
+                // GỌI CÁC PHƯƠNG THỨC MỚI ĐƯỢC ĐỔI TÊN
+                _logger.LogInformation("Ensuring future schedules existence...");
+                await scheduleService.EnsureFutureSchedulesInternalAsync();
+
+                _logger.LogInformation("Cleaning up old schedules...");
+                await scheduleService.CleanupOldSchedulesInternalAsync();
+
                 _lastRunDate = DateTime.UtcNow; // Cập nhật thời gian chạy cuối cùng
+                _logger.LogInformation("Schedule management completed successfully for today.");
             }
             catch (Exception ex)
             {

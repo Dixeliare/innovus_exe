@@ -182,7 +182,7 @@ namespace Web_API.Controllers
 
         // PUT: api/Users/{id}
         [HttpPut("{id}")]
-        [Authorize(Roles = "1,2")]
+        [Authorize(Roles = "1,2,3")]
         [Consumes("multipart/form-data")] // Quan trọng để nhận file
         [ProducesResponseType((int)HttpStatusCode.NoContent)]
         [ProducesResponseType((int)HttpStatusCode.NotFound)]

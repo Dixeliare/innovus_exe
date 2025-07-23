@@ -17,4 +17,6 @@ public interface IClassRepository: IGenericRepository<_class>
     Task<_class?> GetByIdWithDetails(int id);
     Task<IEnumerable<_class>> GetClassesByUserId(int userId); // Thêm phương thức này
     Task<IEnumerable<_class>> GetAllWithDetails(); 
+    
+    Task<_class?> GetClassWithSessionsAndTimeSlotsAndDayAndWeekAndInstrumentAsync(int classId);
 }

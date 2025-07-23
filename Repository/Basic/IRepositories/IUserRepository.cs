@@ -33,4 +33,6 @@ public interface IUserRepository : IGenericRepository<user>
     
     Task<user?> GetUserWithClassesAndRoleAsync(int userId); 
     
+    
+    Task<user?> GetUserByIdWithClassesAndRoleAsync(int userId);
 }

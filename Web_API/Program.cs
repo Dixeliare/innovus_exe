@@ -38,6 +38,7 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IStatisticRepository, StatisticRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IGenderRepository, GenderRepository>();
+builder.Services.AddScoped<IDayRepository, DayRepository>();
 
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 #endregion
@@ -66,6 +67,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IStatisticService, StatisticService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<IGenderService, GenderService>();
+builder.Services.AddScoped<IDayService, DayService>();
 #endregion
 
 #region Azure service
