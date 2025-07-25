@@ -140,4 +140,18 @@ public class ClassRepository : GenericRepository<_class>, IClassRepository
             .ThenInclude(cs => cs.time_slot) // Then include the TimeSlot for each ClassSession
             .FirstOrDefaultAsync(c => c.class_id == classId);
     }
+
+    public async Task<_class?> GetClassWithSessionsAndTimeSlotsAndDayAndWeekAndInstrumentAndRoomAsync(int classId)
+    {
+        return await _dbSet
+            .Include(c => c.instrument)
+            .Include(c => c.class_sessions)
+            .ThenInclude(cs => cs.day)
+            .ThenInclude(d => d.week)
+            .Include(c => c.class_sessions)
+            .ThenInclude(cs => cs.time_slot)
+            .Include(c => c.class_sessions)
+            .ThenInclude(cs => cs.room) // THÊM DÒNG NÀY ĐỂ TẢI ROOM
+            .FirstOrDefaultAsync(c => c.class_id == classId);
+    }
 }

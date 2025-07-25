@@ -12,10 +12,6 @@ namespace Services.Services;
 
 public class AttendanceService : IAttendanceService
 {
-    // private readonly IAttendanceRepository _attendanceRepository;
-    //
-    // public AttendanceService(IAttendanceRepository attendanceService) => _attendanceRepository = attendanceService;
-
     private readonly IUnitOfWork _unitOfWork;
 
     public AttendanceService(IUnitOfWork unitOfWork)
@@ -90,7 +86,7 @@ public class AttendanceService : IAttendanceService
 
         var attendanceEntity = new attendance
         {
-            status_id = createAttendanceDto.Status, // ĐÃ SỬA: Gán createAttendanceDto.Status (int) vào status_id
+            status_id = createAttendanceDto.Status,
             check_at = DateTime.Now,
             note = createAttendanceDto.Note,
             user_id = createAttendanceDto.UserId,
@@ -166,7 +162,6 @@ public class AttendanceService : IAttendanceService
             }
         }
 
-        // ĐÃ SỬA: Cập nhật status_id từ updateAttendanceDto.Status (int?)
         if (updateAttendanceDto.Status.HasValue) 
         {
             existingAttendance.status_id = updateAttendanceDto.Status.Value;
@@ -216,35 +211,32 @@ public class AttendanceService : IAttendanceService
         }
     }
 
-    // ĐÃ SỬA: Thay đổi kiểu tham số status thành int? statusId và gọi đúng phương thức Repository
     public async Task<IEnumerable<AttendanceDto>> SearchAttendancesAsync(
-        int? statusId = null, // Đã thay đổi kiểu tham số
+        int? statusId = null,
         string? note = null,
         int? userId = null,
         int? classSessionId = null)
     {
         var attendances = await _unitOfWork.Attendances.SearchAttendancesWithDetailsAsync(
-            statusId, note, userId, classSessionId 
+            statusId, note, userId, classSessionId
         );
         return attendances.Select(MapToAttendanceDto);
     }
     
-    // ĐÃ SỬA: Cập nhật ánh xạ DTO để lấy tên trạng thái và các đối tượng navigation
     private AttendanceDto MapToAttendanceDto(attendance att)
     {
         return new AttendanceDto
         {
             AttendanceId = att.attendance_id,
-            StatusId = att.status_id, 
-            StatusName = att.status?.status_name, // Lấy tên trạng thái từ navigation property
+            StatusId = att.status_id,
+            StatusName = att.status?.status_name,
             CheckAt = att.check_at,
             Note = att.note,
             UserId = att.user_id,
             ClassSessionId = att.class_session_id,
             
-            // Ánh xạ thông tin User (kiểm tra null trước để tránh lỗi nếu không eager load)
             User = att.user != null
-                ? new UserDto 
+                ? new UserDto
                 {
                     UserId = att.user.user_id,
                     Username = att.user.username,
@@ -253,21 +245,19 @@ public class AttendanceService : IAttendanceService
                 }
                 : null,
 
-            // Ánh xạ thông tin ClassSession (kiểm tra null trước)
             ClassSession = att.class_session != null
-                ? new PersonalClassSessionDto 
+                ? new PersonalClassSessionDto
                 {
                     ClassSessionId = att.class_session.class_session_id,
                     SessionNumber = att.class_session.session_number,
-                    Date = att.class_session.date,
-                    RoomCode = att.class_session.room_code,
+                    Date = att.class_session.date, // ĐÃ SỬA: DateOnly?
+                    RoomCode = att.class_session.room?.room_code, // ĐÃ SỬA: Truy cập qua navigation property 'room'
                     DayId = att.class_session.day_id,
                     ClassId = att.class_session.class_id,
                     TimeSlotId = att.class_session.time_slot_id,
 
-                    // Kiểm tra null cho các navigation properties lồng nhau
                     DayOfWeekName = att.class_session.day?.day_of_week_name,
-                    DateOfDay = att.class_session.day?.date_of_day,
+                    DateOfDay = att.class_session.day?.date_of_day, // ĐÃ SỬA: DateOnly?
 
                     WeekNumberInMonth = att.class_session.day?.week?.week_number_in_month,
 

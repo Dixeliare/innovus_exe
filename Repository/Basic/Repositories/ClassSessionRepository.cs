@@ -12,6 +12,9 @@ public class ClassSessionRepository : GenericRepository<class_session>, IClassSe
         
     }
 
+    // Phương thức GetAll và GetByIdAsync mặc định trong GenericRepository thường không include Navigation Properties.
+    // Nếu bạn cần chúng với details, hãy sử dụng các phương thức GetAllClassSessionsWithDetailsAsync hoặc GetClassSessionByIdWithDetailsAsync.
+    // Tôi để chúng ở đây nếu bạn có lý do cụ thể muốn dùng chúng mà không cần eager loading.
     public async Task<IEnumerable<class_session>> GetAll()
     {
         var items = await _dbSet
@@ -19,6 +22,7 @@ public class ClassSessionRepository : GenericRepository<class_session>, IClassSe
             .Include(a => a.attendances)
             .Include(t => t.time_slot)
             .Include(d=>d.day)
+            .Include(r => r.room) // THÊM: Include room
             .AsSplitQuery()
             .ToListAsync();
         
@@ -32,6 +36,7 @@ public class ClassSessionRepository : GenericRepository<class_session>, IClassSe
             .Include(a => a.attendances)
             .Include(t => t.time_slot)
             .Include(d=>d.day)
+            .Include(r => r.room) // THÊM: Include room
             .AsSplitQuery()
             .FirstOrDefaultAsync(c => c.class_session_id == id);
         return item ?? new class_session();
@@ -40,11 +45,12 @@ public class ClassSessionRepository : GenericRepository<class_session>, IClassSe
     public async Task<IEnumerable<class_session>> GetAllClassSessionsWithDetailsAsync()
     {
         return await _dbSet
-            .Include(cs => cs._class) // Using _class
-                .ThenInclude(c => c.instrument) // Assuming _class has an Instrument navigation property
+            .Include(cs => cs._class)
+                .ThenInclude(c => c.instrument)
             .Include(cs => cs.day)
-                .ThenInclude(d => d.week) // Include Day's Week
+                .ThenInclude(d => d.week)
             .Include(cs => cs.time_slot)
+            .Include(cs => cs.room) // ĐÃ SỬA: Include room cho DTO mapping
             .AsSplitQuery()
             .ToListAsync();
     }
@@ -57,6 +63,7 @@ public class ClassSessionRepository : GenericRepository<class_session>, IClassSe
             .Include(cs => cs.day)
                 .ThenInclude(d => d.week)
             .Include(cs => cs.time_slot)
+            .Include(cs => cs.room) // ĐÃ SỬA: Include room cho DTO mapping
             .FirstOrDefaultAsync(cs => cs.class_session_id == id);
     }
 
@@ -69,6 +76,7 @@ public class ClassSessionRepository : GenericRepository<class_session>, IClassSe
             .Include(cs => cs.day)
                 .ThenInclude(d => d.week)
             .Include(cs => cs.time_slot)
+            .Include(cs => cs.room) // ĐÃ SỬA: Include room cho DTO mapping
             .AsSplitQuery()
             .ToListAsync();
     }
@@ -82,6 +90,7 @@ public class ClassSessionRepository : GenericRepository<class_session>, IClassSe
             .Include(cs => cs.day)
                 .ThenInclude(d => d.week)
             .Include(cs => cs.time_slot)
+            .Include(cs => cs.room) // ĐÃ SỬA: Include room cho DTO mapping
             .AsSplitQuery()
             .ToListAsync();
     }
@@ -89,7 +98,7 @@ public class ClassSessionRepository : GenericRepository<class_session>, IClassSe
     public async Task<IEnumerable<class_session>> SearchClassSessionsWithDetailsAsync(
         int? sessionNumber = null,
         DateOnly? date = null,
-        string? roomCode = null,
+        int? roomId = null, // ĐÃ SỬA: Thay đổi từ string? roomCode sang int? roomId
         int? classId = null,
         int? dayId = null,
         int? timeSlotId = null)
@@ -104,9 +113,10 @@ public class ClassSessionRepository : GenericRepository<class_session>, IClassSe
         {
             query = query.Where(cs => cs.date == date.Value);
         }
-        if (!string.IsNullOrWhiteSpace(roomCode))
+        // ĐÃ SỬA: Tìm kiếm theo roomId thay vì roomCode
+        if (roomId.HasValue)
         {
-            query = query.Where(cs => cs.room_code.Contains(roomCode));
+            query = query.Where(cs => cs.room_id == roomId.Value);
         }
         if (classId.HasValue)
         {
@@ -127,6 +137,7 @@ public class ClassSessionRepository : GenericRepository<class_session>, IClassSe
             .Include(cs => cs.day)
                 .ThenInclude(d => d.week)
             .Include(cs => cs.time_slot)
+            .Include(cs => cs.room) // ĐÃ SỬA: Include room cho DTO mapping
             .AsSplitQuery()
             .ToListAsync();
     }
@@ -135,7 +146,7 @@ public class ClassSessionRepository : GenericRepository<class_session>, IClassSe
     public async Task<IEnumerable<class_session>> SearchClassSessionsAsync(
         int? sessionNumber = null,
         DateOnly? date = null,
-        string? roomCode = null,
+        int? roomId = null, // ĐÃ SỬA: Thay đổi từ string? roomCode sang int? roomId
         int? classId = null,
         int? dayId = null,
         int? timeSlotId = null)
@@ -150,9 +161,10 @@ public class ClassSessionRepository : GenericRepository<class_session>, IClassSe
         {
             query = query.Where(cs => cs.date == date.Value);
         }
-        if (!string.IsNullOrWhiteSpace(roomCode))
+        // ĐÃ SỬA: Tìm kiếm theo roomId thay vì roomCode
+        if (roomId.HasValue)
         {
-            query = query.Where(cs => cs.room_code.Contains(roomCode));
+            query = query.Where(cs => cs.room_id == roomId.Value);
         }
         if (classId.HasValue)
         {

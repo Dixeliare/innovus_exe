@@ -1,6 +1,7 @@
 using System.Net;
 using DTOs;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Basic.UnitOfWork;
@@ -13,10 +14,12 @@ namespace Services.Services;
 public class WeekService : IWeekService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ILogger<WeekService> _logger; // Khai báo logger
 
-    public WeekService(IUnitOfWork unitOfWork)
+    public WeekService(IUnitOfWork unitOfWork, ILogger<WeekService> logger) // Thêm logger vào constructor
     {
         _unitOfWork = unitOfWork;
+        _logger = logger; // Gán logger
     }
 
     public async Task<IEnumerable<WeekDto>> GetAllAsync()
@@ -293,78 +296,109 @@ public class WeekService : IWeekService
 
     public async Task<IEnumerable<WeekDto>> GenerateWeeksForMonthAsync(int scheduleId, int year, int month)
     {
+        _logger.LogInformation($"[WeekService] - Starting to generate weeks and days for schedule ID {scheduleId}, {month}/{year}.");
         var generatedWeekDtos = new List<WeekDto>();
 
         var scheduleExists = await _unitOfWork.Schedules.GetByIdAsync(scheduleId);
         if (scheduleExists == null)
         {
+            _logger.LogError($"[WeekService] - Schedule ID {scheduleId} not found when trying to generate weeks.");
             throw new NotFoundException("Schedule", "Id", scheduleId);
         }
 
+        // Kỹ thuật này hợp lý khi bạn muốn tạo lại tuần, nhưng có thể xung đột với logic EnsureFutureSchedulesInternalAsync 
+        // nếu nó được gọi lại cho một tháng đã có.
+        // Bạn đã thay đổi logic EnsureFutureSchedulesInternalAsync trong ScheduleService để chỉ gọi AddAsync nếu không tồn tại, 
+        // vậy nên việc kiểm tra này là an toàn.
         var existingWeeksWithDays = await _unitOfWork.Weeks.GetWeeksByScheduleIdWithDaysAsync(scheduleId);
         if (existingWeeksWithDays.Any())
         {
+            _logger.LogWarning($"[WeekService] - Weeks and days already exist for Schedule ID {scheduleId}. Skipping generation.");
             throw new ApiException($"Các tuần và ngày đã tồn tại cho Lịch trình ID {scheduleId}. Vui lòng xóa chúng trước nếu bạn muốn tạo lại.", (int)HttpStatusCode.Conflict);
         }
 
         var firstDayOfMonth = new DateOnly(year, month, 1);
         var lastDayOfMonth = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
         
-        var currentWeekStartDate = firstDayOfMonth; // Bắt đầu từ ngày đầu tháng
+        var currentWeekStartDate = firstDayOfMonth; 
         int weekCounter = 1;
 
         List<week> weeksToProcess = new List<week>();
         
-        while (currentWeekStartDate <= lastDayOfMonth) // Tiếp tục cho đến khi vượt quá ngày cuối tháng
+        while (currentWeekStartDate <= lastDayOfMonth)
         {
             var weekEndDate = currentWeekStartDate.AddDays(6); 
-            // Đảm bảo weekEndDate không vượt quá cuối tháng
             if (weekEndDate > lastDayOfMonth)
             {
                 weekEndDate = lastDayOfMonth;
             }
 
-            // Tạo đối tượng week
             var newWeek = new week
             {
                 schedule_id = scheduleId,
-                week_number_in_month = weekCounter, // Sử dụng weekCounter hiện tại
+                week_number_in_month = weekCounter,
                 start_date = currentWeekStartDate,
                 end_date = weekEndDate,
-                num_active_days = 0 // Sẽ được cập nhật sau khi tạo days
+                num_active_days = 0 
             };
 
             weeksToProcess.Add(newWeek);
             
-            // Chuẩn bị cho tuần tiếp theo: bắt đầu tuần tiếp theo *chính xác một ngày sau* khi tuần hiện tại kết thúc
             currentWeekStartDate = weekEndDate.AddDays(1);
-            weekCounter++; // Tăng bộ đếm tuần
+            weekCounter++; 
         }
         
-        // 1. Thêm tất cả weeks vào context.
-        // Các đối tượng 'week' trong 'weeksToProcess' giờ đây được EF Core theo dõi.
-        // ID của chúng sẽ được gán khi 'CompleteAsync' được gọi sau này (bởi ScheduleService).
-        await _unitOfWork.Weeks.AddRangeAsync(weeksToProcess);
-
-        // 2. Tạo và thêm Days cho mỗi Week
-        List<day> allGeneratedDays = new List<day>();
-        foreach (var week in weeksToProcess)
+        // ======================================================================================
+        // BƯỚC SỬA ĐỔI QUAN TRỌNG NHẤT: LƯU WEEKS TRƯỚC ĐỂ CÓ week_id THỰC TẾ
+        // ======================================================================================
+        if (weeksToProcess.Any())
         {
-            // Gọi GenerateDaysForWeekInternal và truyền đối tượng 'week' đã được theo dõi
-            // và sử dụng start_date/end_date của chính week đó
+            await _unitOfWork.Weeks.AddRangeAsync(weeksToProcess);
+            try
+            {
+                // LƯU CÁC WEEKS VÀO DATABASE NGAY LẬP TỨC.
+                // Sau khi CompleteAsync(), các đối tượng 'week' trong 'weeksToProcess' 
+                // sẽ có 'week_id' được gán từ database.
+                await _unitOfWork.CompleteAsync(); 
+                _logger.LogInformation($"[WeekService] - Successfully saved {weeksToProcess.Count} weeks for schedule ID {scheduleId}.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"[WeekService] - Error saving weeks for schedule ID {scheduleId}. Aborting day generation.");
+                throw new ApiException("Có lỗi xảy ra khi lưu các tuần. Không thể tạo các ngày.", ex, (int)HttpStatusCode.InternalServerError);
+            }
+        }
+        else
+        {
+            _logger.LogInformation($"[WeekService] - No weeks to generate for schedule ID {scheduleId}.");
+            return generatedWeekDtos; // Trả về danh sách rỗng nếu không có tuần nào được tạo
+        }
+
+        // 2. Tạo và thêm Days cho mỗi Week sau khi week_id đã được gán
+        List<day> allGeneratedDays = new List<day>();
+        // Duyệt qua các week đã được lưu (có week_id)
+        foreach (var week in weeksToProcess) 
+        {
+            // Bây giờ week.week_id đã có giá trị hợp lệ
             var daysToAdd = GenerateDaysForWeekInternal(week, week.start_date, week.end_date).ToList();
             allGeneratedDays.AddRange(daysToAdd);
             week.num_active_days = daysToAdd.Count(); // Cập nhật số ngày hoạt động
+            _logger.LogInformation($"[WeekService] - Generated {daysToAdd.Count} days for week ID {week.week_id} (WeekNum: {week.week_number_in_month}).");
         }
+        
         // Thêm tất cả days vào context
         await _unitOfWork.Days.AddRangeAsync(allGeneratedDays);
 
-        // KHÔNG GỌI _unitOfWork.CompleteAsync() ở đây.
-        // ScheduleService sẽ gọi nó sau khi WeekService hoàn thành việc thêm tất cả weeks và days.
+        // KHÔNG GỌI CompleteAsync() ở đây. ScheduleService sẽ gọi nó.
+        _logger.LogInformation($"[WeekService] - Added all generated days to context for schedule ID {scheduleId}.");
 
-        // Trả về DTO sau khi các thực thể đã được thêm và logic hoàn tất
+        // Cập nhật lại các thuộc tính của Week nếu có thay đổi (ví dụ: num_active_days)
+        // Các week trong weeksToProcess đã được theo dõi và các thay đổi sẽ được lưu khi ScheduleService gọi CompleteAsync()
+        
+        // Trả về DTO sau khi các thực thể đã được thêm vào context
         // Để làm điều này, chúng ta cần lấy lại các Week với Days đã được tải
         var finalWeeks = await _unitOfWork.Weeks.GetWeeksByScheduleIdWithDaysAsync(scheduleId);
+        _logger.LogInformation($"[WeekService] - Finished generating weeks and days for schedule ID {scheduleId}.");
         return finalWeeks.Select(MapToWeekDto);
     }
 

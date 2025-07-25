@@ -29,12 +29,16 @@ namespace Web_API.Controllers
         }
 
         [HttpGet("search_by")]
-        public async Task<ActionResult<IEnumerable<OpeningScheduleDto>>> SearchByAsync([FromQuery] string? subject = null,
-            [FromQuery] string? classCode = null, [FromQuery] DateOnly? openingDay = null,
-            [FromQuery] DateOnly? endDate = null, [FromQuery] string? schedule = null,
-            [FromQuery] int? studentQuantity = null, [FromQuery] bool? isAdvancedClass = null)
+        public async Task<ActionResult<IEnumerable<OpeningScheduleDto>>> SearchByAsync(
+            // ĐÃ XÓA: [FromQuery] string? subject = null, // Tham số này không được xử lý ở Service/Repo
+            [FromQuery] string? classCode = null, 
+            [FromQuery] DateOnly? openingDay = null,
+            [FromQuery] DateOnly? endDate = null, 
+            // ĐÃ XÓA: [FromQuery] string? schedule = null, // Tham số này đã được loại bỏ theo yêu cầu của bạn
+            [FromQuery] int? studentQuantity = null, 
+            [FromQuery] bool? isAdvancedClass = null)
         {
-            var schedules = await _openingScheduleService.SearchOpeningSchedulesAsync(classCode, openingDay, endDate, schedule, studentQuantity, isAdvancedClass);
+            var schedules = await _openingScheduleService.SearchOpeningSchedulesAsync(classCode, openingDay, endDate, studentQuantity, isAdvancedClass);
             return Ok(schedules); // Service đã trả về DTO
         }
 
@@ -50,6 +54,7 @@ namespace Web_API.Controllers
         [HttpPost]
         public async Task<ActionResult<OpeningScheduleDto>> CreateOpeningSchedule([FromBody] CreateOpeningScheduleDto createOpeningScheduleDto)
         {
+            // CreateOpeningScheduleDto đã được sửa để không còn trường 'Schedule'
             var createdSchedule = await _openingScheduleService.AddAsync(createOpeningScheduleDto);
             return CreatedAtAction(nameof(GetOpeningScheduleById), new { id = createdSchedule.OpeningScheduleId }, createdSchedule);
         }
@@ -66,6 +71,7 @@ namespace Web_API.Controllers
                 });
             }
 
+            // UpdateOpeningScheduleDto đã được sửa để không còn trường 'Schedule'
             // Không có try-catch ở đây. Service sẽ ném NotFoundException/ValidationException/ApiException nếu có lỗi.
             await _openingScheduleService.UpdateAsync(updateOpeningScheduleDto);
             return NoContent();

@@ -2,6 +2,7 @@ using System.Net;
 using DTOs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Basic.UnitOfWork;
@@ -16,12 +17,14 @@ public class UserService : IUserService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IFileStorageService _fileStorageService;
     private readonly IClassService _classService;
+    private readonly ILogger<UserService> _logger; // Thêm logger
 
-    public UserService(IUnitOfWork unitOfWork, IFileStorageService fileStorageService, IClassService classService)
+    public UserService(IUnitOfWork unitOfWork, IFileStorageService fileStorageService, IClassService classService, ILogger<UserService> logger)
     {
         _unitOfWork = unitOfWork;
         _fileStorageService = fileStorageService;
         _classService = classService;
+        _logger = logger; // Khởi tạo logger
     }
 
     public async Task<user> GetUserAccount(string username, string password)
@@ -44,16 +47,36 @@ public class UserService : IUserService
     public async Task<IEnumerable<UserDto>> GetAllAsync()
     {
         var users = await _unitOfWork.Users.GetAllAsync();
+        
+        // Eager load các navigation properties cần thiết cho từng user
+        // do GetAllAsync trong GenericRepository không có Include.
+        foreach (var user in users)
+        {
+            if (_unitOfWork.Context != null)
+            {
+                await _unitOfWork.Context.Entry(user).Reference(u => u.role).LoadAsync();
+                await _unitOfWork.Context.Entry(user).Reference(u => u.gender).LoadAsync();
+                await _unitOfWork.Context.Entry(user).Collection(u => u.classes).LoadAsync();
+            }
+        }
+        
         return users.Select(u => MapToUserDto(u));
     }
 
     public async Task<UserDto?> GetByIdAsync(int id)
     {
-        // Sử dụng GetUserByIdWithClassesAndRoleAsync để đảm bảo eager load các liên kết cần thiết cho MapToUserDto
+        // GetUserByIdWithClassesAndRoleAsync đã được giả định là eager load role và classes.
+        // Cần đảm bảo nó cũng eager load gender.
         var user = await _unitOfWork.Users.GetUserByIdWithClassesAndRoleAsync(id);
         if (user == null)
         {
             throw new NotFoundException("User", "Id", id);
+        }
+
+        // Nếu GetUserByIdWithClassesAndRoleAsync không tải gender, thì tải thủ công:
+        if (user.gender == null && user.gender_id > 0 && _unitOfWork.Context != null)
+        {
+             await _unitOfWork.Context.Entry(user).Reference(u => u.gender).LoadAsync();
         }
 
         return MapToUserDto(user);
@@ -66,7 +89,13 @@ public class UserService : IUserService
         {
             throw new NotFoundException("User", "Username", username);
         }
-
+        // Eager load role, gender, classes vì GetByUsernameAsync trong GenericRepository không có include
+        if (_unitOfWork.Context != null)
+        {
+            await _unitOfWork.Context.Entry(user).Reference(u => u.role).LoadAsync();
+            await _unitOfWork.Context.Entry(user).Reference(u => u.gender).LoadAsync();
+            await _unitOfWork.Context.Entry(user).Collection(u => u.classes).LoadAsync();
+        }
         return MapToUserDto(user);
     }
 
@@ -90,10 +119,27 @@ public class UserService : IUserService
     )
     {
         // GetUserByIdWithClassesAndRoleAsync có vẻ phù hợp hơn để cập nhật các mối quan hệ Many-to-Many
+        // và đã được giả định là eager load role, gender và classes.
         var existingUser = await _unitOfWork.Users.GetUserByIdWithClassesAndRoleAsync(userId);
         if (existingUser == null)
         {
             throw new NotFoundException("User", "Id", userId);
+        }
+
+        // Load gender nếu chưa được tải (phòng trường hợp GetUserByIdWithClassesAndRoleAsync không bao gồm nó)
+        if (existingUser.gender == null && existingUser.gender_id > 0 && _unitOfWork.Context != null)
+        {
+            await _unitOfWork.Context.Entry(existingUser).Reference(u => u.gender).LoadAsync();
+        }
+        // Load role nếu chưa được tải
+        if (existingUser.role == null && existingUser.role_id > 0 && _unitOfWork.Context != null)
+        {
+            await _unitOfWork.Context.Entry(existingUser).Reference(u => u.role).LoadAsync();
+        }
+        // Load classes nếu chưa được tải (nếu GetUserByIdWithClassesAndRoleAsync chưa bao gồm)
+        if (_unitOfWork.Context != null)
+        {
+            await _unitOfWork.Context.Entry(existingUser).Collection(u => u.classes).LoadAsync();
         }
 
         if (existingUser.gender_id != genderId)
@@ -148,7 +194,7 @@ public class UserService : IUserService
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error deleting old avatar for user {userId}: {ex.Message}");
+                    _logger.LogError(ex, $"Error deleting old avatar for user {userId}: {ex.Message}");
                 }
             }
 
@@ -206,6 +252,7 @@ public class UserService : IUserService
         {
             // Đảm bảo existingUser.classes đã được eager load.
             // Phương thức GetUserByIdWithClassesAndRoleAsync đã bao gồm .Include(u => u.classes)
+            // Nếu không, cần tải thủ công: await _unitOfWork.Context.Entry(existingUser).Collection(u => u.classes).LoadAsync();
             var currentClassIds = existingUser.classes.Select(c => c.class_id).ToHashSet();
             var incomingClassIdsHashSet = classIds.ToHashSet();
 
@@ -251,11 +298,13 @@ public class UserService : IUserService
                 }, dbEx);
             }
 
+            _logger.LogError(dbEx, "DbUpdateException during User UpdateAsync.");
             throw new ApiException("Có lỗi xảy ra khi cập nhật người dùng vào cơ sở dữ liệu.", dbEx,
                 (int)HttpStatusCode.InternalServerError);
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "An unexpected error occurred during user update.");
             throw new ApiException("An unexpected error occurred during user update.", ex,
                 (int)HttpStatusCode.InternalServerError);
         }
@@ -277,7 +326,7 @@ public class UserService : IUserService
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error deleting avatar blob for user {id}: {ex.Message}");
+                _logger.LogError(ex, $"Error deleting avatar blob for user {id}: {ex.Message}");
             }
         }
 
@@ -288,23 +337,38 @@ public class UserService : IUserService
         }
         catch (DbUpdateException dbEx)
         {
+            _logger.LogError(dbEx, "DbUpdateException during User DeleteAsync.");
             throw new ApiException("Không thể xóa người dùng do có các bản ghi liên quan (ràng buộc khóa ngoại).", dbEx,
                 (int)HttpStatusCode.Conflict);
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "An unexpected error occurred during user deletion.");
             throw new ApiException("An unexpected error occurred during user deletion.", ex,
                 (int)HttpStatusCode.InternalServerError);
         }
     }
 
     public async Task<IEnumerable<UserDto>> SearchUsersAsync(string? username = null, string? accountName = null,
-        string? password = null,
+        string? password = null, // Password parameter should be removed or handled differently
         string? address = null, string? phoneNumber = null, bool? isDisabled = null, DateTime? createAt = null,
         DateOnly? birthday = null, int? roleId = null, string? email = null, int? genderId = null)
     {
-        var users = await _unitOfWork.Users.SearchUsersAsync(username, accountName, null, address, phoneNumber, // Password parameter should be removed or handled differently
+        // Giả định SearchUsersAsync trong UserRepository đã xử lý việc tìm kiếm và đã eager load role, gender, classes
+        var users = await _unitOfWork.Users.SearchUsersAsync(username, accountName, null, address, phoneNumber, 
             isDisabled, createAt, birthday, roleId, email, genderId);
+        
+        // Nếu SearchUsersAsync trong UserRepository không tải các mối quan hệ, cần tải thủ công ở đây:
+        foreach (var user in users)
+        {
+            if (_unitOfWork.Context != null)
+            {
+                await _unitOfWork.Context.Entry(user).Reference(u => u.role).LoadAsync();
+                await _unitOfWork.Context.Entry(user).Reference(u => u.gender).LoadAsync();
+                await _unitOfWork.Context.Entry(user).Collection(u => u.classes).LoadAsync();
+            }
+        }
+
         return users.Select(u => MapToUserDto(u));
     }
 
@@ -479,6 +543,13 @@ public class UserService : IUserService
             // Tải lại user để có các navigation properties (role, gender, classes) cho DTO trả về
             // Cần sử dụng phương thức eager load để lấy Role, Gender, và Classes
             var addedUserWithDetails = await _unitOfWork.Users.GetUserByIdWithClassesAndRoleAsync(addedUser.user_id);
+            
+            // Nếu GetUserByIdWithClassesAndRoleAsync không tải gender, thì tải thủ công:
+            if (addedUserWithDetails != null && addedUserWithDetails.gender == null && addedUserWithDetails.gender_id > 0 && _unitOfWork.Context != null)
+            {
+                 await _unitOfWork.Context.Entry(addedUserWithDetails).Reference(u => u.gender).LoadAsync();
+            }
+
             return MapToUserDto(addedUserWithDetails ?? addedUser);
         }
         catch (DbUpdateException dbEx)
@@ -491,11 +562,13 @@ public class UserService : IUserService
                 }, dbEx);
             }
 
+            _logger.LogError(dbEx, "DbUpdateException during User AddAsync.");
             throw new ApiException("Có lỗi xảy ra khi lưu người dùng vào cơ sở dữ liệu.", dbEx,
                 (int)HttpStatusCode.InternalServerError);
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "An unexpected error occurred during user creation.");
             throw new ApiException("An unexpected error occurred during user creation.", ex,
                 (int)HttpStatusCode.InternalServerError);
         }
@@ -504,12 +577,18 @@ public class UserService : IUserService
     public async Task<PersonalScheduleDto> GetPersonalScheduleAsync(int userId, DateOnly? startDate = null,
         DateOnly? endDate = null)
     {
-        // Sử dụng phương thức GetUserWithClassesAndRoleAsync đã được eager load trong UserRepository
-        // Đảm bảo GetUserWithClassesAndRoleAsync cũng eager load ClassSessions, Day, Week, TimeSlot, Instrument
-        var user = await _unitOfWork.Users.GetUserByIdWithClassesAndRoleAsync(userId); // Đổi tên phương thức cho rõ ràng hơn
+        // Giả định GetUserByIdWithClassesAndRoleAsync tải user, role, gender và collection 'classes'
+        // Nhưng các collection lồng nhau (class_sessions bên trong classes) thì KHÔNG.
+        var user = await _unitOfWork.Users.GetUserByIdWithClassesAndRoleAsync(userId); 
         if (user == null)
         {
             throw new NotFoundException("User", "Id", userId);
+        }
+
+        // Tải gender nếu chưa được tải (phòng trường hợp GetUserByIdWithClassesAndRoleAsync không bao gồm nó)
+        if (user.gender == null && user.gender_id > 0 && _unitOfWork.Context != null)
+        {
+             await _unitOfWork.Context.Entry(user).Reference(u => u.gender).LoadAsync();
         }
 
         var personalSchedule = new PersonalScheduleDto
@@ -526,44 +605,53 @@ public class UserService : IUserService
         {
             foreach (var cls in user.classes)
             {
-                // Đảm bảo class_sessions của class cũng đã được eager load
-                // Trong ClassRepository.GetById, chúng ta đã thêm eager load cho class_sessions, instrument
-                // Cần đảm bảo rằng các class_sessions này cũng eager load Day, Week, TimeSlot
-                // Có thể cần một phương thức riêng trong ClassRepository hoặc SessionRepository
-                // để lấy ClassSession với tất cả các thông tin cần thiết.
-                // TẠM THỜI SỬA: LẤY LẠI CLASS VỚI CÁC SESSION ĐƯỢC LOAD ĐẦY ĐỦ NHẤT CÓ THỂ
-                var fullClass = await _unitOfWork.Classes.GetClassWithSessionsAndTimeSlotsAndDayAndWeekAndInstrumentAsync(cls.class_id);
+                // Cần đảm bảo rằng các class_sessions của class này, cùng với Day, Week, TimeSlot, Room và Instrument
+                // được tải đầy đủ.
+                // Phương thức GetClassWithSessionsAndTimeSlotsAndDayAndWeekAndInstrumentAndRoomAsync cần được thêm vào ClassRepository
+                // và được gọi ở đây.
+                var fullClass = await _unitOfWork.Classes.GetClassWithSessionsAndTimeSlotsAndDayAndWeekAndInstrumentAndRoomAsync(cls.class_id);
 
                 if (fullClass?.class_sessions != null)
                 {
-                    foreach (var session in fullClass.class_sessions) // Sử dụng fullClass.class_sessions
+                    foreach (var session in fullClass.class_sessions) 
                     {
+                        // Eager load các thuộc tính cần thiết của session nếu chúng chưa được tải
+                        if (_unitOfWork.Context != null)
+                        {
+                            await _unitOfWork.Context.Entry(session).Reference(s => s.day).LoadAsync();
+                            await _unitOfWork.Context.Entry(session).Reference(s => s.time_slot).LoadAsync();
+                            await _unitOfWork.Context.Entry(session).Reference(s => s.room).LoadAsync(); // Tải Room
+                            if (session.day != null)
+                            {
+                                await _unitOfWork.Context.Entry(session.day).Reference(d => d.week).LoadAsync();
+                            }
+                        }
+
                         if (startDate.HasValue && session.date < startDate.Value) continue;
                         if (endDate.HasValue && session.date > endDate.Value) continue;
 
-                        // **ĐÃ SỬA CHỮA:** Truy cập Week và DayOfWeek thông qua session.day
-                        if (session.day != null && session.day.week != null && session.time_slot != null)
+                        if (session.day != null && session.day.week != null && session.time_slot != null && session.room != null) // Kiểm tra session.room
                         {
                             filteredSessions.Add(new PersonalClassSessionDto
                             {
                                 ClassSessionId = session.class_session_id,
                                 SessionNumber = session.session_number,
                                 Date = session.date,
-                                RoomCode = session.room_code,
-                                // Lấy WeekId từ Day entity của ClassSession
+                                RoomCode = session.room.room_code, // SỬA LỖI Ở ĐÂY: Truy cập room_code từ session.room
                                 WeekId = session.day.week.week_id,
                                 ClassId = session.class_id,
                                 TimeSlotId = session.time_slot_id,
-                                // Lấy WeekNumber từ Week entity của Day
-                                WeekNumberInMonth = session.day.week.week_number_in_month, // <--- ĐÃ SỬA
-                                // Lấy DayOfWeek từ Day entity
-                                DayOfWeekName = session.day.day_of_week_name, // <--- ĐÃ SỬA
-                                ClassCode = fullClass.class_code, // Sử dụng fullClass
-                                InstrumentName = fullClass.instrument?.instrument_name, // Sử dụng fullClass
-                                // CHỈNH SỬA TẠI ĐÂY: Chuyển đổi TimeOnly sang TimeSpan?
-                                StartTime = session.time_slot.start_time.ToTimeSpan(), // <--- SỬA LỖI
-                                EndTime = session.time_slot.end_time.ToTimeSpan() // <--- SỬA LỖI
+                                WeekNumberInMonth = session.day.week.week_number_in_month,
+                                DayOfWeekName = session.day.day_of_week_name,
+                                ClassCode = fullClass.class_code, 
+                                InstrumentName = fullClass.instrument?.instrument_name,
+                                StartTime = session.time_slot.start_time.ToTimeSpan(),
+                                EndTime = session.time_slot.end_time.ToTimeSpan()
                             });
+                        }
+                        else
+                        {
+                             _logger.LogWarning($"Skipping class session {session.class_session_id} due to missing navigation data (day, week, time_slot, or room).");
                         }
                     }
                 }

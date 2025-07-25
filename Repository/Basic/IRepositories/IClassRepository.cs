@@ -19,4 +19,5 @@ public interface IClassRepository: IGenericRepository<_class>
     Task<IEnumerable<_class>> GetAllWithDetails(); 
     
     Task<_class?> GetClassWithSessionsAndTimeSlotsAndDayAndWeekAndInstrumentAsync(int classId);
+    Task<_class?> GetClassWithSessionsAndTimeSlotsAndDayAndWeekAndInstrumentAndRoomAsync(int classId);
 }

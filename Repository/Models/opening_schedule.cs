@@ -13,8 +13,6 @@ public partial class opening_schedule
 
     public DateOnly? end_date { get; set; }
 
-    public string? schedule { get; set; }
-
     public int? student_quantity { get; set; }
 
     public bool? is_advanced_class { get; set; }
@@ -23,9 +21,13 @@ public partial class opening_schedule
 
     public int instrument_id { get; set; }
 
-    public virtual _class? _class { get; set; }
+    public int total_sessions { get; set; }
+
+    public virtual _class class_codeNavigation { get; set; } = null!;
 
     public virtual instrument instrument { get; set; } = null!;
 
     public virtual user? teacher_user { get; set; }
+
+    public virtual ICollection<day_of_week_lookup> day_of_weeks { get; set; } = new List<day_of_week_lookup>();
 }

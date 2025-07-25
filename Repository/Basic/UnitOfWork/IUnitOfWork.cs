@@ -1,9 +1,12 @@
 using Repository.Basic.IRepositories;
+using Repository.Data;
 
 namespace Repository.Basic.UnitOfWork;
 
 public interface IUnitOfWork: IDisposable
 {
+    
+    AppDbContext Context { get; }
     IAttendanceRepository Attendances { get; }
     IClassRepository Classes { get; }
     IClassSessionRepository ClassSessions { get; }
@@ -24,6 +27,8 @@ public interface IUnitOfWork: IDisposable
     IWeekRepository Weeks { get; }
     IGenderRepository Genders { get; }
     IDayRepository Days { get; }
+    IRoomRepository Rooms { get; }
+    IDayOfWeekLookupRepository DayOfWeekLookups { get; }
     
     Task<int> CompleteAsync();
 }

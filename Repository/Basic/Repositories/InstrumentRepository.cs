@@ -27,32 +27,6 @@ public class InstrumentRepository : GenericRepository<instrument>, IInstrumentRe
             .AsSplitQuery()
             .FirstOrDefaultAsync(d => d.instrument_id == id);
     }
-
-    // public async Task<instrument> AddAsync(instrument entity)
-    // {
-    //     _context.instruments.Add(entity);
-    //     await _context.SaveChangesAsync();
-    //     return entity;
-    // }
-    //
-    // public async Task UpdateAsync(instrument entity)
-    // {
-    //     _context.instruments.Update(entity);
-    //     await _context.SaveChangesAsync();
-    // }
-    //
-    // public async Task<bool> DeleteAsync(int id)
-    // {
-    //     var item = await _context.instruments.FindAsync(id);
-    //
-    //     if (item == null)
-    //     {
-    //         return false ;
-    //     }
-    //     
-    //     _context.instruments.Remove(item);
-    //     return await _context.SaveChangesAsync() > 0;
-    // }
     
     public async Task<IEnumerable<instrument>> SearchInstrumentsAsync(string? instrumentName = null)
     {

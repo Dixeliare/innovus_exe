@@ -37,8 +37,9 @@ public class ClassSessionService : IClassSessionService
 
     public async Task<IEnumerable<PersonalClassSessionDto>> GetClassSessionsByClassIdAsync(int classId)
     {
-        var classExists = await _unitOfWork.Classes.GetById(classId); // Có thể dùng AnyAsync để kiểm tra tồn tại nhanh hơn
-        if (classExists == null)
+        // Sử dụng AnyAsync để kiểm tra tồn tại hiệu quả hơn
+        var classExists = await _unitOfWork.Classes.AnyAsync(c => c.class_id == classId);
+        if (!classExists)
         {
             throw new NotFoundException("Class", "Id", classId);
         }
@@ -49,8 +50,9 @@ public class ClassSessionService : IClassSessionService
 
     public async Task<IEnumerable<PersonalClassSessionDto>> GetClassSessionsByDayIdAsync(int dayId)
     {
-        var dayExists = await _unitOfWork.Days.GetByIdAsync(dayId); // Có thể dùng AnyAsync để kiểm tra tồn tại nhanh hơn
-        if (dayExists == null)
+        // Sử dụng AnyAsync để kiểm tra tồn tại hiệu quả hơn
+        var dayExists = await _unitOfWork.Days.AnyAsync(d => d.day_id == dayId);
+        if (!dayExists)
         {
             throw new NotFoundException("Day", "Id", dayId);
         }
@@ -62,7 +64,6 @@ public class ClassSessionService : IClassSessionService
     public async Task<BaseClassSessionDto> AddAsync(CreateClassSessionDto createClassSessionDto)
     {
         // 1. Basic validation (Data Annotations on DTO handle some, manual for others)
-        // SessionNumber là nullable, kiểm tra nếu có giá trị thì phải dương
         if (createClassSessionDto.SessionNumber.HasValue && createClassSessionDto.SessionNumber.Value <= 0)
         {
             throw new ValidationException(new Dictionary<string, string[]>
@@ -70,7 +71,7 @@ public class ClassSessionService : IClassSessionService
                 { "SessionNumber", new string[] { "Số buổi học phải là số dương nếu được cung cấp." } }
             });
         }
-        // RoomCode là required, đã có [Required] và [StringLength] trên DTO
+        // RoomCode không còn ở đây, đã thay bằng RoomId (được Required)
 
         // 2. Check foreign keys
         var dayExists = await _unitOfWork.Days.GetByIdAsync(createClassSessionDto.DayId);
@@ -91,11 +92,19 @@ public class ClassSessionService : IClassSessionService
             throw new NotFoundException("TimeSlot", "Id", createClassSessionDto.TimeSlotId);
         }
 
+        // ĐÃ SỬA: Thêm kiểm tra RoomId
+        var roomExists = await _unitOfWork.Rooms.GetByIdAsync(createClassSessionDto.RoomId);
+        if (roomExists == null)
+        {
+            throw new NotFoundException("Room", "Id", createClassSessionDto.RoomId);
+        }
+
         // 3. Check for uniqueness (same Day, Class, TimeSlot combination)
         var existingSession = await _unitOfWork.ClassSessions.SearchClassSessionsAsync(
             classId: createClassSessionDto.ClassId,
             dayId: createClassSessionDto.DayId,
             timeSlotId: createClassSessionDto.TimeSlotId
+            // Không cần RoomId trong kiểm tra duy nhất nếu ràng buộc chỉ là Day, Class, TimeSlot
         );
         if (existingSession.Any())
         {
@@ -108,8 +117,8 @@ public class ClassSessionService : IClassSessionService
         var sessionEntity = new class_session
         {
             session_number = createClassSessionDto.SessionNumber,
-            date = createClassSessionDto.Date, // Date là nullable
-            room_code = createClassSessionDto.RoomCode,
+            date = createClassSessionDto.Date,
+            room_id = createClassSessionDto.RoomId, // ĐÃ SỬA: Gán room_id từ DTO
             day_id = createClassSessionDto.DayId,
             class_id = createClassSessionDto.ClassId,
             time_slot_id = createClassSessionDto.TimeSlotId
@@ -119,17 +128,20 @@ public class ClassSessionService : IClassSessionService
         {
             var addedSession = await _unitOfWork.ClassSessions.AddAsync(sessionEntity);
             await _unitOfWork.CompleteAsync();
-            // Return BaseClassSessionDto after creation, as PersonalClassSessionDto requires eager loading.
-            // Caller can then GetById to get the full PersonalClassSessionDto.
-            return MapToBaseClassSessionDto(addedSession);
+            // Để trả về đầy đủ thông tin RoomCode, cần fetch lại với details
+            var addedSessionWithDetails = await _unitOfWork.ClassSessions.GetClassSessionByIdWithDetailsAsync(addedSession.class_session_id);
+            return MapToBaseClassSessionDto(addedSessionWithDetails ?? addedSession);
         }
         catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
         {
-            throw new ApiException("An error occurred while saving the class session to the database.", dbEx, (int)HttpStatusCode.InternalServerError);
+            // Logging the full exception details is recommended for debugging
+            // _logger.LogError(dbEx, "DbUpdateException during ClassSession AddAsync.");
+            throw new ApiException("Có lỗi xảy ra khi lưu buổi học vào cơ sở dữ liệu.", dbEx, (int)HttpStatusCode.InternalServerError);
         }
         catch (Exception ex)
         {
-            throw new ApiException("An unexpected error occurred during class session creation.", ex, (int)HttpStatusCode.InternalServerError);
+            // _logger.LogError(ex, "An unexpected error occurred during class session creation.");
+            throw new ApiException("Đã xảy ra lỗi không mong muốn khi tạo buổi học.", ex, (int)HttpStatusCode.InternalServerError);
         }
     }
 
@@ -165,20 +177,22 @@ public class ClassSessionService : IClassSessionService
         {
             existingSession.date = updateClassSessionDto.Date.Value;
         }
-        if (updateClassSessionDto.RoomCode != null) // RoomCode có thể là empty string
+
+        // ĐÃ SỬA: Xử lý RoomId thay vì RoomCode
+        bool foreignKeyChanged = false; // Biến cờ này phải được quản lý cẩn thận
+
+        if (updateClassSessionDto.RoomId.HasValue && existingSession.room_id != updateClassSessionDto.RoomId.Value)
         {
-            if (string.IsNullOrWhiteSpace(updateClassSessionDto.RoomCode))
+            var roomExists = await _unitOfWork.Rooms.GetByIdAsync(updateClassSessionDto.RoomId.Value);
+            if (roomExists == null)
             {
-                throw new ValidationException(new Dictionary<string, string[]>
-                {
-                    { "RoomCode", new string[] { "Mã phòng không được để trống." } }
-                });
+                throw new NotFoundException("Room", "Id", updateClassSessionDto.RoomId.Value);
             }
-            existingSession.room_code = updateClassSessionDto.RoomCode;
+            existingSession.room_id = updateClassSessionDto.RoomId.Value;
+            foreignKeyChanged = true;
         }
 
-        // Check and update foreign keys
-        bool foreignKeyChanged = false;
+        // Check and update other foreign keys
         if (updateClassSessionDto.DayId.HasValue && existingSession.day_id != updateClassSessionDto.DayId.Value)
         {
             var dayExists = await _unitOfWork.Days.GetByIdAsync(updateClassSessionDto.DayId.Value);
@@ -211,15 +225,19 @@ public class ClassSessionService : IClassSessionService
         }
         
         // If any foreign key changed or relevant fields changed, re-check uniqueness constraint
-        // This check ensures that the updated combination (DayId, ClassId, TimeSlotId) doesn't already exist for *another* session.
         if (foreignKeyChanged || 
-            (updateClassSessionDto.DayId.HasValue && updateClassSessionDto.ClassId.HasValue && updateClassSessionDto.TimeSlotId.HasValue))
+            (updateClassSessionDto.DayId.HasValue || updateClassSessionDto.ClassId.HasValue || updateClassSessionDto.TimeSlotId.HasValue)) // Kiểm tra các trường có thể thay đổi để kích hoạt kiểm tra
         {
+            var targetClassId = updateClassSessionDto.ClassId ?? existingSession.class_id;
+            var targetDayId = updateClassSessionDto.DayId ?? existingSession.day_id;
+            var targetTimeSlotId = updateClassSessionDto.TimeSlotId ?? existingSession.time_slot_id;
+
             var existingSessionConflict = await _unitOfWork.ClassSessions.SearchClassSessionsAsync(
-                classId: updateClassSessionDto.ClassId ?? existingSession.class_id,
-                dayId: updateClassSessionDto.DayId ?? existingSession.day_id,
-                timeSlotId: updateClassSessionDto.TimeSlotId ?? existingSession.time_slot_id
+                classId: targetClassId,
+                dayId: targetDayId,
+                timeSlotId: targetTimeSlotId
             );
+            
             // If another session with the exact same combination exists, and it's not the current session being updated
             if (existingSessionConflict.Any(s => s.class_session_id != existingSession.class_session_id))
             {
@@ -237,11 +255,13 @@ public class ClassSessionService : IClassSessionService
         }
         catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
         {
-            throw new ApiException("An error occurred while updating the class session in the database.", dbEx, (int)HttpStatusCode.InternalServerError);
+            // _logger.LogError(dbEx, "DbUpdateException during ClassSession UpdateAsync.");
+            throw new ApiException("Có lỗi xảy ra khi cập nhật buổi học trong cơ sở dữ liệu.", dbEx, (int)HttpStatusCode.InternalServerError);
         }
         catch (Exception ex)
         {
-            throw new ApiException("An unexpected error occurred during class session update.", ex, (int)HttpStatusCode.InternalServerError);
+            // _logger.LogError(ex, "An unexpected error occurred during class session update.");
+            throw new ApiException("Đã xảy ra lỗi không mong muốn khi cập nhật buổi học.", ex, (int)HttpStatusCode.InternalServerError);
         }
     }
 
@@ -254,11 +274,10 @@ public class ClassSessionService : IClassSessionService
         }
         
         // Check for related 'attendances' before deleting class_session
-        // You'll need an IAttendanceRepository in your UnitOfWork
         var relatedAttendances = await _unitOfWork.Attendances.GetAttendancesByClassSessionIdAsync(id);
         if (relatedAttendances != null && relatedAttendances.Any())
         {
-            throw new ApiException($"Cannot delete Class Session with ID {id} because it has related attendance records.", (int)HttpStatusCode.Conflict);
+            throw new ApiException($"Không thể xóa buổi học với ID {id} vì có các bản ghi điểm danh liên quan.", (int)HttpStatusCode.Conflict);
         }
 
         try
@@ -269,24 +288,27 @@ public class ClassSessionService : IClassSessionService
         }
         catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
         {
-            throw new ApiException("An error occurred while deleting the class session from the database. It might have related records.", dbEx, (int)HttpStatusCode.Conflict);
+            // _logger.LogError(dbEx, $"DbUpdateException during ClassSession DeleteAsync for ID {id}.");
+            throw new ApiException("Có lỗi xảy ra khi xóa buổi học khỏi cơ sở dữ liệu. Có thể có các bản ghi liên quan.", dbEx, (int)HttpStatusCode.Conflict);
         }
         catch (Exception ex)
         {
-            throw new ApiException("An unexpected error occurred during class session deletion.", ex, (int)HttpStatusCode.InternalServerError);
+            // _logger.LogError(ex, "An unexpected error occurred during class session deletion.");
+            throw new ApiException("Đã xảy ra lỗi không mong muốn khi xóa buổi học.", ex, (int)HttpStatusCode.InternalServerError);
         }
     }
 
+    // ĐÃ SỬA: Thay đổi tham số roomCode thành roomId
     public async Task<IEnumerable<PersonalClassSessionDto>> SearchClassSessionsAsync(
         int? sessionNumber = null,
         DateOnly? date = null,
-        string? roomCode = null,
+        int? roomId = null, // ĐÃ SỬA: Thay đổi từ string? roomCode sang int? roomId
         int? classId = null,
         int? dayId = null,
         int? timeSlotId = null)
     {
         var sessions = await _unitOfWork.ClassSessions.SearchClassSessionsWithDetailsAsync(
-            sessionNumber, date, roomCode, classId, dayId, timeSlotId
+            sessionNumber, date, roomId, classId, dayId, timeSlotId // ĐÃ SỬA: Truyền roomId
         );
         return sessions.Select(MapToPersonalClassSessionDto);
     }
@@ -299,38 +321,27 @@ public class ClassSessionService : IClassSessionService
             ClassSessionId = model.class_session_id,
             SessionNumber = model.session_number,
             Date = model.date,
-            RoomCode = model.room_code,
+            RoomCode = model.room?.room_code, // ĐÃ SỬA: Truy cập room_code qua navigation property 'room'
             
-            // Fix: ClassSession entity's day_id is non-nullable, so assign directly
-            DayId = model.day_id, // <--- Sửa ở đây: gán trực tiếp day_id
-            ClassId = model.class_id,
-            TimeSlotId = model.time_slot_id,
+            DayId = model.day_id, // Giữ nguyên, đã đúng là int
+            ClassId = model.class_id, // Giữ nguyên, đã đúng là int
+            TimeSlotId = model.time_slot_id, // Giữ nguyên, đã đúng là int
             
             // Details from Day
-            // Sử dụng toán tử ?. và ?? để xử lý nullable
-            WeekId = model.day?.week_id, // int? = int?
-            DateOfDay = model.day?.date_of_day, // DateOnly? = DateOnly?
-            DayOfWeekName = model.day?.day_of_week_name, // string? = string?
+            WeekId = model.day?.week_id, // ĐÃ THÊM: Nếu bạn muốn WeekId trong DTO
+            DateOfDay = model.day?.date_of_day,
+            DayOfWeekName = model.day?.day_of_week_name,
 
             // Details from Week (accessible via model.day.week)
-            // Cần đảm bảo rằng `model.day` và `model.day.week` đã được eager load trong repository
-            WeekNumberInMonth = model.day?.week?.week_number_in_month, // int? = int?
+            WeekNumberInMonth = model.day?.week?.week_number_in_month,
 
             // Details from Class
-            ClassCode = model._class?.class_code, // string? = string?
-            // Assuming Class has Instrument navigation property
-            InstrumentName = model._class?.instrument?.instrument_name, // string? = string?
+            ClassCode = model._class?.class_code,
+            InstrumentName = model._class?.instrument?.instrument_name,
 
             // Details from TimeSlot
-            // time_slot?.start_time là TimeOnly? (nếu property trong entity là TimeOnly)
-            // TimeOnly không thể tự động chuyển thành TimeSpan. Cần chuyển đổi thủ công nếu TimeSlot entity dùng TimeOnly.
-            // Giả định rằng TimeSlot entity có StartTime/EndTime là TimeSpan hoặc bạn muốn chuyển đổi từ TimeOnly.
-            // Nếu TimeSlot entity dùng TimeOnly:
-            StartTime = model.time_slot?.start_time != null ? (TimeSpan?)model.time_slot.start_time.ToTimeSpan() : null, // <--- Sửa
-            EndTime = model.time_slot?.end_time != null ? (TimeSpan?)model.time_slot.end_time.ToTimeSpan() : null // <--- Sửa
-            // Nếu TimeSlot entity dùng TimeSpan:
-            // StartTime = model.time_slot?.start_time,
-            // EndTime = model.time_slot?.end_time
+            StartTime = model.time_slot?.start_time.ToTimeSpan(),
+            EndTime = model.time_slot?.end_time.ToTimeSpan()
         };
     }
 
@@ -342,7 +353,7 @@ public class ClassSessionService : IClassSessionService
             ClassSessionId = model.class_session_id,
             SessionNumber = model.session_number,
             Date = model.date,
-            RoomCode = model.room_code,
+            RoomCode = model.room?.room_code, // ĐÃ SỬA: Truy cập room_code qua navigation property 'room'
             DayId = model.day_id,
             ClassId = model.class_id,
             TimeSlotId = model.time_slot_id,

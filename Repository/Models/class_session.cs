@@ -11,19 +11,21 @@ public partial class class_session
 
     public DateOnly? date { get; set; }
 
-    public string room_code { get; set; } = null!;
-
     public int day_id { get; set; }
 
     public int class_id { get; set; }
 
     public int time_slot_id { get; set; }
 
+    public int room_id { get; set; }
+
     public virtual _class _class { get; set; } = null!;
 
     public virtual ICollection<attendance> attendances { get; set; } = new List<attendance>();
 
     public virtual day day { get; set; } = null!;
+
+    public virtual room room { get; set; } = null!;
 
     public virtual timeslot time_slot { get; set; } = null!;
 }

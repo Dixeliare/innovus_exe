@@ -246,7 +246,7 @@ namespace Web_API.Controllers
         public async Task<IActionResult> SearchClassSessions(
             [FromQuery] int? sessionNumber = null,
             [FromQuery] DateOnly? date = null,
-            [FromQuery] string? roomCode = null,
+            [FromQuery] int? roomId = null, // ĐÃ SỬA: Thay đổi từ string? roomCode sang int? roomId
             [FromQuery] int? classId = null,
             [FromQuery] int? dayId = null,
             [FromQuery] int? timeSlotId = null)
@@ -254,7 +254,7 @@ namespace Web_API.Controllers
             try
             {
                 var sessions = await _classSessionService.SearchClassSessionsAsync(
-                    sessionNumber, date, roomCode, classId, dayId, timeSlotId
+                    sessionNumber, date, roomId, classId, dayId, timeSlotId // ĐÃ SỬA: Truyền roomId
                 );
                 return Ok(sessions);
             }

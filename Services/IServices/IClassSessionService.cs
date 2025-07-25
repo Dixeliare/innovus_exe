@@ -12,10 +12,10 @@ public interface IClassSessionService
     Task<BaseClassSessionDto> AddAsync(CreateClassSessionDto createClassSessionDto); // Add always returns BaseDto, then get by ID for full DTO
     Task UpdateAsync(UpdateClassSessionDto updateClassSessionDto);
     Task<bool> DeleteAsync(int id);
-    Task<IEnumerable<PersonalClassSessionDto>> SearchClassSessionsAsync( // Changed to PersonalClassSessionDto
+    Task<IEnumerable<PersonalClassSessionDto>> SearchClassSessionsAsync(
         int? sessionNumber = null,
         DateOnly? date = null,
-        string? roomCode = null,
+        int? roomId = null, // <--- ĐÃ SỬA Ở ĐÂY!
         int? classId = null,
         int? dayId = null,
         int? timeSlotId = null

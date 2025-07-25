@@ -50,68 +50,103 @@ public class DayService : IDayService
             throw new ValidationException(errors);
         }
 
-        if (createDayDto.WeekId.HasValue)
+        // Nếu week_id là bắt buộc trong model 'day', thì bạn phải đảm bảo nó có giá trị ở đây.
+        // Nếu createDayDto.WeekId không có giá trị (null), bạn sẽ phải quyết định xử lý thế nào:
+        // 1. Coi đây là lỗi và yêu cầu WeekId.
+        // 2. Gán một giá trị mặc định hợp lệ (nhưng thường không nên với khóa ngoại).
+        // 3. Hoặc cho phép tạo Day mà không có WeekId, nhưng điều này đi ngược lại việc bạn đã đổi week_id thành non-nullable.
+
+        // Giả định rằng mỗi Day luôn phải có một WeekId hợp lệ:
+        if (!createDayDto.WeekId.HasValue)
         {
-            var weekExists = await _unitOfWork.Weeks.AnyAsync(w => w.week_id == createDayDto.WeekId.Value);
-            if (!weekExists)
+            throw new ValidationException(new Dictionary<string, string[]>
             {
-                throw new NotFoundException("Week", "ID", createDayDto.WeekId.Value);
-            }
+                { nameof(createDayDto.WeekId), new[] { "WeekId là bắt buộc khi tạo ngày." } }
+            });
+        }
+
+        var weekExists = await _unitOfWork.Weeks.AnyAsync(w => w.week_id == createDayDto.WeekId.Value);
+        if (!weekExists)
+        {
+            throw new NotFoundException("Week", "ID", createDayDto.WeekId.Value);
         }
 
         var dayToCreate = new day
         {
-            week_id = createDayDto.WeekId,
+            // Gán .Value vì chúng ta đã kiểm tra .HasValue ở trên
+            week_id = createDayDto.WeekId.Value, 
             date_of_day = createDayDto.DateOfDay,
             day_of_week_name = createDayDto.DayOfWeekName,
             is_active = createDayDto.IsActive ?? true
         };
 
         var addedDay = await _unitOfWork.Days.AddAsync(dayToCreate);
-        await _unitOfWork.CompleteAsync(); // Gọi CompleteAsync() ở đây để lưu thay đổi
+        await _unitOfWork.CompleteAsync();
 
         return MapDayToDayDto(addedDay);
     }
 
     public async Task<bool> UpdateDayAsync(UpdateDayDto updateDayDto)
+{
+    var existingDay = await _unitOfWork.Days.GetByIdAsync(updateDayDto.DayId);
+    if (existingDay == null)
     {
-        var existingDay = await _unitOfWork.Days.GetByIdAsync(updateDayDto.DayId);
-        if (existingDay == null)
-        {
-            throw new NotFoundException("Day", "ID", updateDayDto.DayId);
-        }
+        throw new NotFoundException("Day", "ID", updateDayDto.DayId);
+    }
 
-        if (string.IsNullOrWhiteSpace(updateDayDto.DayOfWeekName))
+    if (string.IsNullOrWhiteSpace(updateDayDto.DayOfWeekName))
+    {
+        var errors = new Dictionary<string, string[]>
         {
-            var errors = new Dictionary<string, string[]>
             {
-                {
-                    nameof(updateDayDto.DayOfWeekName),
-                    new[] { "Tên ngày trong tuần không được để trống khi cập nhật." }
-                }
-            };
-            throw new ValidationException(errors);
-        }
+                nameof(updateDayDto.DayOfWeekName),
+                new[] { "Tên ngày trong tuần không được để trống khi cập nhật." }
+            }
+        };
+        throw new ValidationException(errors);
+    }
 
-        if (updateDayDto.WeekId.HasValue && updateDayDto.WeekId != existingDay.week_id)
+    existingDay.date_of_day = updateDayDto.DateOfDay;
+    existingDay.day_of_week_name = updateDayDto.DayOfWeekName;
+
+    // WeekId is nullable in UpdateDayDto, but non-nullable in entity.
+    // Nếu updateDayDto.WeekId có giá trị, chúng ta cập nhật.
+    // Nếu nó là null, chúng ta KHÔNG làm gì với existingDay.week_id
+    // (giữ nguyên giá trị hiện có), vì bạn không thể gán null cho một int.
+    if (updateDayDto.WeekId.HasValue) 
+    {
+        if (updateDayDto.WeekId.Value != existingDay.week_id) // Chỉ cập nhật nếu khác
         {
             var weekExists = await _unitOfWork.Weeks.AnyAsync(w => w.week_id == updateDayDto.WeekId.Value);
             if (!weekExists)
             {
                 throw new NotFoundException("Week", "ID", updateDayDto.WeekId.Value);
             }
+            existingDay.week_id = updateDayDto.WeekId.Value;
         }
-
-        existingDay.week_id = updateDayDto.WeekId;
-        existingDay.date_of_day = updateDayDto.DateOfDay;
-        existingDay.day_of_week_name = updateDayDto.DayOfWeekName;
-        existingDay.is_active = updateDayDto.IsActive;
-
-        await _unitOfWork.Days.UpdateAsync(existingDay);
-        await _unitOfWork.CompleteAsync(); // Gọi CompleteAsync() ở đây để lưu thay đổi
-
-        return true;
     }
+    // else { existingDay.week_id = null; } <-- XÓA DÒNG NÀY VÀ KHỐI NÀY
+    // Lý do: existingDay.week_id giờ là `int`, không thể gán `null`.
+    // Nếu bạn muốn cho phép "xóa" mối quan hệ tuần, bạn sẽ phải xem xét lại thiết kế model của mình
+    // hoặc có một ID week đặc biệt cho trường hợp "không có tuần".
+
+    if (updateDayDto.IsActive.HasValue)
+    {
+        existingDay.is_active = updateDayDto.IsActive.Value;
+    }
+    else 
+    {
+        // Nếu IsActive được set là null trong DTO, có thể bạn muốn giữ nguyên giá trị hiện tại
+        // hoặc gán một giá trị mặc định nếu is_active trong model cũng đổi thành non-nullable.
+        // Hiện tại existingDay.is_active vẫn là bool? nên gán null là OK.
+        existingDay.is_active = null; 
+    }
+    
+    await _unitOfWork.Days.UpdateAsync(existingDay);
+    await _unitOfWork.CompleteAsync();
+
+    return true;
+}
 
     public async Task<bool> DeleteDayAsync(int id)
     {
@@ -177,7 +212,7 @@ public class DayService : IDayService
                         ClassId = cs.class_id,
                         DayId = cs.day_id,
                         TimeSlotId = cs.time_slot_id,
-                        RoomCode = cs.room_code
+                        RoomCode = cs.room?.room_code // Lấy RoomCode từ navigation property 'room'
                     }).ToList()
                 : new List<BaseClassSessionDto>()
         };
