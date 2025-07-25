@@ -177,5 +177,52 @@ namespace Web_API.Controllers
             await _classService.RemoveUsersFromClassAsync(classId, dto.UserIds);
             return NoContent();
         }
+
+        [HttpGet("{classId}/student-capacity")]
+        [ProducesResponseType(typeof(object), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        public async Task<ActionResult> GetStudentCapacityInfo(int classId)
+        {
+            var cls = await _classService.GetByIdAsync(classId);
+            
+            var capacityInfo = new
+            {
+                ClassId = cls.ClassId,
+                ClassCode = cls.ClassCode,
+                TotalStudents = cls.TotalStudents,
+                CurrentStudentsCount = cls.CurrentStudentsCount,
+                AvailableSlots = cls.TotalStudents > 0 ? cls.TotalStudents - cls.CurrentStudentsCount : int.MaxValue,
+                IsAtCapacity = cls.TotalStudents > 0 && cls.CurrentStudentsCount >= cls.TotalStudents,
+                CanAddStudents = cls.TotalStudents == 0 || cls.CurrentStudentsCount < cls.TotalStudents
+            };
+
+            return Ok(capacityInfo);
+        }
+
+        [HttpPost("{classId}/check-can-add-students")]
+        [ProducesResponseType(typeof(object), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+        public async Task<ActionResult> CheckCanAddStudents(int classId, [FromBody] List<int> studentIds)
+        {
+            var cls = await _classService.GetByIdAsync(classId);
+            
+            var result = new
+            {
+                ClassId = cls.ClassId,
+                ClassCode = cls.ClassCode,
+                TotalStudents = cls.TotalStudents,
+                CurrentStudentsCount = cls.CurrentStudentsCount,
+                StudentsToAdd = studentIds.Count,
+                CanAdd = cls.TotalStudents == 0 || (cls.CurrentStudentsCount + studentIds.Count) <= cls.TotalStudents,
+                Message = cls.TotalStudents == 0 
+                    ? "Lớp không có giới hạn số học sinh" 
+                    : (cls.CurrentStudentsCount + studentIds.Count) <= cls.TotalStudents
+                        ? $"Có thể thêm {studentIds.Count} học sinh"
+                        : $"Không thể thêm {studentIds.Count} học sinh. Chỉ có thể thêm tối đa {cls.TotalStudents - cls.CurrentStudentsCount} học sinh nữa."
+            };
+
+            return Ok(result);
+        }
     }
 }

@@ -64,7 +64,9 @@ public class ClassService : IClassService
         var classEntity = new _class
         {
             class_code = createClassDto.ClassCode,
-            instrument_id = createClassDto.InstrumentId
+            instrument_id = createClassDto.InstrumentId,
+            total_students = createClassDto.TotalStudents,
+            current_students_count = 0
         };
 
         try
@@ -146,6 +148,25 @@ public class ClassService : IClassService
             existingClass.class_code = updateClassDto.ClassCode;
         }
 
+        // Cập nhật TotalStudents nếu được cung cấp
+        if (updateClassDto.TotalStudents.HasValue)
+        {
+            // Kiểm tra nếu total_students mới nhỏ hơn current_students_count hiện tại
+            if (updateClassDto.TotalStudents.Value < existingClass.current_students_count)
+            {
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    {
+                        "TotalStudents",
+                        new[] { $"Không thể đặt giới hạn {updateClassDto.TotalStudents.Value} học sinh. " +
+                                $"Lớp hiện đã có {existingClass.current_students_count} học sinh." }
+                    }
+                });
+            }
+
+            existingClass.total_students = updateClassDto.TotalStudents.Value;
+        }
+
         try
         {
             await _unitOfWork.Classes.UpdateAsync(existingClass);
@@ -216,6 +237,8 @@ public class ClassService : IClassService
             ClassId = model.class_id,
             ClassCode = model.class_code,
             InstrumentId = model.instrument_id,
+            TotalStudents = model.total_students,
+            CurrentStudentsCount = model.current_students_count,
             Instrument = model.instrument != null ? new InstrumentDto
             {
                 InstrumentId = model.instrument.instrument_id,
@@ -338,12 +361,30 @@ public class ClassService : IClassService
             newUsersForClass.Add(user);
         }
 
+        // Kiểm tra giới hạn số học sinh trước khi assign
+        if (targetClass.total_students > 0)
+        {
+            var studentsInNewList = newUsersForClass.Count(u => u.role_id == studentRole?.role_id);
+            if (studentsInNewList > targetClass.total_students)
+            {
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "StudentLimit", new string[] { 
+                        $"Không thể gán {studentsInNewList} học sinh vào lớp. " +
+                        $"Giới hạn tối đa {targetClass.total_students} học sinh." } }
+                });
+            }
+        }
+
         // Xóa tất cả người dùng hiện có và thêm những người dùng mới
         targetClass.users.Clear();
         foreach (var user in newUsersForClass)
         {
             targetClass.users.Add(user);
         }
+
+        // Cập nhật current_students_count
+        targetClass.current_students_count = newUsersForClass.Count(u => u.role_id == studentRole?.role_id);
 
         try
         {
@@ -381,6 +422,10 @@ public class ClassService : IClassService
             throw new ApiException("Student or Teacher roles not found in the system.", null, (int)HttpStatusCode.PreconditionFailed);
         }
 
+        // Đếm số học sinh hiện tại (chỉ tính Student, không tính Teacher)
+        var currentStudentCount = targetClass.users.Count(u => u.role_id == studentRole?.role_id);
+        var studentsToAdd = new List<user>();
+
         foreach (var userId in userIds)
         {
             // Kiểm tra xem người dùng đã có trong lớp chưa để tránh trùng lặp
@@ -402,8 +447,43 @@ public class ClassService : IClassService
                     { "Users", new string[] { $"Người dùng có ID {userId} không phải là Học viên hoặc Giáo viên hợp lệ." } }
                 });
             }
-            targetClass.users.Add(userToAdd);
+
+            // Kiểm tra giới hạn số học sinh (chỉ áp dụng cho Student)
+            if (userToAdd.role_id == studentRole?.role_id)
+            {
+                studentsToAdd.Add(userToAdd);
+            }
+            else
+            {
+                // Teacher có thể thêm không giới hạn
+                targetClass.users.Add(userToAdd);
+            }
         }
+
+        // Kiểm tra giới hạn số học sinh trước khi thêm
+        if (studentsToAdd.Any() && targetClass.total_students > 0)
+        {
+            var totalStudentsAfterAdd = currentStudentCount + studentsToAdd.Count;
+            if (totalStudentsAfterAdd > targetClass.total_students)
+            {
+                throw new ValidationException(new Dictionary<string, string[]>
+                {
+                    { "StudentLimit", new string[] { 
+                        $"Không thể thêm {studentsToAdd.Count} học sinh. " +
+                        $"Lớp hiện có {currentStudentCount} học sinh, giới hạn {targetClass.total_students} học sinh. " +
+                        $"Chỉ có thể thêm tối đa {targetClass.total_students - currentStudentCount} học sinh nữa." } }
+                });
+            }
+        }
+
+        // Thêm các học sinh đã được kiểm tra
+        foreach (var student in studentsToAdd)
+        {
+            targetClass.users.Add(student);
+        }
+
+        // Cập nhật current_students_count
+        targetClass.current_students_count = targetClass.users.Count(u => u.role_id == studentRole?.role_id);
 
         try
         {
@@ -428,6 +508,8 @@ public class ClassService : IClassService
             throw new NotFoundException("Class", "Id", classId);
         }
 
+        var studentRole = await _unitOfWork.Roles.FindOneAsync(r => r.role_name == "Student");
+
         foreach (var userIdToRemove in userIds)
         {
             var userToRemove = targetClass.users.FirstOrDefault(u => u.user_id == userIdToRemove);
@@ -438,6 +520,9 @@ public class ClassService : IClassService
             // Tùy chọn: ném lỗi nếu người dùng không được tìm thấy trong lớp
             // else { throw new NotFoundException("User in Class", "Id", userIdToRemove); }
         }
+
+        // Cập nhật current_students_count sau khi xóa
+        targetClass.current_students_count = targetClass.users.Count(u => u.role_id == studentRole?.role_id);
 
         try
         {

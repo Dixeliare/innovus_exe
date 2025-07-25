@@ -1,0 +1,173 @@
+### Test Class Management API
+
+# 1. Create Opening Schedule (Auto-create Class + Class Sessions)
+POST https://localhost:7000/api/OpeningSchedule
+Content-Type: application/json
+
+{
+    "classCode": "PIANO_2024_01",
+    "openingDay": "2024-02-01",
+    "endDate": "2024-05-31",
+    "studentQuantity": 10,
+    "isAdvancedClass": false,
+    "teacherUserId": 1,
+    "instrumentId": 1,
+    "totalSessions": 36,
+    "selectedDayOfWeekIds": [1, 3, 5],
+    "defaultRoomId": 1,
+    "timeSlotIds": [1, 2]
+}
+
+###
+
+# 2. Get all classes (should include the auto-created class)
+GET https://localhost:7000/api/Class
+
+###
+
+# 3. Get class details with student capacity info
+GET https://localhost:7000/api/Class/1
+
+###
+
+# 4. Check student capacity for a class
+GET https://localhost:7000/api/Class/1/student-capacity
+
+###
+
+# 5. Create a manual class with student limit
+POST https://localhost:7000/api/Class
+Content-Type: application/json
+
+{
+    "classCode": "GUITAR_2024_01",
+    "instrumentId": 2,
+    "totalStudents": 8
+}
+
+###
+
+# 6. Add students to class (should respect student limit)
+POST https://localhost:7000/api/Class/1/add-users
+Content-Type: application/json
+
+{
+    "classId": 1,
+    "userIds": [2, 3, 4, 5]
+}
+
+###
+
+# 7. Check if we can add more students
+POST https://localhost:7000/api/Class/1/check-can-add-students
+Content-Type: application/json
+
+[6, 7, 8, 9, 10]
+
+###
+
+# 8. Try to add too many students (should fail)
+POST https://localhost:7000/api/Class/1/add-users
+Content-Type: application/json
+
+{
+    "classId": 1,
+    "userIds": [6, 7, 8, 9, 10, 11, 12]
+}
+
+###
+
+# 9. Add students within limit
+POST https://localhost:7000/api/Class/1/add-users
+Content-Type: application/json
+
+{
+    "classId": 1,
+    "userIds": [6, 7, 8]
+}
+
+###
+
+# 10. Check capacity after adding students
+GET https://localhost:7000/api/Class/1/student-capacity
+
+###
+
+# 11. Update class to increase student limit
+PUT https://localhost:7000/api/Class/1
+Content-Type: application/json
+
+{
+    "classId": 1,
+    "totalStudents": 15
+}
+
+###
+
+# 12. Try to decrease limit below current student count (should fail)
+PUT https://localhost:7000/api/Class/1
+Content-Type: application/json
+
+{
+    "classId": 1,
+    "totalStudents": 5
+}
+
+###
+
+# 13. Remove some students from class
+POST https://localhost:7000/api/Class/1/remove-users
+Content-Type: application/json
+
+{
+    "classId": 1,
+    "userIds": [7, 8]
+}
+
+###
+
+# 14. Check final capacity
+GET https://localhost:7000/api/Class/1/student-capacity
+
+###
+
+# 15. Get class with users (to see current students)
+GET https://localhost:7000/api/Class/1/users
+
+###
+
+# 16. Create unlimited capacity class
+POST https://localhost:7000/api/Class
+Content-Type: application/json
+
+{
+    "classCode": "VIOLIN_UNLIMITED",
+    "instrumentId": 3,
+    "totalStudents": 0
+}
+
+###
+
+# 17. Add many students to unlimited class
+POST https://localhost:7000/api/Class/3/add-users
+Content-Type: application/json
+
+{
+    "classId": 3,
+    "userIds": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+}
+
+###
+
+# 18. Check unlimited class capacity
+GET https://localhost:7000/api/Class/3/student-capacity
+
+###
+
+# 19. Get all class sessions for the auto-created class
+GET https://localhost:7000/api/ClassSession?classId=1
+
+###
+
+# 20. Search classes by instrument
+GET https://localhost:7000/api/Class/search_by_instrument_id_or_class_code?instrumentId=1

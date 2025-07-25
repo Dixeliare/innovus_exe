@@ -174,7 +174,9 @@ public class OpeningScheduleService : IOpeningScheduleService
             var classEntity = new _class
             {
                 class_code = createOpeningScheduleDto.ClassCode,
-                instrument_id = createOpeningScheduleDto.InstrumentId
+                instrument_id = createOpeningScheduleDto.InstrumentId,
+                total_students = createOpeningScheduleDto.StudentQuantity ?? 0,
+                current_students_count = 0
             };
             
             var addedClass = await _unitOfWork.Classes.AddAsync(classEntity);

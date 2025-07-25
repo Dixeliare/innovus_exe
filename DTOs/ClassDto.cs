@@ -6,6 +6,8 @@ public class ClassDto
     public int ClassId { get; set; }
     public string? ClassCode { get; set; }
     public int InstrumentId { get; set; }
+    public int TotalStudents { get; set; }
+    public int CurrentStudentsCount { get; set; }
 
     public InstrumentDto? Instrument { get; set; }
     
@@ -26,6 +28,9 @@ public class CreateClassDto
 
     [Required(ErrorMessage = "ID nhạc cụ là bắt buộc.")]
     public int InstrumentId { get; set; }
+
+    [Range(0, int.MaxValue, ErrorMessage = "Số lượng học sinh tối đa phải >= 0.")]
+    public int TotalStudents { get; set; } = 0;
 }
 
 public class UpdateClassDto
@@ -37,6 +42,9 @@ public class UpdateClassDto
     public string? ClassCode { get; set; } // Có thể null khi update nếu không muốn thay đổi mã lớp
 
     public int? InstrumentId { get; set; } // Có thể null khi update nếu không muốn thay đổi nhạc cụ
+
+    [Range(0, int.MaxValue, ErrorMessage = "Số lượng học sinh tối đa phải >= 0.")]
+    public int? TotalStudents { get; set; } // Có thể null khi update nếu không muốn thay đổi
 }
 
 public class ManageClassUsersDto
