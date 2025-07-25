@@ -71,11 +71,12 @@ ALTER SEQUENCE public.attendance_attendance_id_seq OWNED BY public.attendance.at
 
 CREATE TABLE public.class_session (
     class_session_id integer NOT NULL,
-    classroom text,
-    session_date date,
-    session_time time without time zone,
-    subject text,
-    week_id integer NOT NULL
+    session_number integer,
+    date date,
+    day_id integer NOT NULL,
+    class_id integer NOT NULL,
+    timeslot_id integer NOT NULL,
+    room_id integer NOT NULL
 );
 
 
@@ -106,16 +107,274 @@ ALTER SEQUENCE public.class_session_class_session_id_seq OWNED BY public.class_s
 
 
 --
+-- TOC entry 259 (class 1259 OID 17750)
+-- Name: class; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.class (
+    class_id integer NOT NULL,
+    class_code text NOT NULL,
+    instrument_id integer NOT NULL,
+    total_students integer DEFAULT 0,
+    current_students_count integer DEFAULT 0
+);
+
+
+ALTER TABLE public.class OWNER TO postgres;
+
+--
+-- TOC entry 260 (class 1259 OID 17749)
+-- Name: class_class_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.class_class_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.class_class_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 3832 (class 0 OID 0)
+-- Name: class_class_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.class_class_id_seq OWNED BY public.class.class_id;
+
+
+--
+-- TOC entry 261 (class 1259 OID 17760)
+-- Name: user_class; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.user_class (
+    user_id integer NOT NULL,
+    class_id integer NOT NULL
+);
+
+
+ALTER TABLE public.user_class OWNER TO postgres;
+
+--
+-- TOC entry 262 (class 1259 OID 17770)
+-- Name: instrument; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.instrument (
+    instrument_id integer NOT NULL,
+    instrument_name text NOT NULL
+);
+
+
+ALTER TABLE public.instrument OWNER TO postgres;
+
+--
+-- TOC entry 263 (class 1259 OID 17769)
+-- Name: instrument_instrument_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.instrument_instrument_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.instrument_instrument_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 3833 (class 0 OID 0)
+-- Name: instrument_instrument_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.instrument_instrument_id_seq OWNED BY public.instrument.instrument_id;
+
+--
+-- TOC entry 264 (class 1259 OID 17780)
+-- Name: timeslot; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.timeslot (
+    timeslot_id integer NOT NULL,
+    start_time time without time zone NOT NULL,
+    end_time time without time zone NOT NULL,
+    timeslot_name text
+);
+
+
+ALTER TABLE public.timeslot OWNER TO postgres;
+
+--
+-- TOC entry 265 (class 1259 OID 17779)
+-- Name: timeslot_timeslot_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.timeslot_timeslot_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.timeslot_timeslot_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 3834 (class 0 OID 0)
+-- Name: timeslot_timeslot_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.timeslot_timeslot_id_seq OWNED BY public.timeslot.timeslot_id;
+
+--
+-- TOC entry 266 (class 1259 OID 17790)
+-- Name: room; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.room (
+    room_id integer NOT NULL,
+    room_code text NOT NULL,
+    room_name text,
+    capacity integer DEFAULT 0
+);
+
+
+ALTER TABLE public.room OWNER TO postgres;
+
+--
+-- TOC entry 267 (class 1259 OID 17789)
+-- Name: room_room_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.room_room_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.room_room_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 3835 (class 0 OID 0)
+-- Name: room_room_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.room_room_id_seq OWNED BY public.room.room_id;
+
+--
+-- TOC entry 268 (class 1259 OID 17800)
+-- Name: day; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.day (
+    day_id integer NOT NULL,
+    date_of_day date NOT NULL,
+    day_name text,
+    week_id integer NOT NULL
+);
+
+
+ALTER TABLE public.day OWNER TO postgres;
+
+--
+-- TOC entry 269 (class 1259 OID 17799)
+-- Name: day_day_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.day_day_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.day_day_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 3836 (class 0 OID 0)
+-- Name: day_day_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.day_day_id_seq OWNED BY public.day.day_id;
+
+--
+-- TOC entry 270 (class 1259 OID 17810)
+-- Name: day_of_week_lookup; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.day_of_week_lookup (
+    day_of_week_id integer NOT NULL,
+    day_name text NOT NULL,
+    day_number integer NOT NULL
+);
+
+
+ALTER TABLE public.day_of_week_lookup OWNER TO postgres;
+
+--
+-- TOC entry 271 (class 1259 OID 17809)
+-- Name: day_of_week_lookup_day_of_week_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.day_of_week_lookup_day_of_week_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.day_of_week_lookup_day_of_week_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 3837 (class 0 OID 0)
+-- Name: day_of_week_lookup_day_of_week_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.day_of_week_lookup_day_of_week_id_seq OWNED BY public.day_of_week_lookup.day_of_week_id;
+
+--
+-- TOC entry 272 (class 1259 OID 17820)
+-- Name: opening_schedule_day_of_week; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.opening_schedule_day_of_week (
+    opening_schedule_id integer NOT NULL,
+    day_of_week_id integer NOT NULL
+);
+
+
+ALTER TABLE public.opening_schedule_day_of_week OWNER TO postgres;
+
+
+--
 -- TOC entry 250 (class 1259 OID 17652)
 -- Name: opening_schedule; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.opening_schedule (
     opening_schedule_id integer NOT NULL,
-    date_start date,
-    date_end date,
-    time_start time without time zone,
-    time_end time without time zone
+    class_code text NOT NULL,
+    opening_day date,
+    end_date date,
+    student_quantity integer,
+    is_advanced_class boolean DEFAULT false,
+    teacher_user_id integer,
+    instrument_id integer NOT NULL,
+    total_sessions integer DEFAULT 0
 );
 
 

@@ -2,6 +2,7 @@ using System.Net;
 using DTOs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Basic.UnitOfWork;
@@ -15,14 +16,17 @@ public class UserService : IUserService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IFileStorageService _fileStorageService;
+    private readonly IClassService _classService;
+    private readonly ILogger<UserService> _logger; // Thêm logger
 
-    public UserService(IUnitOfWork unitOfWork, IFileStorageService fileStorageService)
+    public UserService(IUnitOfWork unitOfWork, IFileStorageService fileStorageService, IClassService classService, ILogger<UserService> logger)
     {
         _unitOfWork = unitOfWork;
         _fileStorageService = fileStorageService;
+        _classService = classService;
+        _logger = logger; // Khởi tạo logger
     }
 
-    // Phương thức Login (sẽ kiểm tra mật khẩu đã hash)
     public async Task<user> GetUserAccount(string username, string password)
     {
         var user = await _unitOfWork.Users.GetByUsernameAsync(username);
@@ -31,8 +35,8 @@ public class UserService : IUserService
             throw new UnauthorizedAppException("Tên đăng nhập hoặc mật khẩu không hợp lệ.");
         }
 
-        // --- ĐÃ THAY ĐỔI: So sánh mật khẩu THÔ trực tiếp (RẤT KHÔNG AN TOÀN) ---
-        if (user.password == password) // KHÔNG HASH - RẤT RỦI RO BẢO MẬT!
+        // KHÔNG THAY ĐỔI: So sánh mật khẩu nguyên văn như ban đầu
+        if (user.password == password)
         {
             return user;
         }
@@ -43,15 +47,36 @@ public class UserService : IUserService
     public async Task<IEnumerable<UserDto>> GetAllAsync()
     {
         var users = await _unitOfWork.Users.GetAllAsync();
+        
+        // Eager load các navigation properties cần thiết cho từng user
+        // do GetAllAsync trong GenericRepository không có Include.
+        foreach (var user in users)
+        {
+            if (_unitOfWork.Context != null)
+            {
+                await _unitOfWork.Context.Entry(user).Reference(u => u.role).LoadAsync();
+                await _unitOfWork.Context.Entry(user).Reference(u => u.gender).LoadAsync();
+                await _unitOfWork.Context.Entry(user).Collection(u => u.classes).LoadAsync();
+            }
+        }
+        
         return users.Select(u => MapToUserDto(u));
     }
 
     public async Task<UserDto?> GetByIdAsync(int id)
     {
-        var user = await _unitOfWork.Users.GetByIdAsync(id);
+        // GetUserByIdWithClassesAndRoleAsync đã được giả định là eager load role và classes.
+        // Cần đảm bảo nó cũng eager load gender.
+        var user = await _unitOfWork.Users.GetUserByIdWithClassesAndRoleAsync(id);
         if (user == null)
         {
             throw new NotFoundException("User", "Id", id);
+        }
+
+        // Nếu GetUserByIdWithClassesAndRoleAsync không tải gender, thì tải thủ công:
+        if (user.gender == null && user.gender_id > 0 && _unitOfWork.Context != null)
+        {
+             await _unitOfWork.Context.Entry(user).Reference(u => u.gender).LoadAsync();
         }
 
         return MapToUserDto(user);
@@ -64,7 +89,13 @@ public class UserService : IUserService
         {
             throw new NotFoundException("User", "Username", username);
         }
-
+        // Eager load role, gender, classes vì GetByUsernameAsync trong GenericRepository không có include
+        if (_unitOfWork.Context != null)
+        {
+            await _unitOfWork.Context.Entry(user).Reference(u => u.role).LoadAsync();
+            await _unitOfWork.Context.Entry(user).Reference(u => u.gender).LoadAsync();
+            await _unitOfWork.Context.Entry(user).Collection(u => u.classes).LoadAsync();
+        }
         return MapToUserDto(user);
     }
 
@@ -74,7 +105,7 @@ public class UserService : IUserService
         int userId,
         string? username,
         string? accountName,
-        string? newPassword,
+        string? newPassword, // KHÔNG THAY ĐỔI: Vẫn nhận newPassword
         string? address,
         string? phoneNumber,
         bool? isDisabled,
@@ -82,30 +113,36 @@ public class UserService : IUserService
         DateOnly? birthday,
         int? roleId,
         int? statisticId,
-        int? openingScheduleId,
-        int? scheduleId,
         string? email,
-        // genderId ở đây sẽ là int (nếu bạn đã thay đổi UpdateUserDto)
-        // Hoặc vẫn là int? nếu bạn giữ UpdateUserDto như cũ và xử lý validation trong service
-        int genderId // Sử dụng int ở đây, phản ánh việc nó luôn bắt buộc.
-        // Nếu bạn giữ UpdateUserDto là int?, thì vẫn là int? ở đây
-        // và thêm validation ở đầu hàm này.
+        int genderId,
+        List<int>? classIds
     )
     {
-        var existingUser = await _unitOfWork.Users.GetByIdAsync(userId);
+        // GetUserByIdWithClassesAndRoleAsync có vẻ phù hợp hơn để cập nhật các mối quan hệ Many-to-Many
+        // và đã được giả định là eager load role, gender và classes.
+        var existingUser = await _unitOfWork.Users.GetUserByIdWithClassesAndRoleAsync(userId);
         if (existingUser == null)
         {
             throw new NotFoundException("User", "Id", userId);
         }
 
-        // Nếu genderId được truyền vào, hãy đảm bảo nó hợp lệ và cập nhật
-        // Giả sử genderId là int trong UpdateUserDto và luôn được truyền
-        // Nếu UpdateUserDto.GenderId là int?, thì thêm kiểm tra genderId.HasValue
+        // Load gender nếu chưa được tải (phòng trường hợp GetUserByIdWithClassesAndRoleAsync không bao gồm nó)
+        if (existingUser.gender == null && existingUser.gender_id > 0 && _unitOfWork.Context != null)
+        {
+            await _unitOfWork.Context.Entry(existingUser).Reference(u => u.gender).LoadAsync();
+        }
+        // Load role nếu chưa được tải
+        if (existingUser.role == null && existingUser.role_id > 0 && _unitOfWork.Context != null)
+        {
+            await _unitOfWork.Context.Entry(existingUser).Reference(u => u.role).LoadAsync();
+        }
+        // Load classes nếu chưa được tải (nếu GetUserByIdWithClassesAndRoleAsync chưa bao gồm)
+        if (_unitOfWork.Context != null)
+        {
+            await _unitOfWork.Context.Entry(existingUser).Collection(u => u.classes).LoadAsync();
+        }
 
-        // BẮT ĐẦU CẬP NHẬT LOGIC CHO GENDERID
-        // Nếu genderId luôn là non-nullable và luôn được gửi từ client khi update
-        // Dòng này sẽ được sử dụng nếu genderId trong UpdateUserDto là int và có [Required]
-        if (existingUser.gender_id != genderId) // So sánh trực tiếp
+        if (existingUser.gender_id != genderId)
         {
             var genderExists = await _unitOfWork.Genders.GetByIdAsync(genderId);
             if (genderExists == null)
@@ -115,8 +152,6 @@ public class UserService : IUserService
 
             existingUser.gender_id = genderId;
         }
-        // KẾT THÚC CẬP NHẬT LOGIC CHO GENDERID
-
 
         // Cập nhật username (có kiểm tra trùng lặp)
         if (!string.IsNullOrEmpty(username) && existingUser.username != username)
@@ -159,7 +194,7 @@ public class UserService : IUserService
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error deleting old avatar for user {userId}: {ex.Message}");
+                    _logger.LogError(ex, $"Error deleting old avatar for user {userId}: {ex.Message}");
                 }
             }
 
@@ -171,7 +206,8 @@ public class UserService : IUserService
         existingUser.account_name = accountName ?? existingUser.account_name;
         if (!string.IsNullOrEmpty(newPassword))
         {
-            existingUser.password = newPassword; // NHẮC NHỞ: Cần HASH MẬT KHẨU!
+            // ĐÃ HOÀN TÁC: Gán mật khẩu mới nguyên văn
+            existingUser.password = newPassword;
         }
 
         existingUser.address = address ?? existingUser.address;
@@ -179,7 +215,7 @@ public class UserService : IUserService
         existingUser.is_disabled = isDisabled ?? existingUser.is_disabled;
         existingUser.birthday = birthday ?? existingUser.birthday;
 
-        // Cập nhật khóa ngoại Role (giữ nguyên logic nullable cho các trường khác nếu bạn muốn)
+        // Cập nhật khóa ngoại Role
         if (roleId.HasValue && existingUser.role_id != roleId.Value)
         {
             var roleExists = await _unitOfWork.Roles.GetByIdAsync(roleId.Value);
@@ -211,36 +247,39 @@ public class UserService : IUserService
             existingUser.statistic_id = null;
         }
 
-        // Cập nhật khóa ngoại OpeningSchedule
-        if (openingScheduleId.HasValue && existingUser.opening_schedule_id != openingScheduleId.Value)
+        // Logic cập nhật danh sách lớp học (Many-to-Many)
+        if (classIds != null)
         {
-            var openingScheduleExists = await _unitOfWork.OpeningSchedules.GetByIdAsync(openingScheduleId.Value);
-            if (openingScheduleExists == null)
+            // Đảm bảo existingUser.classes đã được eager load.
+            // Phương thức GetUserByIdWithClassesAndRoleAsync đã bao gồm .Include(u => u.classes)
+            // Nếu không, cần tải thủ công: await _unitOfWork.Context.Entry(existingUser).Collection(u => u.classes).LoadAsync();
+            var currentClassIds = existingUser.classes.Select(c => c.class_id).ToHashSet();
+            var incomingClassIdsHashSet = classIds.ToHashSet();
+
+            // Lớp cần loại bỏ
+            var classesToRemove = existingUser.classes
+                .Where(c => !incomingClassIdsHashSet.Contains(c.class_id))
+                .ToList();
+            foreach (var classToRemove in classesToRemove)
             {
-                throw new NotFoundException("Opening Schedule", "Id", openingScheduleId.Value);
+                existingUser.classes.Remove(classToRemove);
             }
 
-            existingUser.opening_schedule_id = openingScheduleId.Value;
-        }
-        else if (openingScheduleId == null && existingUser.opening_schedule_id != null)
-        {
-            existingUser.opening_schedule_id = null;
-        }
+            // Lớp cần thêm vào
+            var classIdsToAdd = incomingClassIdsHashSet
+                .Where(id => !currentClassIds.Contains(id))
+                .ToList();
 
-        // Cập nhật khóa ngoại Schedule
-        if (scheduleId.HasValue && existingUser.schedule_id != scheduleId.Value)
-        {
-            var scheduleExists = await _unitOfWork.Schedules.GetByIdAsync(scheduleId.Value);
-            if (scheduleExists == null)
+            foreach (var classIdToAdd in classIdsToAdd)
             {
-                throw new NotFoundException("Schedule", "Id", scheduleId.Value);
-            }
+                var classToAdd = await _unitOfWork.Classes.GetById(classIdToAdd); // Lấy entity Class
+                if (classToAdd == null)
+                {
+                    throw new NotFoundException("Class", "Id", classIdToAdd);
+                }
 
-            existingUser.schedule_id = scheduleId.Value;
-        }
-        else if (scheduleId == null && existingUser.schedule_id != null)
-        {
-            existingUser.schedule_id = null;
+                existingUser.classes.Add(classToAdd); // Thêm entity Class vào collection
+            }
         }
 
 
@@ -259,11 +298,13 @@ public class UserService : IUserService
                 }, dbEx);
             }
 
+            _logger.LogError(dbEx, "DbUpdateException during User UpdateAsync.");
             throw new ApiException("Có lỗi xảy ra khi cập nhật người dùng vào cơ sở dữ liệu.", dbEx,
                 (int)HttpStatusCode.InternalServerError);
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "An unexpected error occurred during user update.");
             throw new ApiException("An unexpected error occurred during user update.", ex,
                 (int)HttpStatusCode.InternalServerError);
         }
@@ -277,7 +318,6 @@ public class UserService : IUserService
             throw new NotFoundException("User", "Id", id);
         }
 
-        // Xóa file ảnh đại diện liên quan khỏi Azure Blob trước
         if (!string.IsNullOrEmpty(userToDelete.avatar_url))
         {
             try
@@ -286,8 +326,7 @@ public class UserService : IUserService
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error deleting avatar blob for user {id}: {ex.Message}");
-                // Ghi log nhưng không ném lỗi để không chặn việc xóa user nếu file không tồn tại/có vấn đề
+                _logger.LogError(ex, $"Error deleting avatar blob for user {id}: {ex.Message}");
             }
         }
 
@@ -298,36 +337,38 @@ public class UserService : IUserService
         }
         catch (DbUpdateException dbEx)
         {
+            _logger.LogError(dbEx, "DbUpdateException during User DeleteAsync.");
             throw new ApiException("Không thể xóa người dùng do có các bản ghi liên quan (ràng buộc khóa ngoại).", dbEx,
-                (int)HttpStatusCode.Conflict); // 409 Conflict
+                (int)HttpStatusCode.Conflict);
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "An unexpected error occurred during user deletion.");
             throw new ApiException("An unexpected error occurred during user deletion.", ex,
                 (int)HttpStatusCode.InternalServerError);
         }
     }
 
-
-    // public async Task<IEnumerable<UserDto>> SearchUsersAsync(
-    //     string? username = null, string? accountName = null,
-    //     string? address = null, string? phoneNumber = null, bool? isDisabled = null, DateTime? createAt = null,
-    //     DateOnly? birthday = null, int? roleId = null,
-    //     string? email = null, // THÊM TRƯỜNG EMAIL
-    //     int? genderId = null) // THÊM TRƯỜNG GENDER_ID
-    // {
-    //     var users = await _unitOfWork.Users.SearchUsersAsync(username, accountName, null, address, phoneNumber,
-    //         isDisabled, createAt, birthday, roleId, email, genderId);
-    //     return users.Select(u => MapToUserDto(u));
-    // }
-    
-    
-    public async Task<IEnumerable<UserDto>> SearchUsersAsync(string? username = null, string? accountName = null, string? password = null,
+    public async Task<IEnumerable<UserDto>> SearchUsersAsync(string? username = null, string? accountName = null,
+        string? password = null, // Password parameter should be removed or handled differently
         string? address = null, string? phoneNumber = null, bool? isDisabled = null, DateTime? createAt = null,
         DateOnly? birthday = null, int? roleId = null, string? email = null, int? genderId = null)
     {
-        var users = await _unitOfWork.Users.SearchUsersAsync(username, accountName, null, address, phoneNumber,
+        // Giả định SearchUsersAsync trong UserRepository đã xử lý việc tìm kiếm và đã eager load role, gender, classes
+        var users = await _unitOfWork.Users.SearchUsersAsync(username, accountName, null, address, phoneNumber, 
             isDisabled, createAt, birthday, roleId, email, genderId);
+        
+        // Nếu SearchUsersAsync trong UserRepository không tải các mối quan hệ, cần tải thủ công ở đây:
+        foreach (var user in users)
+        {
+            if (_unitOfWork.Context != null)
+            {
+                await _unitOfWork.Context.Entry(user).Reference(u => u.role).LoadAsync();
+                await _unitOfWork.Context.Entry(user).Reference(u => u.gender).LoadAsync();
+                await _unitOfWork.Context.Entry(user).Collection(u => u.classes).LoadAsync();
+            }
+        }
+
         return users.Select(u => MapToUserDto(u));
     }
 
@@ -346,8 +387,6 @@ public class UserService : IUserService
             Birthday = model.birthday,
             RoleId = model.role_id,
             StatisticId = model.statistic_id,
-            OpeningScheduleId = model.opening_schedule_id,
-            ScheduleId = model.schedule_id,
             Role = model.role != null
                 ? new RoleDto
                 {
@@ -355,18 +394,21 @@ public class UserService : IUserService
                     RoleName = model.role.role_name
                 }
                 : null,
-            Email = model.email, // ÁNH XẠ EMAIL
-            GenderId = model.gender_id, // ÁNH XẠ GENDER_ID
-            Gender = model.gender != null // ÁNH XẠ ĐỐI TƯỢNG GENDER
+            Email = model.email,
+            GenderId = model.gender_id,
+            Gender = model.gender != null
                 ? new GenderDto
                 {
                     GenderId = model.gender.gender_id,
                     GenderName = model.gender.gender_name
                 }
-                : null
+                : null,
+            // Đảm bảo model.classes được eager load khi lấy user để ánh xạ ClassIds
+            ClassIds = model.classes?.Select(c => c.class_id).ToList()
         };
     }
 
+    // CREATE User
     public async Task<UserDto> AddAsync(
         string? username,
         string? accountName,
@@ -378,10 +420,9 @@ public class UserService : IUserService
         DateOnly? birthday,
         int? roleId,
         int? statisticId,
-        int? openingScheduleId,
-        int? scheduleId,
-        string email, // THÊM TRƯỜNG EMAIL
-        int genderId // THÊM TRƯỜNG GENDER_ID
+        string email,
+        int genderId,
+        int? classId = null
     )
     {
         // 1. Validation dữ liệu đầu vào cơ bản
@@ -448,60 +489,67 @@ public class UserService : IUserService
             }
         }
 
-        if (openingScheduleId.HasValue)
+        // KIỂM TRA CLASSID NẾU CÓ
+        if (classId.HasValue)
         {
-            var openingScheduleExists = await _unitOfWork.OpeningSchedules.GetByIdAsync(openingScheduleId.Value);
-            if (openingScheduleExists == null)
+            var classExists = await _unitOfWork.Classes.GetById(classId.Value);
+            if (classExists == null)
             {
-                throw new NotFoundException("Opening Schedule", "Id", openingScheduleId.Value);
+                throw new NotFoundException("Class", "Id", classId.Value);
             }
         }
 
-        if (scheduleId.HasValue)
+        // Mật khẩu nguyên văn được sử dụng
+        string plainTextPassword = password;
+
+        // Xử lý avatar trước khi tạo user entity để có thể gán avatar_url trong cùng giao dịch
+        string? avatarUrl = null;
+        if (avatarImageFile != null && avatarImageFile.Length > 0)
         {
-            var scheduleExists = await _unitOfWork.Schedules.GetByIdAsync(scheduleId.Value);
-            if (scheduleExists == null)
-            {
-                throw new NotFoundException("Schedule", "Id", scheduleId.Value);
-            }
+            avatarUrl = await _fileStorageService.SaveFileAsync(avatarImageFile, "avatars");
         }
+
 
         // 7. Tạo entity người dùng
         var userEntity = new user
         {
             username = username,
             account_name = accountName,
-            password = password, // NHẮC NHỞ: Cần HASH MẬT KHẨU!
+            password = plainTextPassword,
             address = address,
             phone_number = phoneNumber,
             is_disabled = isDisabled ?? false,
             create_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Unspecified),
-            avatar_url = null,
+            avatar_url = avatarUrl,
             birthday = birthday,
             role_id = roleId,
             statistic_id = statisticId,
-            opening_schedule_id = openingScheduleId,
-            schedule_id = scheduleId,
-            email = email, // GÁN EMAIL
-            gender_id = genderId // GÁN GENDER_ID
+            email = email,
+            gender_id = genderId
         };
 
-        // 8. Lưu user và xử lý avatar
+        // 8. Lưu user và xử lý avatar (giờ chỉ cần CompleteAsync 1 lần)
         try
         {
             var addedUser = await _unitOfWork.Users.AddAsync(userEntity);
             await _unitOfWork.CompleteAsync();
 
-            if (avatarImageFile != null && avatarImageFile.Length > 0)
+            // GÁN USER VÀO LỚP NẾU CLASSID ĐƯỢC CUNG CẤP
+            if (classId.HasValue)
             {
-                string avatarUrl = await _fileStorageService.SaveFileAsync(avatarImageFile, "avatars");
-                addedUser.avatar_url = avatarUrl;
-                await _unitOfWork.Users.UpdateAsync(addedUser);
-                await _unitOfWork.CompleteAsync();
+                await _classService.AddUsersToClassAsync(classId.Value, new List<int> { addedUser.user_id });
             }
 
-            // Tải lại user để có các navigation properties (role, gender) cho DTO trả về
-            var addedUserWithDetails = await _unitOfWork.Users.GetByIdAsync(addedUser.user_id);
+            // Tải lại user để có các navigation properties (role, gender, classes) cho DTO trả về
+            // Cần sử dụng phương thức eager load để lấy Role, Gender, và Classes
+            var addedUserWithDetails = await _unitOfWork.Users.GetUserByIdWithClassesAndRoleAsync(addedUser.user_id);
+            
+            // Nếu GetUserByIdWithClassesAndRoleAsync không tải gender, thì tải thủ công:
+            if (addedUserWithDetails != null && addedUserWithDetails.gender == null && addedUserWithDetails.gender_id > 0 && _unitOfWork.Context != null)
+            {
+                 await _unitOfWork.Context.Entry(addedUserWithDetails).Reference(u => u.gender).LoadAsync();
+            }
+
             return MapToUserDto(addedUserWithDetails ?? addedUser);
         }
         catch (DbUpdateException dbEx)
@@ -514,13 +562,105 @@ public class UserService : IUserService
                 }, dbEx);
             }
 
+            _logger.LogError(dbEx, "DbUpdateException during User AddAsync.");
             throw new ApiException("Có lỗi xảy ra khi lưu người dùng vào cơ sở dữ liệu.", dbEx,
                 (int)HttpStatusCode.InternalServerError);
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "An unexpected error occurred during user creation.");
             throw new ApiException("An unexpected error occurred during user creation.", ex,
                 (int)HttpStatusCode.InternalServerError);
         }
+    }
+
+    public async Task<PersonalScheduleDto> GetPersonalScheduleAsync(int userId, DateOnly? startDate = null,
+        DateOnly? endDate = null)
+    {
+        // Giả định GetUserByIdWithClassesAndRoleAsync tải user, role, gender và collection 'classes'
+        // Nhưng các collection lồng nhau (class_sessions bên trong classes) thì KHÔNG.
+        var user = await _unitOfWork.Users.GetUserByIdWithClassesAndRoleAsync(userId); 
+        if (user == null)
+        {
+            throw new NotFoundException("User", "Id", userId);
+        }
+
+        // Tải gender nếu chưa được tải (phòng trường hợp GetUserByIdWithClassesAndRoleAsync không bao gồm nó)
+        if (user.gender == null && user.gender_id > 0 && _unitOfWork.Context != null)
+        {
+             await _unitOfWork.Context.Entry(user).Reference(u => u.gender).LoadAsync();
+        }
+
+        var personalSchedule = new PersonalScheduleDto
+        {
+            UserId = user.user_id,
+            Username = user.username,
+            AccountName = user.account_name
+        };
+
+        var filteredSessions = new List<PersonalClassSessionDto>();
+
+        // Duyệt qua các lớp học mà người dùng thuộc về
+        if (user.classes != null)
+        {
+            foreach (var cls in user.classes)
+            {
+                // Cần đảm bảo rằng các class_sessions của class này, cùng với Day, Week, TimeSlot, Room và Instrument
+                // được tải đầy đủ.
+                // Phương thức GetClassWithSessionsAndTimeSlotsAndDayAndWeekAndInstrumentAndRoomAsync cần được thêm vào ClassRepository
+                // và được gọi ở đây.
+                var fullClass = await _unitOfWork.Classes.GetClassWithSessionsAndTimeSlotsAndDayAndWeekAndInstrumentAndRoomAsync(cls.class_id);
+
+                if (fullClass?.class_sessions != null)
+                {
+                    foreach (var session in fullClass.class_sessions) 
+                    {
+                        // Eager load các thuộc tính cần thiết của session nếu chúng chưa được tải
+                        if (_unitOfWork.Context != null)
+                        {
+                            await _unitOfWork.Context.Entry(session).Reference(s => s.day).LoadAsync();
+                            await _unitOfWork.Context.Entry(session).Reference(s => s.time_slot).LoadAsync();
+                            await _unitOfWork.Context.Entry(session).Reference(s => s.room).LoadAsync(); // Tải Room
+                            if (session.day != null)
+                            {
+                                await _unitOfWork.Context.Entry(session.day).Reference(d => d.week).LoadAsync();
+                            }
+                        }
+
+                        if (startDate.HasValue && session.date < startDate.Value) continue;
+                        if (endDate.HasValue && session.date > endDate.Value) continue;
+
+                        if (session.day != null && session.day.week != null && session.time_slot != null && session.room != null) // Kiểm tra session.room
+                        {
+                            filteredSessions.Add(new PersonalClassSessionDto
+                            {
+                                ClassSessionId = session.class_session_id,
+                                SessionNumber = session.session_number,
+                                Date = session.date,
+                                RoomCode = session.room.room_code, // SỬA LỖI Ở ĐÂY: Truy cập room_code từ session.room
+                                WeekId = session.day.week.week_id,
+                                ClassId = session.class_id,
+                                TimeSlotId = session.time_slot_id,
+                                WeekNumberInMonth = session.day.week.week_number_in_month,
+                                DayOfWeekName = session.day.day_of_week_name,
+                                ClassCode = fullClass.class_code, 
+                                InstrumentName = fullClass.instrument?.instrument_name,
+                                StartTime = session.time_slot.start_time.ToTimeSpan(),
+                                EndTime = session.time_slot.end_time.ToTimeSpan()
+                            });
+                        }
+                        else
+                        {
+                             _logger.LogWarning($"Skipping class session {session.class_session_id} due to missing navigation data (day, week, time_slot, or room).");
+                        }
+                    }
+                }
+            }
+        }
+
+        personalSchedule.ScheduledSessions = filteredSessions.OrderBy(s => s.Date)
+            .ThenBy(s => s.StartTime)
+            .ToList();
+        return personalSchedule;
     }
 }

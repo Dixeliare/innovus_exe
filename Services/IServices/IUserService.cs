@@ -29,10 +29,9 @@ public interface IUserService
         DateOnly? birthday,
         int? roleId,
         int? statisticId,
-        int? openingScheduleId,
-        int? scheduleId,
         string email, // THÊM TRƯỜNG EMAIL
-        int genderId);
+        int genderId,
+        int? classId = null);
 
     // Thay đổi UpdateAsync để nhận IFormFile và các thuộc tính khác
     Task UpdateAsync(
@@ -47,14 +46,13 @@ public interface IUserService
         DateOnly? birthday,
         int? roleId,
         int? statisticId,
-        int? openingScheduleId,
-        int? scheduleId,
         string? email,
         // genderId ở đây sẽ là int (nếu bạn đã thay đổi UpdateUserDto)
         // Hoặc vẫn là int? nếu bạn giữ UpdateUserDto như cũ và xử lý validation trong service
-        int genderId // Sử dụng int ở đây, phản ánh việc nó luôn bắt buộc.
+        int genderId, // Sử dụng int ở đây, phản ánh việc nó luôn bắt buộc.
         // Nếu bạn giữ UpdateUserDto là int?, thì vẫn là int? ở đây
         // và thêm validation ở đầu hàm này.
+        List<int>? classIds
     );
 
     // Sẽ ném NotFoundException nếu không tìm thấy, không trả về bool
@@ -72,4 +70,10 @@ public interface IUserService
         int? roleId = null,
         string? email = null, // THÊM TRƯỜNG EMAIL
         int? genderId = null);
+    
+    // Phương thức mới để lấy thời khóa biểu cá nhân
+    Task<PersonalScheduleDto> GetPersonalScheduleAsync(
+        int userId, 
+        DateOnly? startDate = null,
+        DateOnly? endDate = null);
 }

@@ -25,6 +25,11 @@ public class GenericRepository<T> : IGenericRepository<T> where T : class
         //await _context.SaveChangesAsync();
         return entity;
     }
+    
+    public async Task AddRangeAsync(IEnumerable<T> entities) // Triển khai AddRangeAsync
+    {
+        await _dbSet.AddRangeAsync(entities);
+    }
 
     public async Task UpdateAsync(T entity)
     {
@@ -41,10 +46,20 @@ public class GenericRepository<T> : IGenericRepository<T> where T : class
         }
         
         _dbSet.Remove(item);
-        await _context.SaveChangesAsync();
+        //await _context.SaveChangesAsync();
         return true;
     }
 
+    public void Remove(T entity)
+    {
+        _dbSet.Remove(entity); // Chỉ đánh dấu đối tượng để xóa, không gọi SaveChangesAsync()
+    }
+    
+    public void RemoveRange(IEnumerable<T> entities) // Triển khai RemoveRange
+    {
+        _dbSet.RemoveRange(entities);
+    }
+    
     public async Task<T> GetByIdAsync(int id)
     {
         return await _dbSet.FindAsync(id);

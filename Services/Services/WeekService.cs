@@ -1,5 +1,7 @@
 using System.Net;
 using DTOs;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Basic.UnitOfWork;
@@ -11,138 +13,171 @@ namespace Services.Services;
 
 public class WeekService : IWeekService
 {
-    // private readonly IWeekRepository _weekRepository;
-    // private readonly IScheduleRepository _scheduleRepository; // Để kiểm tra khóa ngoại
-
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ILogger<WeekService> _logger; // Khai báo logger
 
-    // public WeekService(IWeekRepository weekRepository, IScheduleRepository scheduleRepository)
-    // {
-    //     _weekRepository = weekRepository;
-    //     _scheduleRepository = scheduleRepository;
-    // }
-
-    public WeekService(IUnitOfWork unitOfWork)
+    public WeekService(IUnitOfWork unitOfWork, ILogger<WeekService> logger) // Thêm logger vào constructor
     {
         _unitOfWork = unitOfWork;
+        _logger = logger; // Gán logger
     }
 
-    public async Task<IEnumerable<week>> GetAllAsync()
+    public async Task<IEnumerable<WeekDto>> GetAllAsync()
     {
-        return await _unitOfWork.Weeks.GetAllAsync();
+        var weeks = await _unitOfWork.Weeks.GetAllWeeksWithDaysAsync();
+        return weeks.Select(MapToWeekDto);
     }
 
-    public async Task<week?> GetByIdAsync(int id)
+    public async Task<WeekDto> GetByIdAsync(int id)
     {
-        var week = await _unitOfWork.Weeks.GetByIdAsync(id);
+        var week = await _unitOfWork.Weeks.GetWeekByIdWithDaysAsync(id);
         if (week == null)
         {
-            // NÉM NotFoundException khi không tìm thấy Week
             throw new NotFoundException("Week", "Id", id);
         }
-
-        return week;
+        return MapToWeekDto(week);
     }
 
     public async Task<IEnumerable<WeekDto>> GetWeeksByScheduleIdAsync(int scheduleId)
     {
-        // Bạn có thể kiểm tra xem ScheduleId có tồn tại không ở đây
-        var scheduleExists = await _unitOfWork.Schedules.GetByIdAsync(scheduleId); // Sửa GetByIDAsync -> GetByIdAsync
+        var scheduleExists = await _unitOfWork.Schedules.GetByIdAsync(scheduleId);
         if (scheduleExists == null)
         {
             throw new NotFoundException("Schedule", "Id", scheduleId);
         }
-
-        var weeks = await _unitOfWork.Weeks.GetWeeksByScheduleIdAsync(scheduleId);
-        // Có thể trả về danh sách rỗng nếu không có tuần nào, không nhất thiết phải ném lỗi 404
-        // nếu danh sách rỗng là một kết quả hợp lệ.
+        var weeks = await _unitOfWork.Weeks.GetWeeksByScheduleIdWithDaysAsync(scheduleId);
         return weeks.Select(MapToWeekDto);
     }
 
-    // CREATE Week
     public async Task<WeekDto> AddAsync(CreateWeekDto createWeekDto)
     {
-        // 1. Validation dữ liệu đầu vào đơn giản (nếu chưa có Data Annotations)
-        if (!createWeekDto.WeekNumber.HasValue || createWeekDto.WeekNumber.Value <= 0)
+        // Validation từ code của bạn
+        if (createWeekDto.WeekNumberInMonth <= 0)
         {
             throw new ValidationException(new Dictionary<string, string[]>
             {
-                { "WeekNumber", new string[] { "Số tuần phải là một số dương hợp lệ." } }
+                { "WeekNumberInMonth", new string[] { "Số tuần trong tháng phải là một số dương hợp lệ." } }
             });
         }
-
-        if (!createWeekDto.DayOfWeek.HasValue)
+        if (createWeekDto.StartDate == default(DateOnly))
         {
             throw new ValidationException(new Dictionary<string, string[]>
             {
-                { "DayOfWeek", new string[] { "Ngày trong tuần không được để trống." } }
+                { "StartDate", new string[] { "Ngày bắt đầu không được để trống." } }
             });
         }
-        // Thêm các validation khác nếu cần
+        if (createWeekDto.EndDate == default(DateOnly))
+        {
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                { "EndDate", new string[] { "Ngày kết thúc không được để trống." } }
+            });
+        }
+        if (createWeekDto.StartDate > createWeekDto.EndDate)
+        {
+            throw new ValidationException(new Dictionary<string, string[]>
+            {
+                { "DateRange", new string[] { "Ngày bắt đầu phải trước hoặc bằng ngày kết thúc." } }
+            });
+        }
 
-        // 2. Kiểm tra khóa ngoại Schedule
-        // Sửa GetByIDAsync -> GetByIdAsync
         var scheduleExists = await _unitOfWork.Schedules.GetByIdAsync(createWeekDto.ScheduleId);
         if (scheduleExists == null)
         {
-            // NÉM NotFoundException khi ScheduleId không tồn tại
             throw new NotFoundException("Schedule", "Id", createWeekDto.ScheduleId);
         }
 
-        // 3. Kiểm tra tính duy nhất hoặc các ràng buộc nghiệp vụ khác
-        // Ví dụ: Không cho phép tạo tuần trùng số tuần và lịch trình
-        var existingWeek = await _unitOfWork.Weeks.SearchWeeksAsync(
-            createWeekDto.DayOfWeek, createWeekDto.ScheduleId);
+        var existingWeeks = await _unitOfWork.Weeks.SearchWeeksAsync(createWeekDto.ScheduleId, createWeekDto.WeekNumberInMonth);
 
-        if (existingWeek.Any(w =>
-                w.week_number == createWeekDto.WeekNumber && w.schedule_id == createWeekDto.ScheduleId))
+        if (existingWeeks.Any())
         {
             throw new ValidationException(new Dictionary<string, string[]>
             {
-                { "WeekNumber", new string[] { $"Tuần số {createWeekDto.WeekNumber} đã tồn tại cho lịch trình này." } }
+                { "WeekNumberInMonth", new string[] { $"Tuần số {createWeekDto.WeekNumberInMonth} đã tồn tại cho lịch trình này." } }
             });
         }
 
-
         var weekEntity = new week
         {
-            week_number = createWeekDto.WeekNumber,
-            day_of_week = createWeekDto.DayOfWeek,
-            schedule_id = createWeekDto.ScheduleId
+            week_number_in_month = createWeekDto.WeekNumberInMonth,
+            schedule_id = createWeekDto.ScheduleId,
+            start_date = createWeekDto.StartDate,
+            end_date = createWeekDto.EndDate,
+            // num_active_days sẽ được tính toán sau khi tạo days
+            num_active_days = 0 
         };
 
         try
         {
-            var addedWeek = await _unitOfWork.Weeks.AddAsync(weekEntity); // Gọi AddAsync của GenericRepository
-            await _unitOfWork.CompleteAsync(); // Lưu thay đổi vào DB
-            return MapToWeekDto(addedWeek);
-        }
-        catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
-        {
-            // Bắt lỗi DB cụ thể nếu muốn chuyển đổi thành ngoại lệ nghiệp vụ
-            // Ví dụ: Nếu có UNIQUE constraint violation trên DB (mà bạn chưa validate trước đó)
-            if (existingWeek.Any(w =>
-                    w.week_number == createWeekDto.WeekNumber && w.schedule_id == createWeekDto.ScheduleId))
-            {
-                throw new ValidationException(new Dictionary<string, string[]> // <-- SỬA TẠI ĐÂY: Thêm [] vào string
-                {
-                    {
-                        "WeekNumber",
-                        new string[] { $"Tuần số {createWeekDto.WeekNumber} đã tồn tại cho lịch trình này." }
-                    } // <-- SỬA TẠI ĐÂY: Bọc chuỗi lỗi trong new string[]{}
-                });
-            }
+            // Bước 1: Thêm weekEntity vào context.
+            // Điều này là quan trọng để addedWeek có thể được theo dõi bởi EF Core
+            // và sau đó được sử dụng để thiết lập mối quan hệ với các ngày.
+            var addedWeek = await _unitOfWork.Weeks.AddAsync(weekEntity); 
 
-            // Các lỗi DB khác, ném ApiException
+            // Bước 2: Tạo các ngày cho tuần đã thêm.
+            // Truyền đối tượng 'addedWeek' đã được theo dõi
+            var createdDays = GenerateDaysForWeekInternal(addedWeek, addedWeek.start_date, addedWeek.end_date).ToList();
+        
+            // Bước 3: Thêm tất cả các ngày đã tạo vào context.
+            await _unitOfWork.Days.AddRangeAsync(createdDays); 
+
+            // Bước 4: Cập nhật num_active_days của addedWeek.
+            addedWeek.num_active_days = createdDays.Count(); 
+
+            // Bước 5: Hoàn tất Unit of Work để lưu tất cả các thay đổi vào DB.
+            await _unitOfWork.CompleteAsync(); 
+
+            // Bước 6: Lấy lại tuần vừa thêm cùng với các ngày đã tạo (nếu cần cho DTO trả về).
+            var addedWeekWithDays = await _unitOfWork.Weeks.GetWeekByIdWithDaysAsync(addedWeek.week_id);
+            return MapToWeekDto(addedWeekWithDays);
+        }
+        catch (DbUpdateException dbEx)
+        {
             throw new ApiException("An error occurred while saving the week to the database.", dbEx,
+                (int)HttpStatusCode.InternalServerError);
+        }
+        catch (Exception ex)
+        {
+            throw new ApiException("Đã xảy ra lỗi không mong muốn khi thêm tuần.", ex,
                 (int)HttpStatusCode.InternalServerError);
         }
     }
 
-    // UPDATE Week
+    public async Task DeleteWeeksByScheduleIdAsync(int scheduleId)
+    {
+        var weeksToDelete = await _unitOfWork.Weeks.GetWeeksByScheduleIdWithDaysAndClassSessionsAsync(scheduleId);
+
+        if (weeksToDelete.Any())
+        {
+            foreach (var week in weeksToDelete)
+            {
+                if (week.days != null)
+                {
+                    foreach (var day in week.days)
+                    {
+                        if (day.class_sessions != null && day.class_sessions.Any())
+                        {
+                            throw new ApiException($"Không thể xóa tuần có ID {week.week_id} trong lịch trình này vì nó chứa các ngày có phiên học liên quan.", (int)HttpStatusCode.Conflict);
+                        }
+                    }
+                }
+            }
+            
+            // Xóa days và weeks bằng RemoveRange
+            foreach (var week in weeksToDelete)
+            {
+                if (week.days != null && week.days.Any())
+                {
+                    _unitOfWork.Days.RemoveRange(week.days); // Sử dụng RemoveRange
+                }
+            }
+            _unitOfWork.Weeks.RemoveRange(weeksToDelete); // Sử dụng RemoveRange
+            // KHÔNG GỌI await _unitOfWork.CompleteAsync() Ở ĐÂY - ScheduleService sẽ gọi nó
+        }
+    }
+
     public async Task UpdateAsync(UpdateWeekDto updateWeekDto)
     {
-        // 1. Validation ID
         if (updateWeekDto.WeekId <= 0)
         {
             throw new ValidationException(new Dictionary<string, string[]>
@@ -151,31 +186,49 @@ public class WeekService : IWeekService
             });
         }
 
-        // 2. Tìm Week hiện có. NÉM NotFoundException nếu không tìm thấy
-        var existingWeek = await _unitOfWork.Weeks.GetByIdAsync(updateWeekDto.WeekId);
+        var existingWeek = await _unitOfWork.Weeks.GetWeekByIdWithDaysAsync(updateWeekDto.WeekId);
         if (existingWeek == null)
         {
             throw new NotFoundException("Week", "Id", updateWeekDto.WeekId);
         }
 
-        // 3. Cập nhật các trường nếu có giá trị được cung cấp
-        if (updateWeekDto.WeekNumber.HasValue)
+        if (updateWeekDto.WeekNumberInMonth.HasValue)
         {
-            existingWeek.week_number = updateWeekDto.WeekNumber.Value;
-        }
-        if (updateWeekDto.DayOfWeek.HasValue)
-        {
-            existingWeek.day_of_week = updateWeekDto.DayOfWeek.Value;
+            if (existingWeek.week_number_in_month != updateWeekDto.WeekNumberInMonth.Value)
+            {
+                var existingWeeksWithSameNumber = await _unitOfWork.Weeks.SearchWeeksAsync(
+                    updateWeekDto.ScheduleId ?? existingWeek.schedule_id,
+                    updateWeekDto.WeekNumberInMonth.Value
+                );
+                if (existingWeeksWithSameNumber.Any(w => w.week_id != existingWeek.week_id))
+                {
+                    throw new ValidationException(new Dictionary<string, string[]>
+                    {
+                        { "WeekNumberInMonth", new string[] { $"Tuần số {updateWeekDto.WeekNumberInMonth} đã tồn tại trong lịch trình này." } }
+                    });
+                }
+            }
+            existingWeek.week_number_in_month = updateWeekDto.WeekNumberInMonth.Value;
         }
 
-        // 4. Cập nhật ScheduleId nếu được cung cấp và khác với giá trị hiện tại
+        if (updateWeekDto.StartDate.HasValue)
+        {
+            existingWeek.start_date = updateWeekDto.StartDate.Value;
+        }
+        if (updateWeekDto.EndDate.HasValue)
+        {
+            existingWeek.end_date = updateWeekDto.EndDate.Value;
+        }
+        if (updateWeekDto.NumActiveDays.HasValue)
+        {
+            existingWeek.num_active_days = updateWeekDto.NumActiveDays.Value;
+        }
+
         if (updateWeekDto.ScheduleId.HasValue && existingWeek.schedule_id != updateWeekDto.ScheduleId.Value)
         {
-            // Sửa GetByIDAsync -> GetByIdAsync
-            var scheduleExists = await _unitOfWork.Schedules.GetByIdAsync(updateWeekDto.ScheduleId.Value); 
+            var scheduleExists = await _unitOfWork.Schedules.GetByIdAsync(updateWeekDto.ScheduleId.Value);
             if (scheduleExists == null)
             {
-                // NÉM NotFoundException khi ScheduleId không tồn tại cho việc cập nhật
                 throw new NotFoundException("Schedule", "Id", updateWeekDto.ScheduleId.Value);
             }
             existingWeek.schedule_id = updateWeekDto.ScheduleId.Value;
@@ -183,58 +236,218 @@ public class WeekService : IWeekService
 
         try
         {
-            await _unitOfWork.Weeks.UpdateAsync(existingWeek); // Gọi UpdateAsync của GenericRepository
-            await _unitOfWork.CompleteAsync(); // Lưu thay đổi vào DB
+            await _unitOfWork.Weeks.UpdateAsync(existingWeek);
+            await _unitOfWork.CompleteAsync();
         }
-        catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
+        catch (DbUpdateException dbEx)
         {
-            // Xử lý lỗi DB tương tự như AddAsync
             throw new ApiException("An error occurred while updating the week in the database.", dbEx, (int)HttpStatusCode.InternalServerError);
+        }
+        catch (Exception ex)
+        {
+            throw new ApiException("An unexpected error occurred during week update.", ex, (int)HttpStatusCode.InternalServerError);
         }
     }
 
     public async Task<bool> DeleteAsync(int id)
     {
-        // 1. Tìm Week để xóa. NÉM NotFoundException nếu không tìm thấy
-        var existingWeek = await _unitOfWork.Weeks.GetByIdAsync(id);
+        var existingWeek = await _unitOfWork.Weeks.GetWeekByIdWithDaysAndClassSessionsAsync(id);
         if (existingWeek == null)
         {
             throw new NotFoundException("Week", "Id", id);
         }
 
-        // 2. (Optional) Thêm các ràng buộc nghiệp vụ trước khi xóa
-        // Ví dụ: Không thể xóa tuần nếu nó đã có class_sessions liên quan
-        if (existingWeek.class_sessions != null && existingWeek.class_sessions.Any())
+        if (existingWeek.days != null)
         {
-            throw new ApiException($"Không thể xóa tuần có ID {id} vì nó có các phiên học liên quan.", (int)HttpStatusCode.Conflict); // HTTP 409 Conflict
+            foreach (var day in existingWeek.days)
+            {
+                if (day.class_sessions != null && day.class_sessions.Any())
+                {
+                    throw new ApiException($"Không thể xóa tuần có ID {id} vì nó có các ngày chứa phiên học liên quan.", (int)HttpStatusCode.Conflict);
+                }
+            }
         }
-        
+
         try
         {
-            var result = await _unitOfWork.Weeks.DeleteAsync(id); // Gọi DeleteAsync của GenericRepository
-            await _unitOfWork.CompleteAsync(); // Lưu thay đổi vào DB
+            if (existingWeek.days != null && existingWeek.days.Any())
+            {
+                _unitOfWork.Days.RemoveRange(existingWeek.days); // Sử dụng RemoveRange
+            }
+            var result = await _unitOfWork.Weeks.DeleteAsync(id);
+            await _unitOfWork.CompleteAsync();
             return result;
         }
-        catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
+        catch (DbUpdateException dbEx)
         {
-            // Nếu có lỗi ràng buộc khóa ngoại từ DB, ném ApiException
-            throw new ApiException("An error occurred while deleting the week from the database. It might have related records.", dbEx, (int)HttpStatusCode.Conflict); // HTTP 409 Conflict
+            throw new ApiException("An error occurred while deleting the week from the database. It might have related records.", dbEx, (int)HttpStatusCode.Conflict);
+        }
+        catch (Exception ex)
+        {
+            throw new ApiException("An unexpected error occurred during week deletion.", ex, (int)HttpStatusCode.InternalServerError);
         }
     }
 
-    public async Task<IEnumerable<week>> SearchWeeksAsync(DateOnly? dayOfWeek, int? scheduleId)
+    public async Task<IEnumerable<WeekDto>> SearchWeeksAsync(int? scheduleId = null, int? weekNumberInMonth = null)
     {
-        return await _unitOfWork.Weeks.SearchWeeksAsync(dayOfWeek, scheduleId);
+        var weeks = await _unitOfWork.Weeks.SearchWeeksAsync(scheduleId, weekNumberInMonth);
+        return weeks.Select(MapToWeekDto);
     }
 
+    public async Task<IEnumerable<WeekDto>> GenerateWeeksForMonthAsync(int scheduleId, int year, int month)
+    {
+        _logger.LogInformation($"[WeekService] - Starting to generate weeks and days for schedule ID {scheduleId}, {month}/{year}.");
+        var generatedWeekDtos = new List<WeekDto>();
+
+        var scheduleExists = await _unitOfWork.Schedules.GetByIdAsync(scheduleId);
+        if (scheduleExists == null)
+        {
+            _logger.LogError($"[WeekService] - Schedule ID {scheduleId} not found when trying to generate weeks.");
+            throw new NotFoundException("Schedule", "Id", scheduleId);
+        }
+
+        // Kỹ thuật này hợp lý khi bạn muốn tạo lại tuần, nhưng có thể xung đột với logic EnsureFutureSchedulesInternalAsync 
+        // nếu nó được gọi lại cho một tháng đã có.
+        // Bạn đã thay đổi logic EnsureFutureSchedulesInternalAsync trong ScheduleService để chỉ gọi AddAsync nếu không tồn tại, 
+        // vậy nên việc kiểm tra này là an toàn.
+        var existingWeeksWithDays = await _unitOfWork.Weeks.GetWeeksByScheduleIdWithDaysAsync(scheduleId);
+        if (existingWeeksWithDays.Any())
+        {
+            _logger.LogWarning($"[WeekService] - Weeks and days already exist for Schedule ID {scheduleId}. Skipping generation.");
+            throw new ApiException($"Các tuần và ngày đã tồn tại cho Lịch trình ID {scheduleId}. Vui lòng xóa chúng trước nếu bạn muốn tạo lại.", (int)HttpStatusCode.Conflict);
+        }
+
+        var firstDayOfMonth = new DateOnly(year, month, 1);
+        var lastDayOfMonth = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
+        
+        var currentWeekStartDate = firstDayOfMonth; 
+        int weekCounter = 1;
+
+        List<week> weeksToProcess = new List<week>();
+        
+        while (currentWeekStartDate <= lastDayOfMonth)
+        {
+            var weekEndDate = currentWeekStartDate.AddDays(6); 
+            if (weekEndDate > lastDayOfMonth)
+            {
+                weekEndDate = lastDayOfMonth;
+            }
+
+            var newWeek = new week
+            {
+                schedule_id = scheduleId,
+                week_number_in_month = weekCounter,
+                start_date = currentWeekStartDate,
+                end_date = weekEndDate,
+                num_active_days = 0 
+            };
+
+            weeksToProcess.Add(newWeek);
+            
+            currentWeekStartDate = weekEndDate.AddDays(1);
+            weekCounter++; 
+        }
+        
+        // ======================================================================================
+        // BƯỚC SỬA ĐỔI QUAN TRỌNG NHẤT: LƯU WEEKS TRƯỚC ĐỂ CÓ week_id THỰC TẾ
+        // ======================================================================================
+        if (weeksToProcess.Any())
+        {
+            await _unitOfWork.Weeks.AddRangeAsync(weeksToProcess);
+            try
+            {
+                // LƯU CÁC WEEKS VÀO DATABASE NGAY LẬP TỨC.
+                // Sau khi CompleteAsync(), các đối tượng 'week' trong 'weeksToProcess' 
+                // sẽ có 'week_id' được gán từ database.
+                await _unitOfWork.CompleteAsync(); 
+                _logger.LogInformation($"[WeekService] - Successfully saved {weeksToProcess.Count} weeks for schedule ID {scheduleId}.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"[WeekService] - Error saving weeks for schedule ID {scheduleId}. Aborting day generation.");
+                throw new ApiException("Có lỗi xảy ra khi lưu các tuần. Không thể tạo các ngày.", ex, (int)HttpStatusCode.InternalServerError);
+            }
+        }
+        else
+        {
+            _logger.LogInformation($"[WeekService] - No weeks to generate for schedule ID {scheduleId}.");
+            return generatedWeekDtos; // Trả về danh sách rỗng nếu không có tuần nào được tạo
+        }
+
+        // 2. Tạo và thêm Days cho mỗi Week sau khi week_id đã được gán
+        List<day> allGeneratedDays = new List<day>();
+        // Duyệt qua các week đã được lưu (có week_id)
+        foreach (var week in weeksToProcess) 
+        {
+            // Bây giờ week.week_id đã có giá trị hợp lệ
+            var daysToAdd = GenerateDaysForWeekInternal(week, week.start_date, week.end_date).ToList();
+            allGeneratedDays.AddRange(daysToAdd);
+            week.num_active_days = daysToAdd.Count(); // Cập nhật số ngày hoạt động
+            _logger.LogInformation($"[WeekService] - Generated {daysToAdd.Count} days for week ID {week.week_id} (WeekNum: {week.week_number_in_month}).");
+        }
+        
+        // Thêm tất cả days vào context
+        await _unitOfWork.Days.AddRangeAsync(allGeneratedDays);
+
+        // KHÔNG GỌI CompleteAsync() ở đây. ScheduleService sẽ gọi nó.
+        _logger.LogInformation($"[WeekService] - Added all generated days to context for schedule ID {scheduleId}.");
+
+        // Cập nhật lại các thuộc tính của Week nếu có thay đổi (ví dụ: num_active_days)
+        // Các week trong weeksToProcess đã được theo dõi và các thay đổi sẽ được lưu khi ScheduleService gọi CompleteAsync()
+        
+        // Trả về DTO sau khi các thực thể đã được thêm vào context
+        // Để làm điều này, chúng ta cần lấy lại các Week với Days đã được tải
+        var finalWeeks = await _unitOfWork.Weeks.GetWeeksByScheduleIdWithDaysAsync(scheduleId);
+        _logger.LogInformation($"[WeekService] - Finished generating weeks and days for schedule ID {scheduleId}.");
+        return finalWeeks.Select(MapToWeekDto);
+    }
+
+
+    // ====================================================================================
+    // HÀM MỚI: TẠO CÁC NGÀY CHO MỘT TUẦN CỤ THỂ (INTERNAL)
+    // Đã điều chỉnh để nhận đối tượng `week` cha để thiết lập mối quan hệ
+    // ====================================================================================
+    private IEnumerable<day> GenerateDaysForWeekInternal(week parentWeek, DateOnly startDate, DateOnly endDate)
+    {
+        var generatedDays = new List<day>();
+        DateOnly currentDay = startDate;
+
+        while (currentDay <= endDate)
+        {
+            var newDay = new day
+            {
+                week = parentWeek, // Gán trực tiếp đối tượng tuần cha
+                date_of_day = currentDay,
+                day_of_week_name = currentDay.DayOfWeek.ToString(),
+                is_active = true 
+            };
+            generatedDays.Add(newDay);
+            currentDay = currentDay.AddDays(1);
+        }
+        return generatedDays;
+    }
+
+    // ====================================================================================
+    // HÀM MAP DTO: Giữ nguyên logic map days như trong code gốc của bạn
+    // ====================================================================================
     private WeekDto MapToWeekDto(week model)
     {
         return new WeekDto
         {
             WeekId = model.week_id,
-            WeekNumber = model.week_number,
-            DayOfWeek = model.day_of_week,
-            ScheduleId = model.schedule_id
+            WeekNumberInMonth = model.week_number_in_month,
+            ScheduleId = model.schedule_id,
+            StartDate = model.start_date,
+            EndDate = model.end_date,
+            NumActiveDays = model.num_active_days,
+            Days = model.days?.Select(d => new DayDto
+            {
+                DayId = d.day_id,
+                WeekId = d.week_id,
+                DateOfDay = d.date_of_day,
+                DayOfWeekName = d.day_of_week_name,
+                IsActive = d.is_active
+            }).ToList() ?? new List<DayDto>()
         };
     }
 }

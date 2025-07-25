@@ -10,6 +10,8 @@ using Repository.Data;
 using Repository.Models;
 using Services.Exceptions;
 using Services.IServices;
+using System.Net; // Thêm namespace này cho HttpStatusCode
+using Microsoft.AspNetCore.Authorization; // Thêm cho Authorize
 
 namespace Web_API.Controllers
 {
@@ -22,38 +24,55 @@ namespace Web_API.Controllers
         public ClassController(IClassService classService) => _classService = classService;
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<ClassDto>>> GetAllAsync() // Trả về DTOs
+        [ProducesResponseType(typeof(IEnumerable<ClassDto>), (int)HttpStatusCode.OK)]
+        // [Authorize(Roles = "1,2,3")] // Example: Admin, Manager, Teacher can view classes
+        public async Task<ActionResult<IEnumerable<ClassDto>>> GetAllAsync()
         {
             var classes = await _classService.GetAllAsync();
             return Ok(classes);
         }
 
         [HttpGet("{id}")]
-        public async Task<ActionResult<ClassDto>> GetById(int id) // Trả về DTO
+        [ProducesResponseType(typeof(ClassDto), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        // [Authorize(Roles = "1,2,3")] // Example: Admin, Manager, Teacher can view a class by ID
+        public async Task<ActionResult<ClassDto>> GetById(int id)
         {
-            // Service sẽ ném NotFoundException nếu không tìm thấy
             var cls = await _classService.GetByIdAsync(id);
-            return Ok(cls); // Service đã trả về DTO
+            return Ok(cls);
         }
 
-        [HttpGet("search_by_instrument_id_or_class_code")] // Đổi tên đường dẫn cho rõ ràng hơn
-        public async Task<ActionResult<IEnumerable<ClassDto>>> SearchAsync( // Trả về DTOs
+        [HttpGet("search_by_instrument_id_or_class_code")]
+        [ProducesResponseType(typeof(IEnumerable<ClassDto>), (int)HttpStatusCode.OK)]
+        // [Authorize(Roles = "1,2,3")] // Example: Admin, Manager, Teacher can search classes
+        public async Task<ActionResult<IEnumerable<ClassDto>>> SearchAsync(
             [FromQuery] int? instrumentId = null,
             [FromQuery] string? classCode = null)
         {
             var classes = await _classService.SearchClassesAsync(instrumentId, classCode);
-            return Ok(classes); // Service đã trả về DTOs
+            return Ok(classes);
         }
 
         [HttpPost]
+        [ProducesResponseType(typeof(ClassDto), (int)HttpStatusCode.Created)]
+        [ProducesResponseType((int)HttpStatusCode.BadRequest)] // For validation errors
+        [ProducesResponseType((int)HttpStatusCode.NotFound)] // For invalid InstrumentId
+        [ProducesResponseType((int)HttpStatusCode.Conflict)] // For duplicate ClassCode
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        // [Authorize(Roles = "1,2")] // Example: Only Admin, Manager can create classes
         public async Task<ActionResult<ClassDto>> Add([FromBody] CreateClassDto createClassDto)
         {
-            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ValidationException/ApiException nếu có lỗi.
             var newClass = await _classService.AddAsync(createClassDto);
             return CreatedAtAction(nameof(GetById), new { id = newClass.ClassId }, newClass);
         }
 
         [HttpPut("{id}")]
+        [ProducesResponseType((int)HttpStatusCode.NoContent)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        [ProducesResponseType((int)HttpStatusCode.BadRequest)] // For ID mismatch or validation errors
+        [ProducesResponseType((int)HttpStatusCode.Conflict)] // For duplicate ClassCode after update
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        // [Authorize(Roles = "1,2")] // Example: Only Admin, Manager can update classes
         public async Task<IActionResult> Update(int id, [FromBody] UpdateClassDto updateClassDto)
         {
             if (id != updateClassDto.ClassId)
@@ -64,42 +83,49 @@ namespace Web_API.Controllers
                 });
             }
 
-            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ValidationException/ApiException nếu có lỗi.
             await _classService.UpdateAsync(updateClassDto);
-            return NoContent(); // 204 No Content cho cập nhật thành công
+            return NoContent();
         }
 
-        [HttpDelete("{id}")] // Xóa theo ID từ URL
-        public async Task<IActionResult> DeleteAsync(int id) // Trả về IActionResult
+        [HttpDelete("{id}")]
+        [ProducesResponseType((int)HttpStatusCode.NoContent)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        [ProducesResponseType((int)HttpStatusCode.Conflict)] // If related sessions or users exist
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        // [Authorize(Roles = "1,2")] // Example: Only Admin, Manager can delete classes
+        public async Task<IActionResult> DeleteAsync(int id)
         {
-            // Không có try-catch ở đây. Service sẽ ném NotFoundException/ApiException nếu có lỗi.
             await _classService.DeleteAsync(id);
             return NoContent();
         }
         
-        // THÊM ENDPOINT MỚI NÀY
         [HttpGet("{id}/with-users")]
-        //[Authorize(Roles = "1,2")] // Cho phép các role có quyền xem thông tin lớp học với danh sách người dùng
+        [ProducesResponseType(typeof(ClassDto), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        // [Authorize(Roles = "1,2")] // Allow roles with permission to view class info with user list
         public async Task<ActionResult<ClassDto>> GetClassWithUsers(int id)
         {
             var cls = await _classService.GetClassWithUsersByIdAsync(id);
             return Ok(cls);
         }
         
-        
-        // Endpoint để lấy danh sách tất cả học viên và giáo viên có sẵn
         [HttpGet("available-users")]
-        //[Authorize(Roles = "1,2")] // Ví dụ: chỉ role 1 (Admin) và 2 (quản lý) có thể xem
+        [ProducesResponseType(typeof(IEnumerable<UserDto>), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)] // If Student or Teacher roles are not found
+        // [Authorize(Roles = "1,2")] // Example: only role 1 (Admin) and 2 (Manager) can view
         public async Task<ActionResult<IEnumerable<UserDto>>> GetAvailableStudentsAndTeachers()
         {
             var users = await _classService.GetAvailableStudentsAndTeachersAsync();
             return Ok(users);
         }
 
-        // Endpoint để gán (thay thế) danh sách học viên/giáo viên cho một lớp
-        // Điều này sẽ XÓA TẤT CẢ người dùng hiện có trong lớp và gán danh sách mới.
         [HttpPut("{classId}/users")]
-        //[Authorize(Roles = "1")] // Ví dụ: chỉ role 1 (Admin) có thể gán người dùng
+        [ProducesResponseType((int)HttpStatusCode.NoContent)]
+        [ProducesResponseType((int)HttpStatusCode.BadRequest)] // For ID mismatch or validation errors
+        [ProducesResponseType((int)HttpStatusCode.NotFound)] // For invalid ClassId or UserIds
+        [ProducesResponseType((int)HttpStatusCode.PreconditionFailed)] // If required roles are not found
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        // [Authorize(Roles = "1")] // Example: only role 1 (Admin) can assign users
         public async Task<IActionResult> AssignUsersToClass(int classId, [FromBody] ManageClassUsersDto dto)
         {
             if (classId != dto.ClassId)
@@ -110,13 +136,16 @@ namespace Web_API.Controllers
                 });
             }
             await _classService.AssignUsersToClassAsync(classId, dto.UserIds);
-            return NoContent(); // 204 No Content
+            return NoContent();
         }
 
-        // Endpoint để thêm người dùng vào một lớp hiện có
-        // Điều này sẽ THÊM người dùng vào danh sách hiện có, không xóa.
         [HttpPost("{classId}/users/add")]
-        //[Authorize(Roles = "1")]
+        [ProducesResponseType((int)HttpStatusCode.NoContent)]
+        [ProducesResponseType((int)HttpStatusCode.BadRequest)] // For ID mismatch or validation errors
+        [ProducesResponseType((int)HttpStatusCode.NotFound)] // For invalid ClassId or UserIds
+        [ProducesResponseType((int)HttpStatusCode.PreconditionFailed)] // If required roles are not found
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        // [Authorize(Roles = "1")]
         public async Task<IActionResult> AddUsersToClass(int classId, [FromBody] ManageClassUsersDto dto)
         {
             if (classId != dto.ClassId)
@@ -130,9 +159,12 @@ namespace Web_API.Controllers
             return NoContent();
         }
 
-        // Endpoint để xóa người dùng khỏi một lớp hiện có
         [HttpDelete("{classId}/users/remove")]
-        //[Authorize(Roles = "1")]
+        [ProducesResponseType((int)HttpStatusCode.NoContent)]
+        [ProducesResponseType((int)HttpStatusCode.BadRequest)] // For ID mismatch or validation errors
+        [ProducesResponseType((int)HttpStatusCode.NotFound)] // For invalid ClassId
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        // [Authorize(Roles = "1")]
         public async Task<IActionResult> RemoveUsersFromClass(int classId, [FromBody] ManageClassUsersDto dto)
         {
             if (classId != dto.ClassId)
@@ -146,5 +178,51 @@ namespace Web_API.Controllers
             return NoContent();
         }
 
+        [HttpGet("{classId}/student-capacity")]
+        [ProducesResponseType(typeof(object), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        public async Task<ActionResult> GetStudentCapacityInfo(int classId)
+        {
+            var cls = await _classService.GetByIdAsync(classId);
+            
+            var capacityInfo = new
+            {
+                ClassId = cls.ClassId,
+                ClassCode = cls.ClassCode,
+                TotalStudents = cls.TotalStudents,
+                CurrentStudentsCount = cls.CurrentStudentsCount,
+                AvailableSlots = cls.TotalStudents > 0 ? cls.TotalStudents - cls.CurrentStudentsCount : int.MaxValue,
+                IsAtCapacity = cls.TotalStudents > 0 && cls.CurrentStudentsCount >= cls.TotalStudents,
+                CanAddStudents = cls.TotalStudents == 0 || cls.CurrentStudentsCount < cls.TotalStudents
+            };
+
+            return Ok(capacityInfo);
+        }
+
+        [HttpPost("{classId}/check-can-add-students")]
+        [ProducesResponseType(typeof(object), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+        public async Task<ActionResult> CheckCanAddStudents(int classId, [FromBody] List<int> studentIds)
+        {
+            var cls = await _classService.GetByIdAsync(classId);
+            
+            var result = new
+            {
+                ClassId = cls.ClassId,
+                ClassCode = cls.ClassCode,
+                TotalStudents = cls.TotalStudents,
+                CurrentStudentsCount = cls.CurrentStudentsCount,
+                StudentsToAdd = studentIds.Count,
+                CanAdd = cls.TotalStudents == 0 || (cls.CurrentStudentsCount + studentIds.Count) <= cls.TotalStudents,
+                Message = cls.TotalStudents == 0 
+                    ? "Lớp không có giới hạn số học sinh" 
+                    : (cls.CurrentStudentsCount + studentIds.Count) <= cls.TotalStudents
+                        ? $"Có thể thêm {studentIds.Count} học sinh"
+                        : $"Không thể thêm {studentIds.Count} học sinh. Chỉ có thể thêm tối đa {cls.TotalStudents - cls.CurrentStudentsCount} học sinh nữa."
+            };
+
+            return Ok(result);
+        }
     }
 }

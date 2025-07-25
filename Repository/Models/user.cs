@@ -29,10 +29,6 @@ public partial class user
 
     public int? statistic_id { get; set; }
 
-    public int? opening_schedule_id { get; set; }
-
-    public int? schedule_id { get; set; }
-
     public string? email { get; set; }
 
     public int gender_id { get; set; }
@@ -43,13 +39,9 @@ public partial class user
 
     public virtual gender gender { get; set; } = null!;
 
-    public virtual opening_schedule? opening_schedule { get; set; }
-
     public virtual ICollection<opening_schedule> opening_schedules { get; set; } = new List<opening_schedule>();
 
     public virtual role? role { get; set; }
-
-    public virtual schedule? schedule { get; set; }
 
     public virtual statistic? statistic { get; set; }
 

@@ -7,8 +7,11 @@ public interface IGenericRepository<T> where T : class
     // "Host=localhost;Port=5432;Database=innovus_db;Username=postgres;Password=12345"
     
     Task<T> AddAsync(T entity);
+    Task AddRangeAsync(IEnumerable<T> entities);
     Task UpdateAsync(T entity);
     Task<bool> DeleteAsync(int id);
+    void Remove(T entity);
+    void RemoveRange(IEnumerable<T> entities); // Đã thêm
     Task<IEnumerable<T>> GetAllAsync();
     Task<T?> GetByIdAsync(int id);
 
