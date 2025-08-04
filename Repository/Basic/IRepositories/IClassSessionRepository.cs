@@ -1,4 +1,5 @@
 using Repository.Models;
+using System.Linq.Expressions;
 
 namespace Repository.Basic.IRepositories;
 
@@ -28,4 +29,6 @@ public interface IClassSessionRepository: IGenericRepository<class_session>
         int? dayId = null,
         int? timeSlotId = null
     );
+
+    Task<IEnumerable<class_session>> FindAllAsync(Expression<Func<class_session, bool>> predicate);
 }

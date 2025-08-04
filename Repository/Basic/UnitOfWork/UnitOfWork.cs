@@ -33,6 +33,7 @@ public class UnitOfWork: IUnitOfWork
     public IDayRepository Days { get; }
     public IRoomRepository Rooms { get; }
     public IDayOfWeekLookupRepository DayOfWeekLookups { get; }
+    public IAttendanceStatusRepository AttendanceStatuses { get; }
 
     public UnitOfWork(AppDbContext context)
     {
@@ -60,6 +61,7 @@ public class UnitOfWork: IUnitOfWork
         Days = new DayRepository(_context);
         Rooms = new RoomRepository(_context);
         DayOfWeekLookups = new DayOfWeekLookupRepository(_context);
+        AttendanceStatuses = new AttendanceStatusRepository(_context);
     }
 
 

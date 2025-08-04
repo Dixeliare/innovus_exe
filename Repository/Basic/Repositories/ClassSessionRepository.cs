@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Repository.Basic.IRepositories;
 using Repository.Data;
 using Repository.Models;
+using System.Linq.Expressions;
 
 namespace Repository.Basic.Repositories;
 
@@ -180,5 +181,10 @@ public class ClassSessionRepository : GenericRepository<class_session>, IClassSe
         }
 
         return await query.ToListAsync();
+    }
+
+    public async Task<IEnumerable<class_session>> FindAllAsync(Expression<Func<class_session, bool>> predicate)
+    {
+        return await _dbSet.Where(predicate).ToListAsync();
     }
 }

@@ -29,6 +29,7 @@ public interface IUnitOfWork: IDisposable
     IDayRepository Days { get; }
     IRoomRepository Rooms { get; }
     IDayOfWeekLookupRepository DayOfWeekLookups { get; }
+    IAttendanceStatusRepository AttendanceStatuses { get; }
     
     Task<int> CompleteAsync();
 }

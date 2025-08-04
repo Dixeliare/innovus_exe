@@ -91,4 +91,21 @@ public class WeekRepository : GenericRepository<week>, IWeekRepository
     public async Task<IEnumerable<week>> GetWeeksByScheduleIdAsync(int scheduleId)
     {
         return await _dbSet.Where(w => w.schedule_id == scheduleId).ToListAsync();
-    }}
+    }
+
+    public async Task<IEnumerable<week>> GetAllWithDetailsAsync()
+    {
+        return await _dbSet
+            .Include(w => w.schedule)
+            .Include(w => w.days)
+                .ThenInclude(d => d.class_sessions)
+                    .ThenInclude(cs => cs.room)
+            .Include(w => w.days)
+                .ThenInclude(d => d.class_sessions)
+                    .ThenInclude(cs => cs._class)
+            .Include(w => w.days)
+                .ThenInclude(d => d.class_sessions)
+                    .ThenInclude(cs => cs.time_slot)
+            .ToListAsync();
+    }
+}

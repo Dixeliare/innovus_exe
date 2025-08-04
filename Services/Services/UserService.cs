@@ -17,13 +17,15 @@ public class UserService : IUserService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IFileStorageService _fileStorageService;
     private readonly IClassService _classService;
+    private readonly IStatisticService _statisticService;
     private readonly ILogger<UserService> _logger; // Thêm logger
 
-    public UserService(IUnitOfWork unitOfWork, IFileStorageService fileStorageService, IClassService classService, ILogger<UserService> logger)
+    public UserService(IUnitOfWork unitOfWork, IFileStorageService fileStorageService, IClassService classService, IStatisticService statisticService, ILogger<UserService> logger)
     {
         _unitOfWork = unitOfWork;
         _fileStorageService = fileStorageService;
         _classService = classService;
+        _statisticService = statisticService;
         _logger = logger; // Khởi tạo logger
     }
 
@@ -308,6 +310,9 @@ public class UserService : IUserService
             throw new ApiException("An unexpected error occurred during user update.", ex,
                 (int)HttpStatusCode.InternalServerError);
         }
+        
+        // Cập nhật thống kê khi cập nhật user
+        await _statisticService.UpdateStatisticsOnUserChangeAsync();
     }
 
     public async Task DeleteAsync(int id)
@@ -347,6 +352,9 @@ public class UserService : IUserService
             throw new ApiException("An unexpected error occurred during user deletion.", ex,
                 (int)HttpStatusCode.InternalServerError);
         }
+        
+        // Cập nhật thống kê khi xóa user
+        await _statisticService.UpdateStatisticsOnUserChangeAsync();
     }
 
     public async Task<IEnumerable<UserDto>> SearchUsersAsync(string? username = null, string? accountName = null,
@@ -549,6 +557,9 @@ public class UserService : IUserService
             {
                  await _unitOfWork.Context.Entry(addedUserWithDetails).Reference(u => u.gender).LoadAsync();
             }
+
+            // Cập nhật thống kê khi thêm user mới
+            await _statisticService.UpdateStatisticsOnUserChangeAsync();
 
             return MapToUserDto(addedUserWithDetails ?? addedUser);
         }

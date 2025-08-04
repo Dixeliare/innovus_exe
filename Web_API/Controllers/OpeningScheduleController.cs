@@ -86,5 +86,28 @@ namespace Web_API.Controllers
             await _openingScheduleService.DeleteAsync(id);
             return NoContent();
         }
+
+        // POST: api/OpeningSchedules/cleanup-orphan-data
+        // Endpoint để cleanup dữ liệu orphan thủ công
+        [HttpPost("cleanup-orphan-data")]
+        public async Task<IActionResult> CleanupOrphanData([FromBody] CleanupOrphanDataRequest request)
+        {
+            try
+            {
+                await _openingScheduleService.CleanupOrphanDataAsync(request.ClassCode, request.OpeningScheduleId);
+                return Ok(new { message = "Cleanup orphan data completed successfully!" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = "Có lỗi xảy ra khi cleanup orphan data", error = ex.Message });
+            }
+        }
+    }
+
+    // Request model cho cleanup
+    public class CleanupOrphanDataRequest
+    {
+        public string ClassCode { get; set; } = string.Empty;
+        public int? OpeningScheduleId { get; set; }
     }
 }

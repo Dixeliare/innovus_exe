@@ -17,7 +17,8 @@ public class DayService : IDayService
 
     public async Task<IEnumerable<DayDto>> GetAllDaysAsync()
     {
-        var days = await _unitOfWork.Days.GetAllAsync();
+        // Sử dụng GetAllWithClassSessionsAsync để lấy tất cả days với include navigation properties
+        var days = await _unitOfWork.Days.GetAllWithClassSessionsAsync();
         var dayDtos = new List<DayDto>();
         foreach (var day in days)
         {
@@ -209,6 +210,8 @@ public class DayService : IDayService
                     .Select(cs => new BaseClassSessionDto
                     {
                         ClassSessionId = cs.class_session_id,
+                        SessionNumber = cs.session_number,
+                        Date = cs.date,
                         ClassId = cs.class_id,
                         DayId = cs.day_id,
                         TimeSlotId = cs.time_slot_id,

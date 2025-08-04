@@ -68,6 +68,8 @@ public partial class AppDbContext : DbContext
 
             entity.HasIndex(e => e.class_code, "class_class_code_key").IsUnique();
 
+            entity.HasIndex(e => e.instrument_id, "idx_class_instrument");
+
             entity.Property(e => e.class_code).HasMaxLength(255);
             entity.Property(e => e.current_students_count).HasDefaultValue(0);
             entity.Property(e => e.total_students).HasDefaultValue(0);
@@ -391,8 +393,18 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.monthly_revenue)
                 .HasPrecision(10, 2)
                 .HasDefaultValueSql("0.00");
-            entity.Property(e => e.new_students).HasDefaultValue(0);
-            entity.Property(e => e.total_students).HasDefaultValue(0);
+            entity.Property(e => e.new_students)
+                .HasDefaultValue(0)
+                .HasComment("Số học sinh mới trong tháng hiện tại");
+            entity.Property(e => e.total_guitar_class)
+                .HasDefaultValue(0)
+                .HasComment("Tổng số lớp guitar");
+            entity.Property(e => e.total_piano_class)
+                .HasDefaultValue(0)
+                .HasComment("Tổng số lớp piano");
+            entity.Property(e => e.total_students)
+                .HasDefaultValue(0)
+                .HasComment("Tổng số học sinh (role student, không bị disable)");
         });
 
         modelBuilder.Entity<timeslot>(entity =>
@@ -409,6 +421,10 @@ public partial class AppDbContext : DbContext
             entity.HasKey(e => e.user_id).HasName("user_pkey");
 
             entity.ToTable("user");
+
+            entity.HasIndex(e => e.create_at, "idx_user_create_at");
+
+            entity.HasIndex(e => new { e.role_id, e.is_disabled }, "idx_user_role_disabled");
 
             entity.HasIndex(e => e.email, "user_email_key").IsUnique();
 

@@ -223,6 +223,91 @@ public class AttendanceService : IAttendanceService
         return attendances.Select(MapToAttendanceDto);
     }
     
+    public async Task BulkUpdateAsync(BulkUpdateAttendanceDto bulkUpdateDto)
+    {
+        // Kiểm tra class session tồn tại
+        var classSessionExists = await _unitOfWork.ClassSessions.GetByIdAsync(bulkUpdateDto.ClassSessionId);
+        if (classSessionExists == null)
+        {
+            throw new NotFoundException("ClassSession", "Id", bulkUpdateDto.ClassSessionId);
+        }
+
+        var attendancesToUpdate = new List<attendance>();
+
+        foreach (var attendanceItem in bulkUpdateDto.Attendances)
+        {
+            // Kiểm tra user tồn tại
+            var userExists = await _unitOfWork.Users.GetByIdAsync(attendanceItem.UserId);
+            if (userExists == null)
+            {
+                throw new NotFoundException("User", "Id", attendanceItem.UserId);
+            }
+
+            // Kiểm tra status tồn tại
+            var statusExists = await _unitOfWork.AttendanceStatuses.GetByIdAsync(attendanceItem.Status);
+            if (statusExists == null)
+            {
+                throw new NotFoundException("AttendanceStatus", "Id", attendanceItem.Status);
+            }
+
+            // Tìm attendance hiện tại hoặc tạo mới (dùng SearchAttendancesWithDetailsAsync để lấy entity)
+            var attendances = await _unitOfWork.Attendances.SearchAttendancesWithDetailsAsync(
+                userId: attendanceItem.UserId,
+                classSessionId: bulkUpdateDto.ClassSessionId
+            );
+            var existingAttendance = attendances.FirstOrDefault();
+
+            if (existingAttendance != null)
+            {
+                // Cập nhật attendance hiện tại
+                existingAttendance.status_id = attendanceItem.Status;
+                existingAttendance.note = attendanceItem.Note;
+                existingAttendance.check_at = DateTime.Now;
+                attendancesToUpdate.Add(existingAttendance);
+            }
+            else
+            {
+                // Tạo attendance mới
+                var newAttendance = new attendance
+                {
+                    status_id = attendanceItem.Status,
+                    check_at = DateTime.Now,
+                    note = attendanceItem.Note,
+                    user_id = attendanceItem.UserId,
+                    class_session_id = bulkUpdateDto.ClassSessionId
+                };
+                attendancesToUpdate.Add(newAttendance);
+            }
+        }
+
+        try
+        {
+            // Lưu tất cả thay đổi
+            foreach (var attendance in attendancesToUpdate)
+            {
+                if (attendance.attendance_id == 0)
+                {
+                    // Thêm mới
+                    await _unitOfWork.Attendances.AddAsync(attendance);
+                }
+                else
+                {
+                    // Cập nhật
+                    await _unitOfWork.Attendances.UpdateAsync(attendance);
+                }
+            }
+            await _unitOfWork.CompleteAsync();
+        }
+        catch (DbUpdateException dbEx)
+        {
+            throw new ApiException("Có lỗi xảy ra khi cập nhật điểm danh hàng loạt.", dbEx, (int)HttpStatusCode.InternalServerError);
+        }
+        catch (Exception ex)
+        {
+            throw new ApiException("An unexpected error occurred while bulk updating attendance.", ex, (int)HttpStatusCode.InternalServerError);
+        }
+    }
+    
     private AttendanceDto MapToAttendanceDto(attendance att)
     {
         return new AttendanceDto
@@ -234,6 +319,7 @@ public class AttendanceService : IAttendanceService
             Note = att.note,
             UserId = att.user_id,
             ClassSessionId = att.class_session_id,
+            ClassCode = att.class_session?._class?.class_code ?? "",
             
             User = att.user != null
                 ? new UserDto
@@ -250,22 +336,22 @@ public class AttendanceService : IAttendanceService
                 {
                     ClassSessionId = att.class_session.class_session_id,
                     SessionNumber = att.class_session.session_number,
-                    Date = att.class_session.date, // ĐÃ SỬA: DateOnly?
-                    RoomCode = att.class_session.room?.room_code, // ĐÃ SỬA: Truy cập qua navigation property 'room'
+                    Date = att.class_session.date,
+                    RoomCode = null, // Không include room
                     DayId = att.class_session.day_id,
                     ClassId = att.class_session.class_id,
                     TimeSlotId = att.class_session.time_slot_id,
 
-                    DayOfWeekName = att.class_session.day?.day_of_week_name,
-                    DateOfDay = att.class_session.day?.date_of_day, // ĐÃ SỬA: DateOnly?
+                    DayOfWeekName = null, // Không include day
+                    DateOfDay = null, // Không include day
 
-                    WeekNumberInMonth = att.class_session.day?.week?.week_number_in_month,
+                    WeekNumberInMonth = null, // Không include day.week
 
-                    ClassCode = att.class_session._class?.class_code,
-                    InstrumentName = att.class_session._class?.instrument?.instrument_name,
+                    ClassCode = null, // Không include _class
+                    InstrumentName = null, // Không include _class.instrument
 
-                    StartTime = att.class_session.time_slot?.start_time.ToTimeSpan(),
-                    EndTime = att.class_session.time_slot?.end_time.ToTimeSpan()
+                    StartTime = null, // Không include time_slot
+                    EndTime = null // Không include time_slot
                 }
                 : null
         };

@@ -14,6 +14,12 @@ public class OpeningScheduleDto
     public InstrumentDto? Instrument { get; set; }
     public int TotalSessions { get; set; }
     public List<int>? SelectedDayOfWeekIds { get; set; }
+    
+    // Thêm thông tin room và timeslot
+    public int? DefaultRoomId { get; set; }
+    public RoomDto? DefaultRoom { get; set; }
+    public List<int>? TimeSlotIds { get; set; }
+    public List<TimeslotDto>? TimeSlots { get; set; }
 }
 
 // DTO dùng làm input khi tạo mới Lịch khai giảng (POST request body)

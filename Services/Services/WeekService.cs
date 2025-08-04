@@ -24,7 +24,7 @@ public class WeekService : IWeekService
 
     public async Task<IEnumerable<WeekDto>> GetAllAsync()
     {
-        var weeks = await _unitOfWork.Weeks.GetAllWeeksWithDaysAsync();
+        var weeks = await _unitOfWork.Weeks.GetAllWithDetailsAsync();
         return weeks.Select(MapToWeekDto);
     }
 
@@ -440,13 +440,38 @@ public class WeekService : IWeekService
             StartDate = model.start_date,
             EndDate = model.end_date,
             NumActiveDays = model.num_active_days,
+            Schedule = model.schedule != null ? new ScheduleDto
+            {
+                ScheduleId = model.schedule.schedule_id,
+                MonthYear = model.schedule.month_year,
+                Note = model.schedule.note
+            } : null,
             Days = model.days?.Select(d => new DayDto
             {
                 DayId = d.day_id,
                 WeekId = d.week_id,
                 DateOfDay = d.date_of_day,
                 DayOfWeekName = d.day_of_week_name,
-                IsActive = d.is_active
+                IsActive = d.is_active,
+                Week = d.week != null ? new WeekDto
+                {
+                    WeekId = d.week.week_id,
+                    WeekNumberInMonth = d.week.week_number_in_month,
+                    ScheduleId = d.week.schedule_id,
+                    StartDate = d.week.start_date,
+                    EndDate = d.week.end_date,
+                    NumActiveDays = d.week.num_active_days
+                } : null,
+                ClassSessions = d.class_sessions?.Select(cs => new BaseClassSessionDto
+                {
+                    ClassSessionId = cs.class_session_id,
+                    SessionNumber = cs.session_number,
+                    Date = cs.date,
+                    ClassId = cs.class_id,
+                    DayId = cs.day_id,
+                    TimeSlotId = cs.time_slot_id,
+                    RoomCode = cs.room?.room_code
+                }).ToList() ?? new List<BaseClassSessionDto>()
             }).ToList() ?? new List<DayDto>()
         };
     }

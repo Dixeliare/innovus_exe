@@ -37,7 +37,9 @@ public class StatisticService : IStatisticService
             MonthlyRevenue = model.monthly_revenue,
             ConsultationCount = model.consultation_count,
             TotalStudents = model.total_students,
-            ConsultationRequestCount = model.consultation_request_count
+            ConsultationRequestCount = model.consultation_request_count,
+            TotalGuitarClass = model.total_guitar_class,
+            TotalPianoClass = model.total_piano_class
         };
     }
 
@@ -69,7 +71,9 @@ public class StatisticService : IStatisticService
             monthly_revenue = createStatisticDto.MonthlyRevenue ?? 0m,
             consultation_count = createStatisticDto.ConsultationCount ?? 0,
             total_students = createStatisticDto.TotalStudents ?? 0,
-            consultation_request_count = createStatisticDto.ConsultationRequestCount ?? 0
+            consultation_request_count = createStatisticDto.ConsultationRequestCount ?? 0,
+            total_guitar_class = createStatisticDto.TotalGuitarClass ?? 0,
+            total_piano_class = createStatisticDto.TotalPianoClass ?? 0
         };
 
         try
@@ -87,6 +91,125 @@ public class StatisticService : IStatisticService
             throw new ApiException("An unexpected error occurred while adding the statistic.", ex, (int)HttpStatusCode.InternalServerError);
         }
     }
+    
+    // Method để cập nhật thống kê khi có thay đổi user
+    public async Task UpdateStatisticsOnUserChangeAsync()
+    {
+        try
+        {
+            var currentStatistic = await _unitOfWork.Statistics.FindOneAsync(s => s.date == DateOnly.FromDateTime(DateTime.Today));
+            if (currentStatistic == null) return;
+            
+            // Cập nhật total_students và new_students
+            var allUsers = await _unitOfWork.Users.GetAllAsync();
+            var totalStudents = allUsers.Count(u => 
+                u.role?.role_name?.ToLower().Contains("student") == true && 
+                !u.is_disabled.GetValueOrDefault());
+            currentStatistic.total_students = totalStudents;
+            
+            var currentMonth = DateTime.Today.Month;
+            var currentYear = DateTime.Today.Year;
+            var newStudents = allUsers.Count(u => 
+                u.role?.role_name?.ToLower().Contains("student") == true && 
+                !u.is_disabled.GetValueOrDefault() &&
+                u.create_at.HasValue &&
+                u.create_at.Value.Month == currentMonth &&
+                u.create_at.Value.Year == currentYear);
+            currentStatistic.new_students = newStudents;
+            
+            await _unitOfWork.CompleteAsync();
+        }
+        catch (Exception ex)
+        {
+            throw new ApiException("Có lỗi xảy ra khi cập nhật thống kê user.", ex, (int)HttpStatusCode.InternalServerError);
+        }
+    }
+    
+    // Method để cập nhật thống kê khi có thay đổi class
+    public async Task UpdateStatisticsOnClassChangeAsync()
+    {
+        try
+        {
+            var currentStatistic = await _unitOfWork.Statistics.FindOneAsync(s => s.date == DateOnly.FromDateTime(DateTime.Today));
+            if (currentStatistic == null) return;
+            
+            // Cập nhật total_guitar_class và total_piano_class
+            var allClasses = await _unitOfWork.Classes.GetAll();
+            var guitarClasses = allClasses.Count(c => 
+                c.instrument?.instrument_name?.ToLower().Contains("guitar") == true);
+            currentStatistic.total_guitar_class = guitarClasses;
+            
+            var pianoClasses = allClasses.Count(c => 
+                c.instrument?.instrument_name?.ToLower().Contains("piano") == true);
+            currentStatistic.total_piano_class = pianoClasses;
+            
+            await _unitOfWork.CompleteAsync();
+        }
+        catch (Exception ex)
+        {
+            throw new ApiException("Có lỗi xảy ra khi cập nhật thống kê class.", ex, (int)HttpStatusCode.InternalServerError);
+        }
+    }
+    
+    // Method để tự động cập nhật thống kê
+    public async Task UpdateStatisticsAsync()
+    {
+        try
+        {
+            // Lấy thống kê hiện tại hoặc tạo mới nếu chưa có
+            var currentStatistic = await _unitOfWork.Statistics.FindOneAsync(s => s.date == DateOnly.FromDateTime(DateTime.Today));
+            
+            if (currentStatistic == null)
+            {
+                currentStatistic = new statistic
+                {
+                    date = DateOnly.FromDateTime(DateTime.Today),
+                    new_students = 0,
+                    monthly_revenue = 0m,
+                    consultation_count = 0,
+                    total_students = 0,
+                    consultation_request_count = 0,
+                    total_guitar_class = 0,
+                    total_piano_class = 0
+                };
+                await _unitOfWork.Statistics.AddAsync(currentStatistic);
+            }
+            
+            // Cập nhật total_students (đếm user có role student và không bị disable)
+            var allUsers = await _unitOfWork.Users.GetAllAsync();
+            var totalStudents = allUsers.Count(u => 
+                u.role?.role_name?.ToLower().Contains("student") == true && 
+                !u.is_disabled.GetValueOrDefault());
+            currentStatistic.total_students = totalStudents;
+            
+            // Cập nhật new_students (đếm user mới tạo trong tháng hiện tại)
+            var currentMonth = DateTime.Today.Month;
+            var currentYear = DateTime.Today.Year;
+            var newStudents = allUsers.Count(u => 
+                u.role?.role_name?.ToLower().Contains("student") == true && 
+                !u.is_disabled.GetValueOrDefault() &&
+                u.create_at.HasValue &&
+                u.create_at.Value.Month == currentMonth &&
+                u.create_at.Value.Year == currentYear);
+            currentStatistic.new_students = newStudents;
+            
+            // Cập nhật total_guitar_class và total_piano_class
+            var allClasses = await _unitOfWork.Classes.GetAll();
+            var guitarClasses = allClasses.Count(c => 
+                c.instrument?.instrument_name?.ToLower().Contains("guitar") == true);
+            currentStatistic.total_guitar_class = guitarClasses;
+            
+            var pianoClasses = allClasses.Count(c => 
+                c.instrument?.instrument_name?.ToLower().Contains("piano") == true);
+            currentStatistic.total_piano_class = pianoClasses;
+            
+            await _unitOfWork.CompleteAsync();
+        }
+        catch (Exception ex)
+        {
+            throw new ApiException("Có lỗi xảy ra khi cập nhật thống kê.", ex, (int)HttpStatusCode.InternalServerError);
+        }
+    }
 
     // UPDATE Statistic
     public async Task UpdateAsync(UpdateStatisticDto updateStatisticDto)
@@ -96,6 +219,16 @@ public class StatisticService : IStatisticService
         if (existingStatistic == null)
         {
             throw new NotFoundException("Statistic", "Id", updateStatisticDto.StatisticId);
+        }
+        
+        // Cập nhật các trường mới nếu được cung cấp
+        if (updateStatisticDto.TotalGuitarClass.HasValue)
+        {
+            existingStatistic.total_guitar_class = updateStatisticDto.TotalGuitarClass.Value;
+        }
+        if (updateStatisticDto.TotalPianoClass.HasValue)
+        {
+            existingStatistic.total_piano_class = updateStatisticDto.TotalPianoClass.Value;
         }
 
         // Cập nhật các trường nếu có giá trị được cung cấp

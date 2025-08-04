@@ -15,4 +15,5 @@ public interface IAttendanceService
 
     Task<IEnumerable<AttendanceDto>> SearchAttendancesAsync(int? statusId = null, string? note = null,
         int? userId = null, int? classSessionId = null);
+    Task BulkUpdateAsync(BulkUpdateAttendanceDto bulkUpdateDto);
 }

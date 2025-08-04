@@ -20,4 +20,5 @@ public interface IClassSessionService
         int? dayId = null,
         int? timeSlotId = null
     );
+    Task<IEnumerable<UserDto>> GetUsersInClassSessionAsync(int classSessionId);
 }

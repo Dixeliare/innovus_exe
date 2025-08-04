@@ -18,4 +18,5 @@ public interface IWeekRepository : IGenericRepository<week>
     // Đã thay đổi tham số để phù hợp với Week model
     Task<IEnumerable<week>> SearchWeeksAsync(int? scheduleId = null, int? weekNumberInMonth = null, DateOnly? startDate = null, DateOnly? endDate = null);
     
+    Task<IEnumerable<week>> GetAllWithDetailsAsync();
 }

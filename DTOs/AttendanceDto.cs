@@ -11,6 +11,7 @@ public class AttendanceDto
     public string? Note { get; set; }
     public int UserId { get; set; }
     public int ClassSessionId { get; set; }
+    public string ClassCode { get; set; } = null!; // Mã lớp học
 
     public UserDto? User { get; set; } // Chi tiết người dùng
     public PersonalClassSessionDto? ClassSession { get; set; } // Chi tiết buổi học
@@ -42,4 +43,31 @@ public class UpdateAttendanceDto
     public int? UserId { get; set; }
 
     public int? ClassSessionId { get; set; }
+}
+
+public class AttendanceStatusDto
+{
+    public int StatusId { get; set; }
+    public string StatusName { get; set; }
+}
+
+public class UpdateAttendanceStatusDto
+{
+    [Required]
+    public int StatusId { get; set; }
+    [Required]
+    public string StatusName { get; set; }
+}
+
+public class BulkUpdateAttendanceDto
+{
+    public int ClassSessionId { get; set; }
+    public List<AttendanceItemDto> Attendances { get; set; } = new List<AttendanceItemDto>();
+}
+
+public class AttendanceItemDto
+{
+    public int UserId { get; set; }
+    public int Status { get; set; }
+    public string? Note { get; set; }
 }

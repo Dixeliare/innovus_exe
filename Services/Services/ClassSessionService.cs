@@ -313,6 +313,44 @@ public class ClassSessionService : IClassSessionService
         return sessions.Select(MapToPersonalClassSessionDto);
     }
 
+    public async Task<IEnumerable<UserDto>> GetUsersInClassSessionAsync(int classSessionId)
+    {
+        var classSession = await _unitOfWork.ClassSessions.GetClassSessionByIdWithDetailsAsync(classSessionId);
+        if (classSession == null)
+        {
+            throw new NotFoundException("ClassSession", "Id", classSessionId);
+        }
+
+        var classWithUsers = await _unitOfWork.Classes.GetClassWithUsersAsync(classSession.class_id);
+        if (classWithUsers == null)
+        {
+            return new List<UserDto>();
+        }
+
+        return classWithUsers.users.Select(u => new UserDto
+        {
+            UserId = u.user_id,
+            Username = u.username,
+            AccountName = u.account_name,
+            Email = u.email,
+            PhoneNumber = u.phone_number,
+            Address = u.address,
+            Birthday = u.birthday,
+            IsDisabled = u.is_disabled,
+            CreateAt = u.create_at,
+            Role = u.role != null ? new RoleDto
+            {
+                RoleId = u.role.role_id,
+                RoleName = u.role.role_name
+            } : null,
+            Gender = u.gender != null ? new GenderDto
+            {
+                GenderId = u.gender.gender_id,
+                GenderName = u.gender.gender_name
+            } : null
+        });
+    }
+
     // Map from Entity to PersonalClassSessionDto for detailed view
     private PersonalClassSessionDto MapToPersonalClassSessionDto(class_session model)
     {

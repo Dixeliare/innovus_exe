@@ -15,8 +15,10 @@ public class AttendanceRepository : GenericRepository<attendance>, IAttendanceRe
     public async Task<IEnumerable<attendance>> GetAllAsync()
     {
         return await _dbSet
-            .Include(c => c.class_session)
-            .Include(u => u.user)
+            .Include(a => a.class_session)
+                .ThenInclude(cs => cs._class)
+            .Include(a => a.user)
+            .Include(a => a.status)
             .AsSplitQuery()
             .ToListAsync();
     }
@@ -24,8 +26,10 @@ public class AttendanceRepository : GenericRepository<attendance>, IAttendanceRe
     public async Task<attendance> GetByIdAsync(int id)
     {
         return await _dbSet
-            .Include(c => c.class_session)
-            .Include(u => u.user)
+            .Include(a => a.class_session)
+                .ThenInclude(cs => cs._class)
+            .Include(a => a.user)
+            .Include(a => a.status)
             .AsSplitQuery()
             .FirstOrDefaultAsync(a => a.attendance_id == id);
     }
@@ -34,7 +38,9 @@ public class AttendanceRepository : GenericRepository<attendance>, IAttendanceRe
     {
         return await _dbSet
             .Include(a => a.class_session)
+                .ThenInclude(cs => cs._class)
             .Include(a => a.user)
+            .Include(a => a.status)
             .AsSplitQuery()
             .ToListAsync();
     }
@@ -43,7 +49,9 @@ public class AttendanceRepository : GenericRepository<attendance>, IAttendanceRe
     {
         return await _dbSet
             .Include(a => a.class_session)
+                .ThenInclude(cs => cs._class)
             .Include(a => a.user)
+            .Include(a => a.status)
             .AsSplitQuery()
             .FirstOrDefaultAsync(a => a.attendance_id == id);
     }
@@ -76,7 +84,9 @@ public class AttendanceRepository : GenericRepository<attendance>, IAttendanceRe
 
         return await query
             .Include(a => a.class_session)
+                .ThenInclude(cs => cs._class)
             .Include(a => a.user)
+            .Include(a => a.status)
             .AsSplitQuery()
             .ToListAsync();
     }

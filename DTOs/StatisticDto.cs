@@ -11,6 +11,8 @@ public class StatisticDto
     public int? ConsultationCount { get; set; }
     public int? TotalStudents { get; set; }
     public int? ConsultationRequestCount { get; set; }
+    public int? TotalGuitarClass { get; set; }
+    public int? TotalPianoClass { get; set; }
 }
 
 // DTO dùng làm input khi tạo mới Thống kê (POST request body)
@@ -26,6 +28,8 @@ public class CreateStatisticDto
     public int? ConsultationCount { get; set; }
     public int? TotalStudents { get; set; }
     public int? ConsultationRequestCount { get; set; }
+    public int? TotalGuitarClass { get; set; }
+    public int? TotalPianoClass { get; set; }
 }
 
 // DTO dùng làm input khi cập nhật Thống kê (PUT request body)
@@ -40,4 +44,6 @@ public class UpdateStatisticDto
     public int? ConsultationCount { get; set; }
     public int? TotalStudents { get; set; }
     public int? ConsultationRequestCount { get; set; }
+    public int? TotalGuitarClass { get; set; }
+    public int? TotalPianoClass { get; set; }
 }

@@ -17,10 +17,12 @@ public class ClassService : IClassService
     // public ClassService (IClassRepository classRepository) => _classRepository = classRepository;
 
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IStatisticService _statisticService;
 
-    public ClassService(IUnitOfWork unitOfWork)
+    public ClassService(IUnitOfWork unitOfWork, IStatisticService statisticService)
     {
         _unitOfWork = unitOfWork;
+        _statisticService = statisticService;
     }
 
     public async Task<IEnumerable<ClassDto>> GetAllAsync()
@@ -90,6 +92,9 @@ public class ClassService : IClassService
                     (int)HttpStatusCode.InternalServerError);
             }
 
+            // Cập nhật thống kê sau khi thêm lớp học
+            await _statisticService.UpdateStatisticsOnClassChangeAsync();
+            
             return MapToClassDto(addedClassWithInstrument);
         }
         catch (DbUpdateException dbEx)
@@ -150,6 +155,9 @@ public class ClassService : IClassService
         {
             await _unitOfWork.Classes.UpdateAsync(existingClass);
             await _unitOfWork.CompleteAsync();
+            
+            // Cập nhật thống kê sau khi cập nhật lớp học
+            await _statisticService.UpdateStatisticsOnClassChangeAsync();
         }
         catch (DbUpdateException dbEx)
         {
@@ -190,6 +198,9 @@ public class ClassService : IClassService
 
             await _unitOfWork.Classes.DeleteAsync(id);
             await _unitOfWork.CompleteAsync();
+            
+            // Cập nhật thống kê sau khi xóa lớp học
+            await _statisticService.UpdateStatisticsOnClassChangeAsync();
         }
         catch (DbUpdateException dbEx)
         {

@@ -264,5 +264,23 @@ namespace Web_API.Controllers
                     new { message = $"An error occurred during search: {ex.Message}" });
             }
         }
+
+        [HttpGet("{id}/users")]
+        public async Task<ActionResult<IEnumerable<UserDto>>> GetUsersInClassSession(int id)
+        {
+            try
+            {
+                var users = await _classSessionService.GetUsersInClassSessionAsync(id);
+                return Ok(users);
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while retrieving users in class session.", details = ex.Message });
+            }
+        }
     }
 }

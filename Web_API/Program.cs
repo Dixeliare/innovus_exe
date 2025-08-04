@@ -41,6 +41,7 @@ builder.Services.AddScoped<IGenderRepository, GenderRepository>();
 builder.Services.AddScoped<IDayRepository, DayRepository>();
 builder.Services.AddScoped<IRoomRepository, RoomRepository>();
 builder.Services.AddScoped<IDayOfWeekLookupRepository, DayOfWeekLookupRepository>();
+builder.Services.AddScoped<IAttendanceStatusRepository, AttendanceStatusRepository>();
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 #endregion
 
@@ -51,6 +52,7 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 #region Services
 builder.Services.AddScoped<IScheduleService, ScheduleService>();
 builder.Services.AddHostedService<ScheduleCreationBackgroundService>();
+builder.Services.AddHostedService<StatisticsBackgroundService>();
 builder.Services.AddScoped<ITimeslotService, TimeslotService>();
 builder.Services.AddScoped<IWeekService, WeekService>();
 builder.Services.AddScoped<IClassSessionService, ClassSessionService>();
@@ -71,6 +73,7 @@ builder.Services.AddScoped<IGenderService, GenderService>();
 builder.Services.AddScoped<IDayService, DayService>();
 builder.Services.AddScoped<IRoomService, RoomService>();
 builder.Services.AddScoped<IDayOfWeekLookupService, DayOfWeekLookupService>();
+builder.Services.AddScoped<IAttendanceStatusService, AttendanceStatusService>();
 #endregion
 
 #region Azure service

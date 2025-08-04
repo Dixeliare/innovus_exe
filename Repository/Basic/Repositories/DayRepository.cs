@@ -26,7 +26,25 @@ public class DayRepository : GenericRepository<day>, IDayRepository
         {
             return await _dbSet
                 .Include(d => d.class_sessions) // Eager load class sessions
+                    .ThenInclude(cs => cs.room) // Include room for class sessions
+                .Include(d => d.class_sessions) // Re-include to branch for class
+                    .ThenInclude(cs => cs._class) // Include class for class sessions
+                .Include(d => d.class_sessions) // Re-include to branch for time slot
+                    .ThenInclude(cs => cs.time_slot) // Include time slot for class sessions
                 .FirstOrDefaultAsync(d => d.day_id == dayId);
+        }
+
+        public async Task<IEnumerable<day>> GetAllWithClassSessionsAsync()
+        {
+            return await _dbSet
+                .Include(d => d.week) // Include week information
+                .Include(d => d.class_sessions) // Include class sessions
+                    .ThenInclude(cs => cs.room) // Include room for class sessions
+                .Include(d => d.class_sessions) // Re-include to branch for class
+                    .ThenInclude(cs => cs._class) // Include class for class sessions
+                .Include(d => d.class_sessions) // Re-include to branch for time slot
+                    .ThenInclude(cs => cs.time_slot) // Include time slot for class sessions
+                .ToListAsync();
         }
 
         // TRIỂN KHAI PHƯƠNG THỨC NÀY:
@@ -54,7 +72,8 @@ public class DayRepository : GenericRepository<day>, IDayRepository
             // Đây là nơi bạn sẽ thêm .Include() nếu DayDto cần Week hoặc ClassSessions
             query = query
                 .Include(d => d.week) // Bao gồm thông tin Week nếu cần cho DayDto
-                .Include(d => d.class_sessions); // Bao gồm ClassSessions nếu cần cho DayDto
+                .Include(d => d.class_sessions) // Bao gồm ClassSessions nếu cần cho DayDto
+                    .ThenInclude(cs => cs.room); // Include room for class sessions
 
             return await query.ToListAsync();
         }

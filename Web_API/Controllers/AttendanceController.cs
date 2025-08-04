@@ -244,5 +244,30 @@ namespace Web_API.Controllers
                 return StatusCode((int)HttpStatusCode.InternalServerError, new { message = $"An error occurred: {ex.Message}" });
             }
         }
+
+        /// <summary>
+        /// Bulk update attendance records.
+        /// </summary>
+        [HttpPut("bulk")]
+        public async Task<IActionResult> BulkUpdate([FromBody] BulkUpdateAttendanceDto bulkUpdateDto)
+        {
+            try
+            {
+                await _attendanceService.BulkUpdateAsync(bulkUpdateDto);
+                return NoContent();
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ValidationException ex)
+            {
+                return BadRequest(new { message = "Validation error", errors = ex.Errors });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while bulk updating attendance.", details = ex.Message });
+            }
+        }
     }
 }

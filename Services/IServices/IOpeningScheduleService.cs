@@ -17,4 +17,7 @@ public interface IOpeningScheduleService
         // ĐÃ XÓA: string? schedule = null,
         int? studentQuantity = null,
         bool? isAdvancedClass = null);
+    
+    // Method để cleanup dữ liệu orphan
+    Task CleanupOrphanDataAsync(string classCode, int? openingScheduleId = null);
 }
