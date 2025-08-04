@@ -103,6 +103,48 @@ namespace Web_API.Controllers
             var user = await _userService.GetByUsernameAsync(username);
             return Ok(user);
         }
+        
+        // API MỚI: Lấy profile của người dùng hiện tại sau khi đăng nhập
+        [HttpGet("profile")]
+        [Authorize] // Yêu cầu xác thực để truy cập endpoint này
+        [ProducesResponseType(typeof(UserDto), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.Unauthorized)] // Nếu token không hợp lệ hoặc thiếu User ID
+        [ProducesResponseType((int)HttpStatusCode.NotFound)] // Nếu User ID trong token không tìm thấy trong DB
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)] // Xử lý lỗi server
+        public async Task<ActionResult<UserDto>> GetUserProfile()
+        {
+            // Lấy User ID từ Claims trong JWT token
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (userIdClaim == null || !int.TryParse(userIdClaim, out int userId))
+            {
+                // Điều này không nên xảy ra nếu JWT được tạo đúng cách và chứa User ID,
+                // nhưng là một biện pháp phòng ngừa để xử lý các token không hợp lệ.
+                return Unauthorized(new { message = "Không tìm thấy User ID trong token hoặc định dạng không hợp lệ." });
+            }
+
+            try
+            {
+                var userProfile = await _userService.GetByIdAsync(userId);
+                if (userProfile == null)
+                {
+                    // Trường hợp này có thể xảy ra nếu người dùng đã bị xóa khỏi DB
+                    // nhưng token của họ vẫn còn hiệu lực.
+                    return NotFound(new { message = $"Không tìm thấy hồ sơ người dùng với ID '{userId}'." });
+                }
+                return Ok(userProfile);
+            }
+            catch (NotFoundException ex)
+            {
+                // Bắt NotFoundException từ service nếu có, trả về 404
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                // Xử lý các lỗi không mong muốn khác xảy ra trong quá trình truy xuất dữ liệu
+                return StatusCode((int)HttpStatusCode.InternalServerError, new { message = "Đã xảy ra lỗi khi truy xuất hồ sơ người dùng.", details = ex.Message });
+            }
+        }
 
 
         // POST: api/Users
@@ -131,17 +173,16 @@ namespace Web_API.Controllers
                 createUserDto.Birthday,
                 createUserDto.RoleId,
                 createUserDto.StatisticId,
-                createUserDto.OpeningScheduleId,
-                createUserDto.ScheduleId,
                 createUserDto.Email,
-                createUserDto.GenderId
+                createUserDto.GenderId,
+                createUserDto.ClassId 
             );
             return CreatedAtAction(nameof(GetUserById), new { id = createdUser.UserId }, createdUser);
         }
 
         // PUT: api/Users/{id}
         [HttpPut("{id}")]
-        [Authorize(Roles = "1,2")]
+        [Authorize(Roles = "1,2,3")]
         [Consumes("multipart/form-data")] // Quan trọng để nhận file
         [ProducesResponseType((int)HttpStatusCode.NoContent)]
         [ProducesResponseType((int)HttpStatusCode.NotFound)]
@@ -175,10 +216,9 @@ namespace Web_API.Controllers
                 updateUserDto.Birthday,
                 updateUserDto.RoleId,
                 updateUserDto.StatisticId,
-                updateUserDto.OpeningScheduleId,
-                updateUserDto.ScheduleId,
                 updateUserDto.Email,
-                updateUserDto.GenderId
+                updateUserDto.GenderId,
+                updateUserDto.ClassIds
             );
             return NoContent();
         }
@@ -214,5 +254,36 @@ namespace Web_API.Controllers
             return Ok(users); // Service đã trả về UserDto
         }
 
+        [HttpGet("personal-schedule")]
+        [Authorize] // Yêu cầu xác thực
+        [ProducesResponseType(typeof(PersonalScheduleDto), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        public async Task<ActionResult<PersonalScheduleDto>> GetPersonalSchedule(
+            [FromQuery] DateOnly? startDate = null,
+            [FromQuery] DateOnly? endDate = null)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (userIdClaim == null || !int.TryParse(userIdClaim, out int userId))
+            {
+                return Unauthorized(new { message = "Không tìm thấy User ID trong token hoặc định dạng không hợp lệ." });
+            }
+
+            try
+            {
+                var schedule = await _userService.GetPersonalScheduleAsync(userId, startDate, endDate);
+                return Ok(schedule);
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode((int)HttpStatusCode.InternalServerError, new { message = "Đã xảy ra lỗi khi truy xuất thời khóa biểu cá nhân.", details = ex.Message });
+            }
+        }
     }
 }

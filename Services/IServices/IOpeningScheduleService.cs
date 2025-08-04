@@ -10,12 +10,14 @@ public interface IOpeningScheduleService
     Task<OpeningScheduleDto> AddAsync(CreateOpeningScheduleDto createOpeningScheduleDto);
     Task UpdateAsync(UpdateOpeningScheduleDto updateOpeningScheduleDto);
     Task DeleteAsync(int id);
-
     Task<IEnumerable<OpeningScheduleDto>> SearchOpeningSchedulesAsync(
         string? classCode = null,
         DateOnly? openingDay = null,
         DateOnly? endDate = null,
-        string? schedule = null,
+        // ĐÃ XÓA: string? schedule = null,
         int? studentQuantity = null,
         bool? isAdvancedClass = null);
+    
+    // Method để cleanup dữ liệu orphan
+    Task CleanupOrphanDataAsync(string classCode, int? openingScheduleId = null);
 }

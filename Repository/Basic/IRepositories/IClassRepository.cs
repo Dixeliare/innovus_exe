@@ -13,4 +13,11 @@ public interface IClassRepository: IGenericRepository<_class>
     
     // THÊM DÒNG NÀY:
     Task<_class?> GetClassWithUsersAsync(int classId);
+    
+    Task<_class?> GetByIdWithDetails(int id);
+    Task<IEnumerable<_class>> GetClassesByUserId(int userId); // Thêm phương thức này
+    Task<IEnumerable<_class>> GetAllWithDetails(); 
+    
+    Task<_class?> GetClassWithSessionsAndTimeSlotsAndDayAndWeekAndInstrumentAsync(int classId);
+    Task<_class?> GetClassWithSessionsAndTimeSlotsAndDayAndWeekAndInstrumentAndRoomAsync(int classId);
 }

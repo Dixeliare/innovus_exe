@@ -1,77 +1,52 @@
-using System.ComponentModel.DataAnnotations;
-
-namespace DTOs;
+using DTOs;
 
 public class OpeningScheduleDto
-    {
-        public int OpeningScheduleId { get; set; }
-        public string? ClassCode { get; set; }
-        public DateOnly? OpeningDay { get; set; }
-        public DateOnly? EndDate { get; set; }
-        public string? Schedule { get; set; }
-        public int? StudentQuantity { get; set; }
-        public bool? IsAdvancedClass { get; set; }
-        public UserForOpeningScheduleDto? TeacherUser { get; set; } // Giả sử bạn có UserDto
-        
-        public int InstrumentId { get; set; } // Cột khóa ngoại
-        public InstrumentDto? Instrument { get; set; } 
-    }
-
-    // DTO dùng làm input khi tạo mới Lịch khai giảng (POST request body)
-    public class CreateOpeningScheduleDto
-    {
-
-        [Required(ErrorMessage = "Class Code is required.")]
-        [StringLength(50, ErrorMessage = "Class Code cannot exceed 50 characters.")]
-        public string ClassCode { get; set; } = null!;
-
-        [Required(ErrorMessage = "Opening Day is required.")]
-        public DateOnly OpeningDay { get; set; }
-
-        public DateOnly? EndDate { get; set; } // Có thể là null
-
-        [Required(ErrorMessage = "Schedule is required.")]
-        [StringLength(200, ErrorMessage = "Schedule cannot exceed 200 characters.")]
-        public string Schedule { get; set; } = null!;
-
-        [Range(1, int.MaxValue, ErrorMessage = "Student Quantity must be a positive number.")]
-        public int? StudentQuantity { get; set; }
-
-        public bool? IsAdvancedClass { get; set; }
-        // <--- THÊM TRƯỜNG NÀY VÀO CreateOpeningScheduleDto
-        public int? TeacherUserId { get; set; }
-        
-        [Required(ErrorMessage = "Instrument is required.")]
-        public int InstrumentId { get; set; }
-    }
-
-    // DTO dùng làm input khi cập nhật Lịch khai giảng (PUT request body)
-    public class UpdateOpeningScheduleDto
-    {
-        [Required(ErrorMessage = "Opening Schedule ID is required for update.")]
-        public int OpeningScheduleId { get; set; }
-
-        [StringLength(50, ErrorMessage = "Class Code cannot exceed 50 characters.")]
-        public string? ClassCode { get; set; }
-
-        public DateOnly? OpeningDay { get; set; }
-
-        public DateOnly? EndDate { get; set; }
-
-        [StringLength(200, ErrorMessage = "Schedule cannot exceed 200 characters.")]
-        public string? Schedule { get; set; }
-
-        [Range(1, int.MaxValue, ErrorMessage = "Student Quantity must be a positive number.")]
-        public int? StudentQuantity { get; set; }
-
-        public bool? IsAdvancedClass { get; set; }
-        // <--- THÊM TRƯỜNG NÀY VÀO UpdateOpeningScheduleDto
-        public int? TeacherUserId { get; set; } 
-        
-        public int? InstrumentId { get; set; } 
-    }
+{
+    public int OpeningScheduleId { get; set; }
+    public string ClassCode { get; set; } = null!;
+    public DateOnly? OpeningDay { get; set; }
+    public DateOnly? EndDate { get; set; }
+    // ĐÃ XÓA: public string? Schedule { get; set; }
+    public int? StudentQuantity { get; set; }
+    public bool? IsAdvancedClass { get; set; }
+    public UserForOpeningScheduleDto? TeacherUser { get; set; }
+    public int InstrumentId { get; set; }
+    public InstrumentDto? Instrument { get; set; }
+    public int TotalSessions { get; set; }
+    public List<int>? SelectedDayOfWeekIds { get; set; }
     
-    public class UserForOpeningScheduleDto
-    {
-        public string? AccountName { get; set; }
-    }
+    // Thêm thông tin room và timeslot
+    public int? DefaultRoomId { get; set; }
+    public RoomDto? DefaultRoom { get; set; }
+    public List<int>? TimeSlotIds { get; set; }
+    public List<TimeslotDto>? TimeSlots { get; set; }
+}
+
+// DTO dùng làm input khi tạo mới Lịch khai giảng (POST request body)
+public class CreateOpeningScheduleDto
+{
+    public string ClassCode { get; set; } = null!;
+    public DateOnly OpeningDay { get; set; }
+    public DateOnly? EndDate { get; set; }
+    // ĐÃ XÓA: public string? Schedule { get; set; }
+    public int? StudentQuantity { get; set; }
+    public bool? IsAdvancedClass { get; set; }
+    public int? TeacherUserId { get; set; }
+    public int InstrumentId { get; set; }
+    public int TotalSessions { get; set; }
+
+    public List<int>? SelectedDayOfWeekIds { get; set; }
+    public int DefaultRoomId { get; set; }
+    public List<int> TimeSlotIds { get; set; } = new List<int>();
+}
+
+// DTO dùng làm input khi cập nhật Lịch khai giảng (PUT request body)
+public class UpdateOpeningScheduleDto : CreateOpeningScheduleDto
+{
+    public int OpeningScheduleId { get; set; }
+}
+
+public class UserForOpeningScheduleDto
+{
+    public string? AccountName { get; set; }
+}

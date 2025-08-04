@@ -9,8 +9,10 @@ namespace Repository.Basic.Repositories;
 
 public class UserRepository : GenericRepository<user>, IUserRepository
 {
+    // KHÔNG CẦN _context NỮA VÌ ĐÃ SỬ DỤNG _dbSet TỪ BASE CLASS
     public UserRepository(AppDbContext context) : base(context)
     {
+        // _context = context; // ĐÃ XÓA DÒNG NÀY
     }
 
     public async Task<IEnumerable<user>> GetAllAsync()
@@ -18,28 +20,40 @@ public class UserRepository : GenericRepository<user>, IUserRepository
         return await _dbSet
             .Include(g => g.gender)
             .Include(a => a.attendances)
-            .Include(o => o.opening_schedule)
             .Include(r => r.role)
-            .Include(s => s.schedule)
             .Include(s => s.statistic)
             .Include(u => u.user_favorite_sheets)
             .Include(c => c.classes)
+                .ThenInclude(cls => cls.instrument) // Tải nhạc cụ của Class
+            .Include(c => c.classes)
+                .ThenInclude(cls => cls.class_sessions) // Tải class_sessions của Class
+                    .ThenInclude(cs => cs.day) // Tải Day của ClassSession
+                        .ThenInclude(d => d.week) // **ĐÃ SỬA:** Tải Week của Day
+            .Include(c => c.classes)
+                .ThenInclude(cls => cls.class_sessions)
+                    .ThenInclude(cs => cs.time_slot) // Tải TimeSlot của ClassSession
             .Include(d => d.documents)
             .AsSplitQuery()
             .ToListAsync();
     }
 
-    public async Task<user> GetByIdAsync(int id)
+    public async Task<user?> GetByIdAsync(int id)
     {
         return await _dbSet.AsNoTracking()
             .Include(u => u.gender) 
             .Include(a => a.attendances)
-            .Include(o => o.opening_schedule)
             .Include(r => r.role)
-            .Include(s => s.schedule)
             .Include(s => s.statistic)
             .Include(u => u.user_favorite_sheets)
             .Include(c => c.classes)
+                .ThenInclude(cls => cls.instrument) // Tải nhạc cụ của Class
+            .Include(c => c.classes)
+                .ThenInclude(cls => cls.class_sessions) // Tải class_sessions của Class
+                    .ThenInclude(cs => cs.day) // Tải Day của ClassSession
+                        .ThenInclude(d => d.week) // **ĐÃ SỬA:** Tải Week của Day
+            .Include(c => c.classes)
+                .ThenInclude(cls => cls.class_sessions)
+                    .ThenInclude(cs => cs.time_slot) // Tải TimeSlot của ClassSession
             .Include(d => d.documents)
             .AsSplitQuery()
             .FirstOrDefaultAsync(u => u.user_id == id);
@@ -58,47 +72,25 @@ public class UserRepository : GenericRepository<user>, IUserRepository
         return await _dbSet.AsNoTracking().FirstOrDefaultAsync(u => u.email == email);
     }
 
-    // public async Task<user> AddAsync(user entity)
-    // {
-    //     _context.users.Add(entity);
-    //     await _context.SaveChangesAsync();
-    //     return entity;
-    // }
-    //
-    // public async Task UpdateAsync(user entity)
-    // {
-    //     _context.Entry(entity).State = EntityState.Modified;
-    //     await _context.SaveChangesAsync();
-    // }
-    //
-    // public async Task<bool> DeleteAsync(int id)
-    // {
-    //     var item = await _context.users.FindAsync(id);
-    //     if (item == null) return false;
-    //     _context.users.Remove(item);
-    //     return await _context.SaveChangesAsync() > 0;
-    // }
-
     public async Task<IEnumerable<user>> SearchUsersAsync(
         string? username = null,
         string? accountName = null,
-        string? password = null, // Giữ nguyên ở đây, nhưng logic bên dưới sẽ không dùng
+        string? password = null, 
         string? address = null,
         string? phoneNumber = null,
         bool? isDisabled = null,
         DateTime? createAt = null,
         DateOnly? birthday = null,
         int? roleId = null,
-        string? email = null, // Thêm email
+        string? email = null,
         int? genderId = null)
     {
         IQueryable<user> query = _dbSet;
 
-        query = query.Include(u => u.role)
+        query = query
+            .Include(u => u.role)
             .Include(u => u.statistic)
-            .Include(u => u.opening_schedule)
-            .Include(u => u.schedule)
-            .Include(u => u.gender) // THÊM DÒNG NÀY
+            .Include(u => u.gender) 
             .AsSplitQuery();
 
         var predicates = new List<Expression<Func<user, bool>>>();
@@ -147,14 +139,12 @@ public class UserRepository : GenericRepository<user>, IUserRepository
             predicates.Add(u => u.role_id == roleId.Value);
         }
         
-        // THÊM ĐIỀU KIỆN TÌM KIẾM THEO EMAIL
         if (!string.IsNullOrEmpty(email))
         {
             var lowerEmail = email.ToLower();
             predicates.Add(u => u.email != null && u.email.ToLower().Contains(lowerEmail));
         }
 
-        // THÊM ĐIỀU KIỆN TÌM KIẾM THEO GENDER ID
         if (genderId.HasValue)
         {
             predicates.Add(u => u.gender_id == genderId.Value);
@@ -166,7 +156,6 @@ public class UserRepository : GenericRepository<user>, IUserRepository
             Expression<Func<user, bool>> combinedPredicate = predicates.First();
             for (int i = 1; i < predicates.Count; i++)
             {
-                // Sử dụng AndAlso cho tìm kiếm kết hợp (AND)
                 combinedPredicate = Expression.Lambda<Func<user, bool>>(
                     Expression.AndAlso(combinedPredicate.Body, predicates[i].Body),
                     combinedPredicate.Parameters);
@@ -182,16 +171,15 @@ public class UserRepository : GenericRepository<user>, IUserRepository
     {
         return await _dbSet
             .Include(u => u.gender) 
-            .Include(u => u.role) // <--- Đảm bảo tải thông tin Role
+            .Include(u => u.role) 
             .FirstOrDefaultAsync(u => u.user_id == userId);
     }
     
-    // THÊM CÁC PHƯƠNG THỨC NÀY:
     public async Task<IEnumerable<user>> GetUsersByRoleIdsAsync(List<int> roleIds)
     {
         return await _dbSet
             .Include(u => u.role)
-            .Include(u => u.gender)// Bao gồm thông tin vai trò
+            .Include(u => u.gender)
             .Where(u => u.role_id.HasValue && roleIds.Contains(u.role_id.Value))
             .AsSplitQuery()
             .ToListAsync();
@@ -199,22 +187,59 @@ public class UserRepository : GenericRepository<user>, IUserRepository
 
     public async Task<IEnumerable<user>> GetUsersByRoleNamesAsync(List<string> roleNames)
     {
-        // Lấy các Role ID từ tên Role
-        var roleIds = await _context.roles // _context là AppDbContext, có thể truy cập DbSet<role>
+        // PHƯƠNG THỨC NÀY CẦN TRUY CẬP TRỰC TIẾP VÀO _context ĐỂ LẤY DBSET CỦA ROLE.
+        // NẾU BẠN CHỈ MUỐN SỬ DỤNG _dbSet CỦA USER VÀ KHÔNG MUỐN CÓ _context TRONG REPOSITORY,
+        // THÌ PHƯƠNG THỨC NÀY CẦN ĐƯỢC CHUYỂN HOẶC CƠ CHẾ KHÁC ĐỂ TRUY VẤN ROLE.
+        // HÌNH NHƯ CÁC REPOSITORY CỦA BẠN ĐỀU CÓ THỂ TRUY CẬP AppDbContext THÔNG QUA BASE CLASS, VẬY NÊN DÒNG DƯỚI NÊN LÀ:
+        // var roleIds = await _context.roles (ĐÚNG NHƯ BẠN ĐANG DÙNG TRONG CODE GỐC)
+        // HOẶC NẾU CHỈ DÙNG _dbSet, THÌ CÓ THỂ CẦN MỘT REPOSITORY KHÁC CHO ROLE.
+        
+        // GIẢ ĐỊNH `_context` VẪN CÓ THỂ TRUY CẬP ĐƯỢC TỪ BASE CLASS HOẶC TRUYỀN VÀO NHƯ TRƯỚC.
+        // NẾU AppDbContext CÓ THỂ TRUY CẬP TỪ BASE CLASS GenericRepository thông qua một property như `Context`,
+        // THÌ CÓ THỂ SỬ DỤNG `Context.roles`.
+        // TẠM THỜI GIỮ NGUYÊN DÒNG NÀY VÌ NÓ CÓ TRONG CODE GỐC CỦA BẠN VÀ CẦN _context ĐỂ LẤY `roles` DBSet.
+        // NẾU BẠN MUỐN LOẠI BỎ HOÀN TOÀN `_context` KHỎI ĐÂY, PHƯƠNG THỨC NÀY CẦN ĐƯỢC CƠ CẤU LẠI HOẶC CHUYỂN ĐI.
+        var roleIds = await ((AppDbContext)_context).roles // SỬ DỤNG _context CỦA BASE CLASS, ÉP KIỂU VỀ AppDbContext
             .Where(r => roleNames.Contains(r.role_name))
             .Select(r => r.role_id)
             .ToListAsync();
 
         if (!roleIds.Any())
         {
-            return new List<user>(); // Không tìm thấy vai trò nào, trả về danh sách trống
+            return new List<user>();
         }
 
         return await _dbSet
             .Include(u => u.role)
-            .Include(u => u.gender)// Bao gồm thông tin vai trò
+            .Include(u => u.gender)
             .Where(u => u.role_id.HasValue && roleIds.Contains(u.role_id.Value))
             .AsSplitQuery()
             .ToListAsync();
+    }
+    
+    public async Task<user?> GetUserWithClassesAndRoleAsync(int userId)
+    {
+        return await _dbSet
+            .Include(u => u.role)
+            .Include(u => u.gender) 
+            .Include(u => u.classes) 
+            .ThenInclude(c => c.instrument) 
+            .Include(u => u.classes)
+            .ThenInclude(c => c.class_sessions) 
+            .ThenInclude(cs => cs.day) // Từ class_session đến day
+            .ThenInclude(d => d.week) // Từ day đến week
+            .Include(u => u.classes)
+            .ThenInclude(c => c.class_sessions)
+            .ThenInclude(cs => cs.time_slot) 
+            .FirstOrDefaultAsync(u => u.user_id == userId);
+    }
+    
+    public async Task<user?> GetUserByIdWithClassesAndRoleAsync(int userId)
+    {
+        return await _dbSet
+            .Include(u => u.classes) // Include user's classes (Many-to-Many)
+            .Include(u => u.role)    // Include user's role
+            .Include(u => u.gender)  // Include user's gender
+            .FirstOrDefaultAsync(u => u.user_id == userId);
     }
 }

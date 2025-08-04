@@ -16,11 +16,17 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<attendance> attendances { get; set; }
 
+    public virtual DbSet<attendance_status> attendance_statuses { get; set; }
+
     public virtual DbSet<class_session> class_sessions { get; set; }
 
     public virtual DbSet<consultation_request> consultation_requests { get; set; }
 
     public virtual DbSet<consultation_topic> consultation_topics { get; set; }
+
+    public virtual DbSet<day> days { get; set; }
+
+    public virtual DbSet<day_of_week_lookup> day_of_week_lookups { get; set; }
 
     public virtual DbSet<document> documents { get; set; }
 
@@ -33,6 +39,8 @@ public partial class AppDbContext : DbContext
     public virtual DbSet<opening_schedule> opening_schedules { get; set; }
 
     public virtual DbSet<role> roles { get; set; }
+
+    public virtual DbSet<room> rooms { get; set; }
 
     public virtual DbSet<schedule> schedules { get; set; }
 
@@ -60,7 +68,11 @@ public partial class AppDbContext : DbContext
 
             entity.HasIndex(e => e.class_code, "class_class_code_key").IsUnique();
 
+            entity.HasIndex(e => e.instrument_id, "idx_class_instrument");
+
             entity.Property(e => e.class_code).HasMaxLength(255);
+            entity.Property(e => e.current_students_count).HasDefaultValue(0);
+            entity.Property(e => e.total_students).HasDefaultValue(0);
 
             entity.HasOne(d => d.instrument).WithMany(p => p._classes)
                 .HasForeignKey(d => d.instrument_id)
@@ -89,17 +101,37 @@ public partial class AppDbContext : DbContext
 
             entity.ToTable("attendance");
 
+            entity.HasIndex(e => new { e.user_id, e.class_session_id }, "uq_user_class_session").IsUnique();
+
             entity.Property(e => e.check_at)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("timestamp without time zone");
+            entity.Property(e => e.status_id).HasDefaultValue(0);
 
             entity.HasOne(d => d.class_session).WithMany(p => p.attendances)
                 .HasForeignKey(d => d.class_session_id)
                 .HasConstraintName("fk_attendance_class_session");
 
+            entity.HasOne(d => d.status).WithMany(p => p.attendances)
+                .HasForeignKey(d => d.status_id)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_attendance_status_id");
+
             entity.HasOne(d => d.user).WithMany(p => p.attendances)
                 .HasForeignKey(d => d.user_id)
                 .HasConstraintName("fk_attendance_user");
+        });
+
+        modelBuilder.Entity<attendance_status>(entity =>
+        {
+            entity.HasKey(e => e.status_id).HasName("attendance_status_pkey");
+
+            entity.ToTable("attendance_status");
+
+            entity.HasIndex(e => e.status_name, "attendance_status_status_name_key").IsUnique();
+
+            entity.Property(e => e.status_id).ValueGeneratedNever();
+            entity.Property(e => e.status_name).HasMaxLength(50);
         });
 
         modelBuilder.Entity<class_session>(entity =>
@@ -108,21 +140,24 @@ public partial class AppDbContext : DbContext
 
             entity.ToTable("class_session");
 
-            entity.Property(e => e.room_code).HasMaxLength(255);
-
             entity.HasOne(d => d._class).WithMany(p => p.class_sessions)
                 .HasForeignKey(d => d.class_id)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_class_session_class");
 
+            entity.HasOne(d => d.day).WithMany(p => p.class_sessions)
+                .HasForeignKey(d => d.day_id)
+                .HasConstraintName("fk_class_session_days");
+
+            entity.HasOne(d => d.room).WithMany(p => p.class_sessions)
+                .HasForeignKey(d => d.room_id)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_class_session_room");
+
             entity.HasOne(d => d.time_slot).WithMany(p => p.class_sessions)
                 .HasForeignKey(d => d.time_slot_id)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_class_session_timeslot");
-
-            entity.HasOne(d => d.week).WithMany(p => p.class_sessions)
-                .HasForeignKey(d => d.week_id)
-                .HasConstraintName("fk_class_session_week");
         });
 
         modelBuilder.Entity<consultation_request>(entity =>
@@ -160,6 +195,32 @@ public partial class AppDbContext : DbContext
             entity.HasIndex(e => e.consultation_topic_name, "consultation_topic_consultation_topic_name_key").IsUnique();
 
             entity.Property(e => e.consultation_topic_name).HasMaxLength(255);
+        });
+
+        modelBuilder.Entity<day>(entity =>
+        {
+            entity.HasKey(e => e.day_id).HasName("days_pkey");
+
+            entity.Property(e => e.day_of_week_name).HasMaxLength(10);
+            entity.Property(e => e.is_active).HasDefaultValue(true);
+
+            entity.HasOne(d => d.week).WithMany(p => p.days)
+                .HasForeignKey(d => d.week_id)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_days_weeks");
+        });
+
+        modelBuilder.Entity<day_of_week_lookup>(entity =>
+        {
+            entity.HasKey(e => e.day_of_week_id).HasName("day_of_week_lookup_pkey");
+
+            entity.ToTable("day_of_week_lookup");
+
+            entity.HasIndex(e => e.day_name, "day_of_week_lookup_day_name_key").IsUnique();
+
+            entity.HasIndex(e => e.day_number, "day_of_week_lookup_day_number_key").IsUnique();
+
+            entity.Property(e => e.day_name).HasMaxLength(20);
         });
 
         modelBuilder.Entity<document>(entity =>
@@ -213,13 +274,17 @@ public partial class AppDbContext : DbContext
 
             entity.ToTable("opening_schedule");
 
-            entity.HasIndex(e => e.class_code, "opening_schedule_class_code_key").IsUnique();
-
             entity.Property(e => e.class_code).HasMaxLength(255);
             entity.Property(e => e.instrument_id).HasDefaultValue(1);
             entity.Property(e => e.is_advanced_class).HasDefaultValue(false);
-            entity.Property(e => e.schedule).HasMaxLength(255);
             entity.Property(e => e.student_quantity).HasDefaultValue(0);
+            entity.Property(e => e.total_sessions).HasDefaultValue(0);
+
+            entity.HasOne(d => d.class_codeNavigation).WithMany(p => p.opening_schedules)
+                .HasPrincipalKey(p => p.class_code)
+                .HasForeignKey(d => d.class_code)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_opening_schedule_class");
 
             entity.HasOne(d => d.instrument).WithMany(p => p.opening_schedules)
                 .HasForeignKey(d => d.instrument_id)
@@ -230,6 +295,22 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.teacher_user_id)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("fk_opening_schedule_teacher_user");
+
+            entity.HasMany(d => d.day_of_weeks).WithMany(p => p.opening_schedules)
+                .UsingEntity<Dictionary<string, object>>(
+                    "opening_schedule_selected_day",
+                    r => r.HasOne<day_of_week_lookup>().WithMany()
+                        .HasForeignKey("day_of_week_id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_os_selected_days_day_of_week"),
+                    l => l.HasOne<opening_schedule>().WithMany()
+                        .HasForeignKey("opening_schedule_id")
+                        .HasConstraintName("fk_os_selected_days_opening_schedule"),
+                    j =>
+                    {
+                        j.HasKey("opening_schedule_id", "day_of_week_id").HasName("opening_schedule_selected_days_pkey");
+                        j.ToTable("opening_schedule_selected_days");
+                    });
         });
 
         modelBuilder.Entity<role>(entity =>
@@ -241,6 +322,17 @@ public partial class AppDbContext : DbContext
             entity.HasIndex(e => e.role_name, "role_role_name_key").IsUnique();
 
             entity.Property(e => e.role_name).HasMaxLength(255);
+        });
+
+        modelBuilder.Entity<room>(entity =>
+        {
+            entity.HasKey(e => e.room_id).HasName("room_pkey");
+
+            entity.ToTable("room");
+
+            entity.HasIndex(e => e.room_code, "room_room_code_key").IsUnique();
+
+            entity.Property(e => e.room_code).HasMaxLength(50);
         });
 
         modelBuilder.Entity<schedule>(entity =>
@@ -301,8 +393,18 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.monthly_revenue)
                 .HasPrecision(10, 2)
                 .HasDefaultValueSql("0.00");
-            entity.Property(e => e.new_students).HasDefaultValue(0);
-            entity.Property(e => e.total_students).HasDefaultValue(0);
+            entity.Property(e => e.new_students)
+                .HasDefaultValue(0)
+                .HasComment("Số học sinh mới trong tháng hiện tại");
+            entity.Property(e => e.total_guitar_class)
+                .HasDefaultValue(0)
+                .HasComment("Tổng số lớp guitar");
+            entity.Property(e => e.total_piano_class)
+                .HasDefaultValue(0)
+                .HasComment("Tổng số lớp piano");
+            entity.Property(e => e.total_students)
+                .HasDefaultValue(0)
+                .HasComment("Tổng số học sinh (role student, không bị disable)");
         });
 
         modelBuilder.Entity<timeslot>(entity =>
@@ -320,9 +422,11 @@ public partial class AppDbContext : DbContext
 
             entity.ToTable("user");
 
-            entity.HasIndex(e => e.email, "user_email_key").IsUnique();
+            entity.HasIndex(e => e.create_at, "idx_user_create_at");
 
-            entity.HasIndex(e => e.schedule_id, "user_schedule_id_key").IsUnique();
+            entity.HasIndex(e => new { e.role_id, e.is_disabled }, "idx_user_role_disabled");
+
+            entity.HasIndex(e => e.email, "user_email_key").IsUnique();
 
             entity.HasIndex(e => e.username, "user_username_key").IsUnique();
 
@@ -341,20 +445,10 @@ public partial class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_user_gender");
 
-            entity.HasOne(d => d.opening_schedule).WithMany(p => p.users)
-                .HasForeignKey(d => d.opening_schedule_id)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_user_opening_schedule");
-
             entity.HasOne(d => d.role).WithMany(p => p.users)
                 .HasForeignKey(d => d.role_id)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_user_role");
-
-            entity.HasOne(d => d.schedule).WithOne(p => p.user)
-                .HasForeignKey<user>(d => d.schedule_id)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_user_schedule_personal");
 
             entity.HasOne(d => d.statistic).WithMany(p => p.users)
                 .HasForeignKey(d => d.statistic_id)
@@ -396,13 +490,13 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<week>(entity =>
         {
-            entity.HasKey(e => e.week_id).HasName("week_pkey");
+            entity.HasKey(e => e.week_id).HasName("weeks_pkey");
 
-            entity.ToTable("week");
+            entity.Property(e => e.num_active_days).HasDefaultValue(0);
 
             entity.HasOne(d => d.schedule).WithMany(p => p.weeks)
                 .HasForeignKey(d => d.schedule_id)
-                .HasConstraintName("fk_week_schedule");
+                .HasConstraintName("fk_weeks_schedule");
         });
 
         OnModelCreatingPartial(modelBuilder);

@@ -9,4 +9,7 @@ public interface IStatisticService
     Task<StatisticDto> AddAsync(CreateStatisticDto createStatisticDto);
     Task UpdateAsync(UpdateStatisticDto updateStatisticDto);
     Task DeleteAsync(int id);
+    Task UpdateStatisticsAsync();
+    Task UpdateStatisticsOnUserChangeAsync();
+    Task UpdateStatisticsOnClassChangeAsync();
 }

@@ -38,7 +38,10 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IStatisticRepository, StatisticRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IGenderRepository, GenderRepository>();
-
+builder.Services.AddScoped<IDayRepository, DayRepository>();
+builder.Services.AddScoped<IRoomRepository, RoomRepository>();
+builder.Services.AddScoped<IDayOfWeekLookupRepository, DayOfWeekLookupRepository>();
+builder.Services.AddScoped<IAttendanceStatusRepository, AttendanceStatusRepository>();
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 #endregion
 
@@ -49,6 +52,7 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 #region Services
 builder.Services.AddScoped<IScheduleService, ScheduleService>();
 builder.Services.AddHostedService<ScheduleCreationBackgroundService>();
+builder.Services.AddHostedService<StatisticsBackgroundService>();
 builder.Services.AddScoped<ITimeslotService, TimeslotService>();
 builder.Services.AddScoped<IWeekService, WeekService>();
 builder.Services.AddScoped<IClassSessionService, ClassSessionService>();
@@ -66,6 +70,10 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IStatisticService, StatisticService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<IGenderService, GenderService>();
+builder.Services.AddScoped<IDayService, DayService>();
+builder.Services.AddScoped<IRoomService, RoomService>();
+builder.Services.AddScoped<IDayOfWeekLookupService, DayOfWeekLookupService>();
+builder.Services.AddScoped<IAttendanceStatusService, AttendanceStatusService>();
 #endregion
 
 #region Azure service
@@ -185,6 +193,7 @@ app.MapControllers();
 app.Run();
 
 
+// "Host=shortline.proxy.rlwy.net;Port=56746;Username=postgres;Password=AeFjmbZKuSjploofxcnXtNTmIUIZCIUk;Database=railway;SSL Mode=Require;Trust Server Certificate=true"
 
 // "Host=localhost;Port=5432;Database=innovus_updated_db;Username=postgres;Password=12345"
 

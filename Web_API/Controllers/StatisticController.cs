@@ -76,5 +76,53 @@ namespace Web_API.Controllers
             await _statisticService.DeleteAsync(id);
             return NoContent();
         }
+
+        // POST: api/Statistic/update-statistics
+        // Endpoint để trigger cập nhật thống kê tự động
+        [HttpPost("update-statistics")]
+        public async Task<IActionResult> UpdateStatistics()
+        {
+            try
+            {
+                await _statisticService.UpdateStatisticsAsync();
+                return Ok(new { message = "Thống kê đã được cập nhật thành công!" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = "Có lỗi xảy ra khi cập nhật thống kê", error = ex.Message });
+            }
+        }
+
+        // POST: api/Statistic/update-user-statistics
+        // Endpoint để cập nhật thống kê liên quan đến user
+        [HttpPost("update-user-statistics")]
+        public async Task<IActionResult> UpdateUserStatistics()
+        {
+            try
+            {
+                await _statisticService.UpdateStatisticsOnUserChangeAsync();
+                return Ok(new { message = "Thống kê user đã được cập nhật thành công!" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = "Có lỗi xảy ra khi cập nhật thống kê user", error = ex.Message });
+            }
+        }
+
+        // POST: api/Statistic/update-class-statistics
+        // Endpoint để cập nhật thống kê liên quan đến class
+        [HttpPost("update-class-statistics")]
+        public async Task<IActionResult> UpdateClassStatistics()
+        {
+            try
+            {
+                await _statisticService.UpdateStatisticsOnClassChangeAsync();
+                return Ok(new { message = "Thống kê class đã được cập nhật thành công!" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = "Có lỗi xảy ra khi cập nhật thống kê class", error = ex.Message });
+            }
+        }
     }
 }

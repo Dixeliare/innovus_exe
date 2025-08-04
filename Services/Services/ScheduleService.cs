@@ -1,6 +1,8 @@
 using System.Net;
 using DTOs;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Repository.Basic.IRepositories;
 using Repository.Basic.Repositories;
 using Repository.Basic.UnitOfWork;
@@ -13,267 +15,322 @@ namespace Services.Services;
 
 public class ScheduleService : IScheduleService
 {
-    // private readonly IScheduleRepository _scheduleRepository;
-
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IWeekService _weekService;
+    private readonly IConfiguration _configuration;
+    private readonly ILogger<ScheduleService> _logger; // Đã thêm Logger
 
-    // Số tháng lịch trình cần duy trì trong tương lai
-    private const int MONTHS_TO_ENSURE_IN_FUTURE = 6;
-
-    // Số tháng cũ cần giữ lại (ví dụ: 3 tháng cũ + tháng hiện tại)
-    private const int MONTHS_TO_KEEP_OLD = 3;
-
-
-    // public ScheduleService(IScheduleRepository scheduleRepository) => _scheduleRepository = scheduleRepository;
-
-    public ScheduleService(IUnitOfWork unitOfWork)
+    public ScheduleService(IUnitOfWork unitOfWork, IWeekService weekService, IConfiguration configuration, ILogger<ScheduleService> logger)
     {
         _unitOfWork = unitOfWork;
+        _weekService = weekService;
+        _configuration = configuration;
+        _logger = logger; // Khởi tạo Logger
     }
 
     public async Task<IEnumerable<ScheduleDto>> GetAllAsync()
     {
         var schedules = await _unitOfWork.Schedules.GetAllAsync();
-        return schedules.Select(MapToScheduleDto);
+        return schedules.Select(s => MapToScheduleDto(s));
     }
 
-    public async Task<ScheduleDto> GetByIDAsync(int id)
+    public async Task<ScheduleDto?> GetByIDAsync(int id)
     {
-        var schedule = await _unitOfWork.Schedules.GetByIDAsync(id);
+        var schedule = await _unitOfWork.Schedules.GetByIdAsync(id);
         if (schedule == null)
         {
             throw new NotFoundException("Schedule", "Id", id);
         }
+
         return MapToScheduleDto(schedule);
-    }
-
-    public async Task<IEnumerable<ScheduleDto>> SearchByIdOrNoteAsync(int? id, string? note)
-    {
-        var schedules = await _unitOfWork.Schedules.SearchByIdOrNoteAsync(id, note);
-        return schedules.Select(MapToScheduleDto);
-    }
-
-    public async Task<IEnumerable<ScheduleDto>> SearchByMonthYearAsync(int? month, int? year)
-    {
-        var schedules = await _unitOfWork.Schedules.SearchByMonthYearAsync(month, year);
-        return schedules.Select(MapToScheduleDto);
     }
 
     public async Task<ScheduleDto> AddAsync(CreateScheduleDto createScheduleDto)
     {
-        // Có thể thêm validation logic ở đây, ví dụ: không cho phép tạo lịch trình trùng lặp cho cùng một MonthYear
-        if (createScheduleDto.MonthYear.HasValue)
+        if (!createScheduleDto.MonthYear.HasValue)
         {
-            var existing = await _unitOfWork.Schedules.SearchByMonthYearAsync(
-                createScheduleDto.MonthYear.Value.Month,
-                createScheduleDto.MonthYear.Value.Year
-            );
-            if (existing != null && existing.Any())
+            throw new ValidationException(new Dictionary<string, string[]>
             {
-                throw new ValidationException(new Dictionary<string, string[]>
-                {
-                    { "MonthYear", new string[] { $"Lịch trình cho tháng {createScheduleDto.MonthYear.Value.Month}/{createScheduleDto.MonthYear.Value.Year} đã tồn tại." } }
-                });
-            }
+                { "MonthYear", new[] { "MonthYear is required." } }
+            });
         }
 
+        var existingSchedule = await _unitOfWork.Schedules.GetByMonthYearExactAsync(createScheduleDto.MonthYear.Value);
+        if (existingSchedule != null)
+        {
+            throw new ApiException($"Lịch trình cho ngày {createScheduleDto.MonthYear.Value.ToShortDateString()} đã tồn tại.",
+                (int)HttpStatusCode.Conflict);
+        }
 
-        var scheduleEntity = new schedule
+        var schedule = new schedule
         {
             month_year = createScheduleDto.MonthYear,
-            note = createScheduleDto.Note,
+            note = createScheduleDto.Note
         };
 
         try
         {
-            var addedSchedule = await _unitOfWork.Schedules.AddAsync(scheduleEntity);
-            await _unitOfWork.CompleteAsync(); // Lưu thay đổi vào DB
+            var addedSchedule = await _unitOfWork.Schedules.AddAsync(schedule); 
+            
+            // LƯU LỊCH TRÌNH NGAY LẬP TỨC để lấy schedule_id được sinh ra bởi database.
+            // Điều này là cần thiết để các Weeks và Days liên quan có thể tham chiếu đúng schedule_id.
+            await _unitOfWork.CompleteAsync(); 
+
+            if (addedSchedule.month_year.HasValue)
+            {
+                // Gọi GenerateWeeksForMonthAsync từ WeekService
+                // Sử dụng schedule_id ĐÃ ĐƯỢC CẬP NHẬT từ database.
+                await _weekService.GenerateWeeksForMonthAsync(
+                    addedSchedule.schedule_id, 
+                    addedSchedule.month_year.Value.Year,
+                    addedSchedule.month_year.Value.Month
+                );
+            }
+            else
+            {
+                throw new ApiException("Không thể tạo tuần vì thông tin tháng/năm không hợp lệ trong lịch trình đã tạo.", (int)HttpStatusCode.InternalServerError);
+            }
+
+            // LƯU LẠI LẦN THỨ HAI để lưu Weeks và Days vừa được thêm vào context bởi WeekService.
+            await _unitOfWork.CompleteAsync(); 
+
             return MapToScheduleDto(addedSchedule);
         }
         catch (DbUpdateException dbEx)
         {
-            throw new ApiException("Có lỗi xảy ra khi thêm lịch trình vào cơ sở dữ liệu.", dbEx, (int)HttpStatusCode.InternalServerError);
+            // Log chi tiết hơn để dễ debug
+            _logger.LogError(dbEx, "DbUpdateException during Schedule AddAsync.");
+            if (dbEx.InnerException?.Message?.Contains("duplicate key", StringComparison.OrdinalIgnoreCase) == true ||
+                (dbEx.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505"))
+            {
+                throw new ApiException($"Lịch trình cho ngày {createScheduleDto.MonthYear.Value.ToShortDateString()} đã tồn tại.",
+                                       (int)HttpStatusCode.Conflict);
+            }
+
+            throw new ApiException("Có lỗi xảy ra khi tạo lịch trình.", dbEx,
+                (int)HttpStatusCode.InternalServerError);
         }
         catch (Exception ex)
         {
-            throw new ApiException("An unexpected error occurred while adding the schedule.", ex, (int)HttpStatusCode.InternalServerError);
+            _logger.LogError(ex, "Unexpected error during Schedule AddAsync.");
+            throw new ApiException("Đã xảy ra lỗi không mong muốn khi tạo lịch trình.", ex,
+                (int)HttpStatusCode.InternalServerError);
         }
     }
 
-    // UPDATE Schedule
     public async Task UpdateAsync(UpdateScheduleDto updateScheduleDto)
     {
-        var existingSchedule = await _unitOfWork.Schedules.GetByIDAsync(updateScheduleDto.ScheduleId);
-
+        var existingSchedule = await _unitOfWork.Schedules.GetByIdAsync(updateScheduleDto.ScheduleId);
         if (existingSchedule == null)
         {
             throw new NotFoundException("Schedule", "Id", updateScheduleDto.ScheduleId);
         }
 
-        // Kiểm tra trùng lặp nếu MonthYear được cập nhật
-        if (updateScheduleDto.MonthYear.HasValue && existingSchedule.month_year != updateScheduleDto.MonthYear.Value)
+        if (!updateScheduleDto.MonthYear.HasValue)
         {
-            var existing = await _unitOfWork.Schedules.SearchByMonthYearAsync(
-                updateScheduleDto.MonthYear.Value.Month,
-                updateScheduleDto.MonthYear.Value.Year
-            );
-            if (existing != null && existing.Any(s => s.schedule_id != updateScheduleDto.ScheduleId))
+            throw new ValidationException(new Dictionary<string, string[]>
             {
-                throw new ValidationException(new Dictionary<string, string[]>
-                {
-                    { "MonthYear", new string[] { $"Lịch trình cho tháng {updateScheduleDto.MonthYear.Value.Month}/{updateScheduleDto.MonthYear.Value.Year} đã tồn tại với ID khác." } }
-                });
+                { "MonthYear", new[] { "MonthYear is required." } }
+            });
+        }
+
+        if (existingSchedule.month_year != updateScheduleDto.MonthYear.Value)
+        {
+            var scheduleWithSameMonthYear =
+                await _unitOfWork.Schedules.GetByMonthYearExactAsync(updateScheduleDto.MonthYear.Value);
+            if (scheduleWithSameMonthYear != null &&
+                scheduleWithSameMonthYear.schedule_id != updateScheduleDto.ScheduleId)
+            {
+                throw new ApiException($"Lịch trình cho ngày {updateScheduleDto.MonthYear.Value.ToShortDateString()} đã tồn tại.",
+                    (int)HttpStatusCode.Conflict);
             }
         }
 
-        // Cập nhật các trường nếu có giá trị được cung cấp
-        if (updateScheduleDto.MonthYear.HasValue)
-        {
-            existingSchedule.month_year = updateScheduleDto.MonthYear.Value;
-        }
-
-        // Nếu Note có thể được set thành null (như trong model), gán trực tiếp
+        existingSchedule.month_year = updateScheduleDto.MonthYear;
         existingSchedule.note = updateScheduleDto.Note;
-
 
         try
         {
             await _unitOfWork.Schedules.UpdateAsync(existingSchedule);
-            await _unitOfWork.CompleteAsync(); // Lưu thay đổi vào DB
+            await _unitOfWork.CompleteAsync();
         }
         catch (DbUpdateException dbEx)
         {
-            throw new ApiException("Có lỗi xảy ra khi cập nhật lịch trình trong cơ sở dữ liệu.", dbEx, (int)HttpStatusCode.InternalServerError);
+            _logger.LogError(dbEx, "DbUpdateException during Schedule UpdateAsync.");
+            if (dbEx.InnerException?.Message?.Contains("duplicate key", StringComparison.OrdinalIgnoreCase) == true ||
+                (dbEx.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505"))
+            {
+                throw new ApiException($"Lịch trình cho ngày {updateScheduleDto.MonthYear.Value.ToShortDateString()} đã tồn tại.",
+                                       (int)HttpStatusCode.Conflict);
+            }
+
+            throw new ApiException("Có lỗi xảy ra khi cập nhật lịch trình.", dbEx,
+                (int)HttpStatusCode.InternalServerError);
         }
         catch (Exception ex)
         {
-            throw new ApiException("An unexpected error occurred while updating the schedule.", ex, (int)HttpStatusCode.InternalServerError);
+            _logger.LogError(ex, "An unexpected error occurred during schedule update.");
+            throw new ApiException("An unexpected error occurred during schedule update.", ex,
+                (int)HttpStatusCode.InternalServerError);
         }
     }
 
-    public async Task DeleteAsync(int scheduleId)
+    public async Task DeleteAsync(int id)
     {
-        var scheduleToDelete = await _unitOfWork.Schedules.GetByIDAsync(scheduleId);
+        var scheduleToDelete = await _unitOfWork.Schedules.GetByIdAsync(id);
         if (scheduleToDelete == null)
         {
-            throw new NotFoundException("Schedule", "Id", scheduleId);
+            throw new NotFoundException("Schedule", "Id", id);
         }
 
         try
         {
-            await _unitOfWork.Schedules.DeleteAsync(scheduleId);
-            await _unitOfWork.CompleteAsync(); // Lưu thay đổi vào DB
+            // Xóa các tuần và ngày liên quan trước
+            // Phương thức này chỉ đánh dấu các entities để xóa, không tự CompleteAsync()
+            await _weekService.DeleteWeeksByScheduleIdAsync(id); 
+            
+            // Xóa lịch trình chính
+            await _unitOfWork.Schedules.DeleteAsync(id);
+            
+            await _unitOfWork.CompleteAsync(); // Lưu tất cả các thay đổi (xóa weeks, days, schedule)
         }
         catch (DbUpdateException dbEx)
         {
-            throw new ApiException("Không thể xóa lịch trình do lỗi cơ sở dữ liệu (ví dụ: đang được tham chiếu bởi các bảng khác).", dbEx, (int)HttpStatusCode.Conflict); // 409 Conflict
+            _logger.LogError(dbEx, "DbUpdateException during Schedule DeleteAsync.");
+            throw new ApiException("Không thể xóa lịch trình do có các bản ghi liên quan (ràng buộc khóa ngoại).", dbEx,
+                (int)HttpStatusCode.Conflict);
+        }
+        catch (ApiException)
+        {
+            throw; // Re-throw ApiException from DeleteWeeksByScheduleIdAsync
         }
         catch (Exception ex)
         {
-            throw new ApiException("An unexpected error occurred while deleting the schedule.", ex, (int)HttpStatusCode.InternalServerError);
+            _logger.LogError(ex, "An unexpected error occurred during schedule deletion.");
+            throw new ApiException("An unexpected error occurred during schedule deletion.", ex,
+                (int)HttpStatusCode.InternalServerError);
         }
     }
 
-
-    // ---------- Logic Chính cho việc tạo và dọn dẹp Schedule tự động ----------
-
-    public async Task EnsureScheduleExistenceAndCleanupAsync()
+    public async Task<IEnumerable<ScheduleDto>> SearchByIdOrNoteAsync(int? id, string? note)
     {
-        var now = DateTime.UtcNow;
-        var currentMonthStart = new DateOnly(now.Year, now.Month, 1);
-
-        Console.WriteLine(
-            $"[ScheduleService] Running EnsureScheduleExistenceAndCleanupAsync at {now:yyyy-MM-dd HH:mm:ss} UTC");
-
-        try
-        {
-            await EnsureFutureSchedulesInternalAsync(currentMonthStart);
-            await CleanupOldSchedulesInternalAsync(currentMonthStart);
-
-            // Đây là nơi quan trọng: Commit TẤT CẢ các thay đổi của unit of work
-            // Entity Framework Core sẽ tự động tạo một giao dịch cho SaveChangesAsync
-            // nếu chưa có, và rollback nếu có lỗi.
-            await _unitOfWork.CompleteAsync();
-
-            Console.WriteLine($"[ScheduleService] Finished EnsureScheduleExistenceAndCleanupAsync successfully.");
-        }
-        catch (DbUpdateException dbEx)
-        {
-            // EF Core sẽ tự động rollback giao dịch khi CompleteAsync() thất bại
-            throw new ApiException("Database error during schedule management cleanup/creation. Changes have been rolled back.", dbEx, (int)HttpStatusCode.InternalServerError);
-        }
-        catch (Exception ex)
-        {
-            // EF Core sẽ tự động rollback giao dịch khi CompleteAsync() thất bại
-            throw new ApiException("An unexpected error occurred during schedule management cleanup/creation. Changes have been rolled back.", ex, (int)HttpStatusCode.InternalServerError);
-        }
+        var schedules = await _unitOfWork.Schedules.SearchByIdOrNoteAsync(id, note);
+        return schedules.Select(s => MapToScheduleDto(s));
     }
 
-    private async Task EnsureFutureSchedulesInternalAsync(DateOnly currentMonthStart)
+    public async Task<IEnumerable<ScheduleDto>> GetSchedulesInMonthYearAsync(int month, int year)
     {
-        Console.WriteLine($"[ScheduleService] Ensuring schedules for next {MONTHS_TO_ENSURE_IN_FUTURE} months...");
+        var schedules = await _unitOfWork.Schedules.GetSchedulesInMonthYearAsync(month, year);
+        return schedules.Select(s => MapToScheduleDto(s));
+    }
 
-        var schedulesToAdd = new List<schedule>();
-        var allExistingSchedules = (await _unitOfWork.Schedules.GetAllAsync()).ToList();
+    public async Task EnsureFutureSchedulesInternalAsync()
+    {
+        var currentDateTime = DateTime.UtcNow;
+        var schedulesToCreate = new List<schedule>(); 
 
-        for (int i = 0; i < MONTHS_TO_ENSURE_IN_FUTURE; i++)
+        int numberOfMonthsToGenerate = _configuration.GetValue<int>("ScheduleSettings:MonthsToGenerate", 3);
+
+        for (int i = 0; i < numberOfMonthsToGenerate; i++)
         {
-            var targetDate = currentMonthStart.AddMonths(i);
+            var targetDate = currentDateTime.AddMonths(i);
             var targetMonthYear = new DateOnly(targetDate.Year, targetDate.Month, 1);
 
-            var exists = allExistingSchedules.Any(s =>
-                s.month_year.HasValue && s.month_year.Value.Year == targetMonthYear.Year && s.month_year.Value.Month == targetMonthYear.Month
-            );
-
-            if (!exists)
+            var existingSchedule = await _unitOfWork.Schedules.GetByMonthYearExactAsync(targetMonthYear);
+            if (existingSchedule == null)
             {
-                schedulesToAdd.Add(new schedule
+                schedulesToCreate.Add(new schedule
                 {
                     month_year = targetMonthYear,
-                    note = $"Lịch trình tháng {targetMonthYear.Month}/{targetMonthYear.Year}"
+                    note = $"Tự động tạo cho tháng {targetMonthYear.Month}/{targetMonthYear.Year}"
                 });
-                Console.WriteLine(
-                    $"[ScheduleService] - Preparing to create schedule for {targetMonthYear.Month}/{targetMonthYear.Year}.");
             }
         }
 
-        if (schedulesToAdd.Any())
+        if (schedulesToCreate.Any())
         {
-            foreach (var s in schedulesToAdd)
+            _logger.LogInformation($"Found {schedulesToCreate.Count} new schedules to generate.");
+            
+            // Thêm tất cả schedule vào context.
+            await _unitOfWork.Schedules.AddRangeAsync(schedulesToCreate); 
+            
+            // LƯU CÁC SCHEDULE MỚI để có ID thực tế trước khi tạo Weeks/Days
+            try
             {
-                await _unitOfWork.Schedules.AddAsync(s);
+                 await _unitOfWork.CompleteAsync(); 
             }
-            Console.WriteLine($"[ScheduleService] - Created {schedulesToAdd.Count} new schedules.");
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error saving new schedules in EnsureFutureSchedulesInternalAsync. Skipping week generation for these schedules.");
+                // Nếu không lưu được schedule, không tạo weeks cho nó nữa.
+                return; 
+            }
+           
+
+            foreach (var newSchedule in schedulesToCreate)
+            {
+                if (newSchedule.month_year.HasValue)
+                {
+                    _logger.LogInformation($"Generating weeks and days for Schedule ID: {newSchedule.schedule_id} (Month: {newSchedule.month_year.Value.Month}/{newSchedule.month_year.Value.Year})");
+                    await _weekService.GenerateWeeksForMonthAsync(
+                        newSchedule.schedule_id,
+                        newSchedule.month_year.Value.Year,
+                        newSchedule.month_year.Value.Month
+                    );
+                }
+            }
+            // LƯU TẤT CẢ CÁC WEEKS VÀ DAYS ĐƯỢC TẠO SAU KHI ĐÃ CÓ ID CỦA SCHEDULE
+            await _unitOfWork.CompleteAsync(); 
+            _logger.LogInformation("Successfully generated weeks and days for new schedules.");
         }
         else
         {
-            Console.WriteLine("[ScheduleService] - All future schedules already exist.");
+            _logger.LogInformation("No future schedules needed to be generated.");
         }
     }
 
-    private async Task CleanupOldSchedulesInternalAsync(DateOnly currentMonthStart)
+    public async Task CleanupOldSchedulesInternalAsync()
     {
-        Console.WriteLine($"[ScheduleService] Cleaning up schedules older than {MONTHS_TO_KEEP_OLD} months...");
+        var currentDateTime = DateTime.UtcNow;
+        int monthsToKeepPast = _configuration.GetValue<int>("ScheduleSettings:MonthsToKeepPast", 1);
 
-        var cutoffDate = currentMonthStart.AddMonths(-MONTHS_TO_KEEP_OLD);
+        var thresholdDate = currentDateTime.AddMonths(-monthsToKeepPast);
+        var thresholdMonthYear = new DateOnly(thresholdDate.Year, thresholdDate.Month, 1);
 
-        var oldSchedules = (await _unitOfWork.Schedules.GetAllAsync())
-            .Where(s => s.month_year.HasValue && s.month_year.Value < cutoffDate)
-            .ToList();
+        // Lấy tất cả và lọc ngay lập tức sau khi await
+        var oldSchedules = (await _unitOfWork.Schedules.GetAllAsync()) 
+            .Where(s => s.month_year.HasValue && s.month_year.Value < thresholdMonthYear)
+            .ToList(); 
 
         if (oldSchedules.Any())
         {
-            Console.WriteLine(
-                $"[ScheduleService] - Found {oldSchedules.Count} old schedules to delete before {cutoffDate.Month}/{cutoffDate.Year}.");
+            _logger.LogInformation($"Found {oldSchedules.Count} old schedules to clean up.");
             foreach (var s in oldSchedules)
             {
-                await _unitOfWork.Schedules.DeleteAsync(s.schedule_id);
+                try
+                {
+                    await _weekService.DeleteWeeksByScheduleIdAsync(s.schedule_id);
+                    _unitOfWork.Schedules.Remove(s);
+                }
+                catch (DbUpdateException dbEx)
+                {
+                    _logger.LogError(dbEx, $"Error deleting old schedule {s.schedule_id} due to related entities. Skipping this schedule.");
+                }
+                catch (ApiException apiEx)
+                {
+                    _logger.LogError(apiEx, $"Error deleting old schedule {s.schedule_id}. Skipping this schedule.");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, $"An unexpected error occurred while processing old schedule {s.schedule_id} for deletion. Skipping this schedule.");
+                }
             }
-            Console.WriteLine($"[ScheduleService] - Deleted {oldSchedules.Count} old schedules.");
+            await _unitOfWork.CompleteAsync();
+            _logger.LogInformation("Cleanup of old schedules completed.");
         }
         else
         {
-            Console.WriteLine("[ScheduleService] - No old schedules to delete.");
+            _logger.LogInformation("No old schedules needed to be cleaned up.");
         }
     }
 
@@ -283,8 +340,7 @@ public class ScheduleService : IScheduleService
         {
             ScheduleId = model.schedule_id,
             MonthYear = model.month_year,
-            Note = model.note,
-            // KHÔNG có UserId ở đây, vì model không có public int? user_id
+            Note = model.note
         };
     }
 }

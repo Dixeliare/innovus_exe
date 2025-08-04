@@ -12,10 +12,6 @@ namespace Services.Services;
 
 public class AttendanceService : IAttendanceService
 {
-    // private readonly IAttendanceRepository _attendanceRepository;
-    //
-    // public AttendanceService(IAttendanceRepository attendanceService) => _attendanceRepository = attendanceService;
-    
     private readonly IUnitOfWork _unitOfWork;
 
     public AttendanceService(IUnitOfWork unitOfWork)
@@ -25,42 +21,62 @@ public class AttendanceService : IAttendanceService
 
     public async Task<IEnumerable<AttendanceDto>> GetAllAsync()
     {
-        var attendances = await _unitOfWork.Attendances.GetAllAsync();
+        var attendances = await _unitOfWork.Attendances.GetAllAttendancesWithDetailsAsync();
         return attendances.Select(MapToAttendanceDto);
     }
 
     public async Task<AttendanceDto> GetByIdAsync(int id)
     {
-        var attendance = await _unitOfWork.Attendances.GetByIdAsync(id);
+        var attendance = await _unitOfWork.Attendances.GetAttendanceByIdWithDetailsAsync(id);
         if (attendance == null)
         {
             throw new NotFoundException("Attendance", "Id", id);
         }
         return MapToAttendanceDto(attendance);
     }
+    
+    public async Task<IEnumerable<AttendanceDto>> GetAttendancesByUserIdAsync(int userId)
+    {
+        var userExists = await _unitOfWork.Users.GetByIdAsync(userId);
+        if (userExists == null)
+        {
+            throw new NotFoundException("User", "Id", userId);
+        }
+        var attendances = await _unitOfWork.Attendances.SearchAttendancesWithDetailsAsync(userId: userId);
+        return attendances.Select(MapToAttendanceDto);
+    }
+
+    public async Task<IEnumerable<AttendanceDto>> GetAttendancesByClassSessionIdAsync(int classSessionId)
+    {
+        var classSessionExists = await _unitOfWork.ClassSessions.GetByIdAsync(classSessionId);
+        if (classSessionExists == null)
+        {
+            throw new NotFoundException("ClassSession", "Id", classSessionId);
+        }
+        var attendances = await _unitOfWork.Attendances.SearchAttendancesWithDetailsAsync(classSessionId: classSessionId);
+        return attendances.Select(MapToAttendanceDto);
+    }
 
     public async Task<AttendanceDto> AddAsync(CreateAttendanceDto createAttendanceDto)
     {
-        // Kiểm tra sự tồn tại của User
         var userExists = await _unitOfWork.Users.GetByIdAsync(createAttendanceDto.UserId);
         if (userExists == null)
         {
             throw new NotFoundException("User", "Id", createAttendanceDto.UserId);
         }
 
-        // Kiểm tra sự tồn tại của ClassSession
         var classSessionExists = await _unitOfWork.ClassSessions.GetByIdAsync(createAttendanceDto.ClassSessionId);
         if (classSessionExists == null)
         {
             throw new NotFoundException("ClassSession", "Id", createAttendanceDto.ClassSessionId);
         }
 
-        // Kiểm tra tính duy nhất: Một User chỉ có một bản điểm danh cho một ClassSession
-        var existingAttendance = await _unitOfWork.Attendances.FindOneAsync(att =>
-            att.user_id == createAttendanceDto.UserId &&
-            att.class_session_id == createAttendanceDto.ClassSessionId);
+        var existingAttendances = await _unitOfWork.Attendances.SearchAttendancesAsync(
+            userId: createAttendanceDto.UserId,
+            classSessionId: createAttendanceDto.ClassSessionId
+        );
 
-        if (existingAttendance != null)
+        if (existingAttendances.Any())
         {
             throw new ValidationException(new Dictionary<string, string[]>
             {
@@ -70,8 +86,8 @@ public class AttendanceService : IAttendanceService
 
         var attendanceEntity = new attendance
         {
-            status = createAttendanceDto.Status,
-            check_at = DateTime.Now, // Luôn lấy thời gian hiện tại khi tạo mới
+            status_id = createAttendanceDto.Status,
+            check_at = DateTime.Now,
             note = createAttendanceDto.Note,
             user_id = createAttendanceDto.UserId,
             class_session_id = createAttendanceDto.ClassSessionId
@@ -80,8 +96,9 @@ public class AttendanceService : IAttendanceService
         try
         {
             var addedAttendance = await _unitOfWork.Attendances.AddAsync(attendanceEntity);
-            await _unitOfWork.CompleteAsync(); // Lưu thay đổi
-            return MapToAttendanceDto(addedAttendance);
+            await _unitOfWork.CompleteAsync();
+            var addedAttendanceWithDetails = await _unitOfWork.Attendances.GetAttendanceByIdWithDetailsAsync(addedAttendance.attendance_id);
+            return MapToAttendanceDto(addedAttendanceWithDetails ?? addedAttendance);
         }
         catch (DbUpdateException dbEx)
         {
@@ -102,7 +119,7 @@ public class AttendanceService : IAttendanceService
             throw new NotFoundException("Attendance", "Id", updateAttendanceDto.AttendanceId);
         }
 
-        // Kiểm tra và cập nhật UserId nếu có giá trị mới và khác giá trị cũ
+        bool userIdChanged = false;
         if (updateAttendanceDto.UserId.HasValue && updateAttendanceDto.UserId.Value != existingAttendance.user_id)
         {
             var userExists = await _unitOfWork.Users.GetByIdAsync(updateAttendanceDto.UserId.Value);
@@ -111,9 +128,10 @@ public class AttendanceService : IAttendanceService
                 throw new NotFoundException("User", "Id", updateAttendanceDto.UserId.Value);
             }
             existingAttendance.user_id = updateAttendanceDto.UserId.Value;
+            userIdChanged = true;
         }
 
-        // Kiểm tra và cập nhật ClassSessionId nếu có giá trị mới và khác giá trị cũ
+        bool classSessionIdChanged = false;
         if (updateAttendanceDto.ClassSessionId.HasValue && updateAttendanceDto.ClassSessionId.Value != existingAttendance.class_session_id)
         {
             var classSessionExists = await _unitOfWork.ClassSessions.GetByIdAsync(updateAttendanceDto.ClassSessionId.Value);
@@ -122,21 +140,20 @@ public class AttendanceService : IAttendanceService
                 throw new NotFoundException("ClassSession", "Id", updateAttendanceDto.ClassSessionId.Value);
             }
             existingAttendance.class_session_id = updateAttendanceDto.ClassSessionId.Value;
+            classSessionIdChanged = true;
         }
 
-        // Kiểm tra tính duy nhất nếu User ID hoặc Class Session ID bị thay đổi
-        if ((updateAttendanceDto.UserId.HasValue && updateAttendanceDto.UserId.Value != existingAttendance.user_id) ||
-            (updateAttendanceDto.ClassSessionId.HasValue && updateAttendanceDto.ClassSessionId.Value != existingAttendance.class_session_id))
+        if (userIdChanged || classSessionIdChanged)
         {
             int targetUserId = updateAttendanceDto.UserId ?? existingAttendance.user_id;
             int targetClassSessionId = updateAttendanceDto.ClassSessionId ?? existingAttendance.class_session_id;
 
-            var conflictingAttendance = await _unitOfWork.Attendances.FindOneAsync(att =>
-                att.user_id == targetUserId &&
-                att.class_session_id == targetClassSessionId &&
-                att.attendance_id != updateAttendanceDto.AttendanceId); // Không phải chính nó
+            var conflictingAttendances = await _unitOfWork.Attendances.SearchAttendancesAsync(
+                userId: targetUserId,
+                classSessionId: targetClassSessionId
+            );
 
-            if (conflictingAttendance != null)
+            if (conflictingAttendances.Any(att => att.attendance_id != updateAttendanceDto.AttendanceId))
             {
                 throw new ValidationException(new Dictionary<string, string[]>
                 {
@@ -145,26 +162,21 @@ public class AttendanceService : IAttendanceService
             }
         }
 
-        // Cập nhật các trường còn lại
-        existingAttendance.status = updateAttendanceDto.Status ?? existingAttendance.status; // Giữ nguyên nếu null
-        existingAttendance.note = updateAttendanceDto.Note ?? existingAttendance.note; // Giữ nguyên nếu null
-
-        // Xử lý CheckAt khi UPDATE:
-        // Cách 1: Luôn cập nhật CheckAt thành thời gian hiện tại khi có bất kỳ cập nhật nào
+        if (updateAttendanceDto.Status.HasValue) 
+        {
+            existingAttendance.status_id = updateAttendanceDto.Status.Value;
+        }
+        if (updateAttendanceDto.Note != null)
+        {
+            existingAttendance.note = updateAttendanceDto.Note;
+        }
+        
         existingAttendance.check_at = DateTime.Now;
-        // Cách 2: Chỉ cập nhật CheckAt nếu DTO cung cấp một giá trị mới (tùy nghiệp vụ)
-        // if (updateAttendanceDto.CheckAt.HasValue)
-        // {
-        //     existingAttendance.check_at = updateAttendanceDto.CheckAt.Value;
-        // }
-        // Cách 3: Không bao giờ cập nhật CheckAt sau khi tạo (giữ nguyên thời gian điểm danh ban đầu)
-        // (không làm gì ở đây)
-
 
         try
         {
             await _unitOfWork.Attendances.UpdateAsync(existingAttendance);
-            await _unitOfWork.CompleteAsync(); // Lưu thay đổi
+            await _unitOfWork.CompleteAsync();
         }
         catch (DbUpdateException dbEx)
         {
@@ -187,11 +199,11 @@ public class AttendanceService : IAttendanceService
         try
         {
             await _unitOfWork.Attendances.DeleteAsync(id);
-            await _unitOfWork.CompleteAsync(); // Lưu thay đổi
+            await _unitOfWork.CompleteAsync();
         }
         catch (DbUpdateException dbEx)
         {
-            throw new ApiException("Có lỗi xảy ra khi xóa bản điểm danh khỏi cơ sở dữ liệu.", dbEx, (int)HttpStatusCode.InternalServerError);
+            throw new ApiException("Có lỗi xảy ra khi xóa bản điểm danh khỏi cơ sở dữ liệu. Có thể có các bản ghi liên quan.", dbEx, (int)HttpStatusCode.Conflict);
         }
         catch (Exception ex)
         {
@@ -199,10 +211,101 @@ public class AttendanceService : IAttendanceService
         }
     }
 
-    public async Task<IEnumerable<AttendanceDto>> SearchAttendancesAsync(bool? status = null, string? note = null)
+    public async Task<IEnumerable<AttendanceDto>> SearchAttendancesAsync(
+        int? statusId = null,
+        string? note = null,
+        int? userId = null,
+        int? classSessionId = null)
     {
-        var attendances = await _unitOfWork.Attendances.SearchAttendancesAsync(status, note);
+        var attendances = await _unitOfWork.Attendances.SearchAttendancesWithDetailsAsync(
+            statusId, note, userId, classSessionId
+        );
         return attendances.Select(MapToAttendanceDto);
+    }
+    
+    public async Task BulkUpdateAsync(BulkUpdateAttendanceDto bulkUpdateDto)
+    {
+        // Kiểm tra class session tồn tại
+        var classSessionExists = await _unitOfWork.ClassSessions.GetByIdAsync(bulkUpdateDto.ClassSessionId);
+        if (classSessionExists == null)
+        {
+            throw new NotFoundException("ClassSession", "Id", bulkUpdateDto.ClassSessionId);
+        }
+
+        var attendancesToUpdate = new List<attendance>();
+
+        foreach (var attendanceItem in bulkUpdateDto.Attendances)
+        {
+            // Kiểm tra user tồn tại
+            var userExists = await _unitOfWork.Users.GetByIdAsync(attendanceItem.UserId);
+            if (userExists == null)
+            {
+                throw new NotFoundException("User", "Id", attendanceItem.UserId);
+            }
+
+            // Kiểm tra status tồn tại
+            var statusExists = await _unitOfWork.AttendanceStatuses.GetByIdAsync(attendanceItem.Status);
+            if (statusExists == null)
+            {
+                throw new NotFoundException("AttendanceStatus", "Id", attendanceItem.Status);
+            }
+
+            // Tìm attendance hiện tại hoặc tạo mới (dùng SearchAttendancesWithDetailsAsync để lấy entity)
+            var attendances = await _unitOfWork.Attendances.SearchAttendancesWithDetailsAsync(
+                userId: attendanceItem.UserId,
+                classSessionId: bulkUpdateDto.ClassSessionId
+            );
+            var existingAttendance = attendances.FirstOrDefault();
+
+            if (existingAttendance != null)
+            {
+                // Cập nhật attendance hiện tại
+                existingAttendance.status_id = attendanceItem.Status;
+                existingAttendance.note = attendanceItem.Note;
+                existingAttendance.check_at = DateTime.Now;
+                attendancesToUpdate.Add(existingAttendance);
+            }
+            else
+            {
+                // Tạo attendance mới
+                var newAttendance = new attendance
+                {
+                    status_id = attendanceItem.Status,
+                    check_at = DateTime.Now,
+                    note = attendanceItem.Note,
+                    user_id = attendanceItem.UserId,
+                    class_session_id = bulkUpdateDto.ClassSessionId
+                };
+                attendancesToUpdate.Add(newAttendance);
+            }
+        }
+
+        try
+        {
+            // Lưu tất cả thay đổi
+            foreach (var attendance in attendancesToUpdate)
+            {
+                if (attendance.attendance_id == 0)
+                {
+                    // Thêm mới
+                    await _unitOfWork.Attendances.AddAsync(attendance);
+                }
+                else
+                {
+                    // Cập nhật
+                    await _unitOfWork.Attendances.UpdateAsync(attendance);
+                }
+            }
+            await _unitOfWork.CompleteAsync();
+        }
+        catch (DbUpdateException dbEx)
+        {
+            throw new ApiException("Có lỗi xảy ra khi cập nhật điểm danh hàng loạt.", dbEx, (int)HttpStatusCode.InternalServerError);
+        }
+        catch (Exception ex)
+        {
+            throw new ApiException("An unexpected error occurred while bulk updating attendance.", ex, (int)HttpStatusCode.InternalServerError);
+        }
     }
     
     private AttendanceDto MapToAttendanceDto(attendance att)
@@ -210,11 +313,47 @@ public class AttendanceService : IAttendanceService
         return new AttendanceDto
         {
             AttendanceId = att.attendance_id,
-            Status = att.status,
+            StatusId = att.status_id,
+            StatusName = att.status?.status_name,
             CheckAt = att.check_at,
             Note = att.note,
             UserId = att.user_id,
-            ClassSessionId = att.class_session_id
+            ClassSessionId = att.class_session_id,
+            ClassCode = att.class_session?._class?.class_code ?? "",
+            
+            User = att.user != null
+                ? new UserDto
+                {
+                    UserId = att.user.user_id,
+                    Username = att.user.username,
+                    AccountName = att.user.account_name,
+                    // ... các trường khác của User từ UserDto
+                }
+                : null,
+
+            ClassSession = att.class_session != null
+                ? new PersonalClassSessionDto
+                {
+                    ClassSessionId = att.class_session.class_session_id,
+                    SessionNumber = att.class_session.session_number,
+                    Date = att.class_session.date,
+                    RoomCode = null, // Không include room
+                    DayId = att.class_session.day_id,
+                    ClassId = att.class_session.class_id,
+                    TimeSlotId = att.class_session.time_slot_id,
+
+                    DayOfWeekName = null, // Không include day
+                    DateOfDay = null, // Không include day
+
+                    WeekNumberInMonth = null, // Không include day.week
+
+                    ClassCode = null, // Không include _class
+                    InstrumentName = null, // Không include _class.instrument
+
+                    StartTime = null, // Không include time_slot
+                    EndTime = null // Không include time_slot
+                }
+                : null
         };
     }
 }

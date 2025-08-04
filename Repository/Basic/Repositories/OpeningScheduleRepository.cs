@@ -15,9 +15,9 @@ public class OpeningScheduleRepository : GenericRepository<opening_schedule>, IO
     public async Task<IEnumerable<opening_schedule>> GetAllAsync()
     {
         return await _dbSet
-            .Include(u => u.users)
             .Include(t => t.teacher_user) 
             .Include(i => i.instrument)
+            .Include(d => d.day_of_weeks) // THÊM: Include day_of_weeks collection
             .AsSplitQuery()
             .ToListAsync();
     }
@@ -25,52 +25,25 @@ public class OpeningScheduleRepository : GenericRepository<opening_schedule>, IO
     public async Task<opening_schedule> GetByIdAsync(int id)
     {
         return await _dbSet
-            .Include(u => u.users)
             .Include(t => t.teacher_user) 
             .Include(i => i.instrument)
+            .Include(d => d.day_of_weeks) // THÊM: Include day_of_weeks collection
             .AsSplitQuery()
             .FirstOrDefaultAsync(o => o.opening_schedule_id == id);
     }
-
-    // public async Task<opening_schedule> AddAsync(opening_schedule entity)
-    // {
-    //     _context.opening_schedules.Add(entity);
-    //     await _context.SaveChangesAsync();
-    //     return entity;
-    // }
-    //
-    // public async Task UpdateAsync(opening_schedule entity)
-    // {
-    //     _context.opening_schedules.Update(entity);
-    //     await _context.SaveChangesAsync();
-    // }
-    //
-    // public async Task<bool> DeleteAsync(int id)
-    // {
-    //     var item = await _context.opening_schedules.FindAsync(id);
-    //     
-    //     if (item == null) return false;
-    //     _context.opening_schedules.Remove(item);
-    //     return await _context.SaveChangesAsync() > 0;
-    // }
     
     public async Task<IEnumerable<opening_schedule>> SearchOpeningSchedulesAsync(
         string? classCode = null,
         DateOnly? openingDay = null,
         DateOnly? endDate = null,
-        string? schedule = null,
+        // ĐÃ XÓA: string? schedule = null,
         int? studentQuantity = null,
         bool? isAdvancedClass = null)
     {
         IQueryable<opening_schedule> query = _dbSet
             .Include(t => t.teacher_user)
-            .Include(i => i.instrument);
-
-        // Áp dụng từng điều kiện tìm kiếm nếu tham số được cung cấp
-        // if (!string.IsNullOrEmpty(subject)) // Đã xóa điều kiện này
-        // {
-        //     query = query.Where(o => EF.Functions.ILike(o.subject, $"%{subject}%"));
-        // }
+            .Include(i => i.instrument)
+            .Include(d => d.day_of_weeks); // THÊM: Include day_of_weeks collection
 
         if (!string.IsNullOrEmpty(classCode))
         {
@@ -87,10 +60,10 @@ public class OpeningScheduleRepository : GenericRepository<opening_schedule>, IO
             query = query.Where(o => o.end_date == endDate.Value);
         }
 
-        if (!string.IsNullOrEmpty(schedule))
-        {
-            query = query.Where(o => EF.Functions.ILike(o.schedule, $"%{schedule}%"));
-        }
+        // ĐÃ XÓA: if (!string.IsNullOrEmpty(schedule))
+        // ĐÃ XÓA: {
+        // ĐÃ XÓA:     query = query.Where(o => EF.Functions.ILike(o.schedule, $"%{schedule}%"));
+        // ĐÃ XÓA: }
 
         if (studentQuantity.HasValue)
         {
@@ -103,5 +76,61 @@ public class OpeningScheduleRepository : GenericRepository<opening_schedule>, IO
         }
 
         return await query.ToListAsync();
+    }
+
+    // THÊM: Method để load với day_of_weeks
+    public async Task<IEnumerable<opening_schedule>> GetAllWithDayOfWeeksAsync()
+    {
+        return await _dbSet
+            .Include(t => t.teacher_user) 
+            .Include(i => i.instrument)
+            .Include(d => d.day_of_weeks)
+            .AsSplitQuery()
+            .ToListAsync();
+    }
+    
+    // THÊM: Method để load với class sessions cho GetAll
+    public async Task<IEnumerable<opening_schedule>> GetAllWithClassSessionsAsync()
+    {
+        return await _dbSet
+            .Include(t => t.teacher_user) 
+            .Include(i => i.instrument)
+            .Include(d => d.day_of_weeks)
+            .Include(c => c.class_codeNavigation)
+                .ThenInclude(c => c.class_sessions)
+                    .ThenInclude(cs => cs.room)
+            .Include(c => c.class_codeNavigation)
+                .ThenInclude(c => c.class_sessions)
+                    .ThenInclude(cs => cs.time_slot)
+            .AsSplitQuery()
+            .ToListAsync();
+    }
+
+    // THÊM: Method để load với day_of_weeks
+    public async Task<opening_schedule?> GetByIdWithDayOfWeeksAsync(int id)
+    {
+        return await _dbSet
+            .Include(t => t.teacher_user) 
+            .Include(i => i.instrument)
+            .Include(d => d.day_of_weeks)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(o => o.opening_schedule_id == id);
+    }
+    
+    // THÊM: Method để load với class sessions và related data
+    public async Task<opening_schedule?> GetByIdWithClassSessionsAsync(int id)
+    {
+        return await _dbSet
+            .Include(t => t.teacher_user) 
+            .Include(i => i.instrument)
+            .Include(d => d.day_of_weeks)
+            .Include(c => c.class_codeNavigation)
+                .ThenInclude(c => c.class_sessions)
+                    .ThenInclude(cs => cs.room)
+            .Include(c => c.class_codeNavigation)
+                .ThenInclude(c => c.class_sessions)
+                    .ThenInclude(cs => cs.time_slot)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(o => o.opening_schedule_id == id);
     }
 }

@@ -12,126 +12,40 @@ public class ScheduleRepository : GenericRepository<schedule>, IScheduleReposito
         
     }
 
-    public async Task<List<schedule>> GetAllAsync()
+    public async Task<schedule?> GetByMonthYearExactAsync(DateOnly monthYear)
     {
-        var items = await _dbSet
-            .Include(w => w.weeks)
-            .Include(u => u.user )
-            .AsSplitQuery()
+        // So sánh trực tiếp DateOnly
+        return await _dbSet
+            .FirstOrDefaultAsync(s => s.month_year == monthYear);
+    }
+
+    public async Task<IEnumerable<schedule>> GetSchedulesInMonthYearAsync(int month, int year)
+    {
+        // Lọc theo Month và Year từ DateOnly
+        return await _dbSet
+            .Where(s => s.month_year.HasValue &&
+                        s.month_year.Value.Month == month &&
+                        s.month_year.Value.Year == year)
+            // .Include(s => s.weeks) // Thêm nếu muốn eager load weeks
             .ToListAsync();
-        return items ?? new List<schedule>();
     }
 
-    public async Task<schedule> GetByIDAsync(int id)
+    public async Task<IEnumerable<schedule>> SearchByIdOrNoteAsync(int? id, string? note)
     {
-        var item = await _dbSet
-            .Include(w => w.weeks)
-            .Include(u => u.user)
-            .AsSplitQuery()
-            .FirstOrDefaultAsync(s => s.schedule_id == id);
-        return item ?? new schedule();
-    }
+        IQueryable<schedule> query = _dbSet;
 
-    public async Task<List<schedule>> SearchByIdOrNoteAsync(int? id = null, string? note = null) // Thay đổi tham số thành nullable
-    {
-        var query = _dbSet
-            .Include(w => w.weeks)
-            .Include(u => u.user)
-            .AsSplitQuery()// Giữ nguyên việc include user
-            .AsQueryable(); // Bắt đầu xây dựng query
-
-        // Kiểm tra xem có bất kỳ tiêu chí tìm kiếm nào được cung cấp không
-        bool hasId = id.HasValue && id.Value > 0;
-        bool hasNote = !string.IsNullOrEmpty(note);
-
-        if (hasId && hasNote)
+        if (id.HasValue)
         {
-            // Nếu cả ID và Note đều được cung cấp, tìm những bản ghi thỏa mãn ID HOẶC Note
-            query = query.Where(s => s.schedule_id == id.Value || s.note.Contains(note));
-        }
-        else if (hasId)
-        {
-            // Chỉ tìm theo ID
             query = query.Where(s => s.schedule_id == id.Value);
         }
-        else if (hasNote)
-        {
-            // Chỉ tìm theo Note
-            query = query.Where(s => s.note.Contains(note));
-        }
-        else
-        {
-            // Nếu không có ID và Note nào được cung cấp, trả về tất cả.
-            // Không cần thêm `.Where` nào vào query.
-            // query = query; // Không cần dòng này vì query đã là AsQueryable() mặc định
-        }
 
-        var searchResult = await query.ToListAsync();
-
-        return searchResult ?? new List<schedule>();
-    }
-    
-    public async Task<List<schedule>> SearchByMonthYearAsync(int? month = null, int? year = null)
-    {
-        var query = _context.schedules
-            .Include(w => w.weeks)
-            .Include(u => u.user)
-            .AsSplitQuery()
-            .AsQueryable(); // Bắt đầu xây dựng query
-
-        // Lọc theo Month và Year
-        // Áp dụng điều kiện nếu cả month và year đều có giá trị hợp lệ
-        if (month.HasValue && month.Value >= 1 && month.Value <= 12 &&
-            year.HasValue && year.Value >= 1900)
+        if (!string.IsNullOrEmpty(note))
         {
-            query = query.Where(s => s.month_year.HasValue &&
-                                     s.month_year.Value.Month == month.Value &&
-                                     s.month_year.Value.Year == year.Value);
+            query = query.Where(s => EF.Functions.ILike(s.note, $"%{note}%"));
         }
-        else if (month.HasValue && month.Value >= 1 && month.Value <= 12)
-        {
-            // Chỉ lọc theo tháng nếu năm không được cung cấp hoặc không hợp lệ
-            query = query.Where(s => s.month_year.HasValue &&
-                                     s.month_year.Value.Month == month.Value);
-        }
-        else if (year.HasValue && year.Value >= 1900)
-        {
-            // Chỉ lọc theo năm nếu tháng không được cung cấp hoặc không hợp lệ
-            query = query.Where(s => s.month_year.HasValue &&
-                                     s.month_year.Value.Year == year.Value);
-        }
-
-        var searchResult = await query.ToListAsync();
-
-        return searchResult ?? new List<schedule>();
+        // Thêm eager loading nếu cần hiển thị chi tiết weeks cho kết quả tìm kiếm
+        // .Include(s => s.weeks)
+        return await query.ToListAsync();
     }
 
-    // public async Task<schedule> AddAsync(schedule entity)
-    // {
-    //     _context.schedules.Add(entity);
-    //     await _context.SaveChangesAsync();
-    //     return entity;
-    // }
-    //
-    // public async Task UpdateAsync(schedule entity)
-    // {
-    //     // Attach và Mark as Modified nếu đối tượng không được theo dõi
-    //     _context.Entry(entity).State = EntityState.Modified;
-    //     await _context.SaveChangesAsync();
-    // }
-    //
-    // public async Task<bool> DeleteAsync(int scheduleId)
-    // {
-    //     var item = await _context.schedules.FindAsync(scheduleId);
-    //
-    //     if (item == null)
-    //     {
-    //         return false;
-    //     }
-    //
-    //     _context.schedules.Remove(item);
-    //     
-    //     int recordsAffected = await _context.SaveChangesAsync();
-    //     return recordsAffected > 0;
-    // }
 }

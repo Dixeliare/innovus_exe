@@ -31,4 +31,8 @@ public interface IUserRepository : IGenericRepository<user>
     Task<IEnumerable<user>> GetUsersByRoleIdsAsync(List<int> roleIds);
     Task<IEnumerable<user>> GetUsersByRoleNamesAsync(List<string> roleNames);
     
+    Task<user?> GetUserWithClassesAndRoleAsync(int userId); 
+    
+    
+    Task<user?> GetUserByIdWithClassesAndRoleAsync(int userId);
 }

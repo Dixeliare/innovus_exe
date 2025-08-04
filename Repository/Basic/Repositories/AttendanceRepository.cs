@@ -15,8 +15,10 @@ public class AttendanceRepository : GenericRepository<attendance>, IAttendanceRe
     public async Task<IEnumerable<attendance>> GetAllAsync()
     {
         return await _dbSet
-            .Include(c => c.class_session)
-            .Include(u => u.user)
+            .Include(a => a.class_session)
+                .ThenInclude(cs => cs._class)
+            .Include(a => a.user)
+            .Include(a => a.status)
             .AsSplitQuery()
             .ToListAsync();
     }
@@ -24,55 +26,105 @@ public class AttendanceRepository : GenericRepository<attendance>, IAttendanceRe
     public async Task<attendance> GetByIdAsync(int id)
     {
         return await _dbSet
-            .Include(c => c.class_session)
-            .Include(u => u.user)
+            .Include(a => a.class_session)
+                .ThenInclude(cs => cs._class)
+            .Include(a => a.user)
+            .Include(a => a.status)
             .AsSplitQuery()
             .FirstOrDefaultAsync(a => a.attendance_id == id);
     }
 
-    // public async Task<attendance> AddAsync(attendance entity)
-    // {
-    //     _context.attendances.Add(entity);
-    //     await _context.SaveChangesAsync();
-    //     return entity;
-    // }
-    //
-    // public async Task UpdateAsync(attendance entity)
-    // {
-    //     _context.attendances.Update(entity);
-    //     await _context.SaveChangesAsync();
-    // }
-    //
-    // public async Task<bool> DeleteAsync(int id)
-    // {
-    //     var item = await _context.attendances.FindAsync(id);
-    //     if (item == null)
-    //     {
-    //         return false;
-    //     }
-    //     _context.attendances.Remove(item);
-    //     return await _context.SaveChangesAsync() > 0;
-    // }
-    
-    public async Task<IEnumerable<attendance>> SearchAttendancesAsync(bool? status = null, string? note = null)
+    public async Task<IEnumerable<attendance>> GetAllAttendancesWithDetailsAsync()
+    {
+        return await _dbSet
+            .Include(a => a.class_session)
+                .ThenInclude(cs => cs._class)
+            .Include(a => a.user)
+            .Include(a => a.status)
+            .AsSplitQuery()
+            .ToListAsync();
+    }
+
+    public async Task<attendance?> GetAttendanceByIdWithDetailsAsync(int id)
+    {
+        return await _dbSet
+            .Include(a => a.class_session)
+                .ThenInclude(cs => cs._class)
+            .Include(a => a.user)
+            .Include(a => a.status)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(a => a.attendance_id == id);
+    }
+
+    // ĐÃ SỬA: Thay đổi kiểu tham số thành int? statusId và sử dụng a.status_id
+    public async Task<IEnumerable<attendance>> SearchAttendancesWithDetailsAsync(
+        int? statusId = null, // Đã thay đổi kiểu tham số
+        string? note = null,
+        int? userId = null,
+        int? classSessionId = null)
     {
         IQueryable<attendance> query = _dbSet;
 
-        // Kiểm tra xem có bất kỳ tham số tìm kiếm nào được cung cấp không
-        if (status.HasValue || !string.IsNullOrEmpty(note))
+        if (statusId.HasValue) // Sử dụng statusId
         {
-            // Áp dụng điều kiện WHERE với logic OR
-            query = query.Where(a =>
-                    (status.HasValue && a.status == status.Value) || // Khớp theo trạng thái
-                    (!string.IsNullOrEmpty(note) && EF.Functions.ILike(a.note, $"%{note}%")) // HOẶC khớp theo ghi chú (partial, case-insensitive)
-            );
+            query = query.Where(a => a.status_id == statusId.Value); // So sánh với status_id
         }
-        // Nếu cả hai tham số đều là null/empty, query sẽ không bị lọc và trả về tất cả.
+        if (!string.IsNullOrEmpty(note))
+        {
+            query = query.Where(a => EF.Functions.ILike(a.note, $"%{note}%"));
+        }
+        if (userId.HasValue)
+        {
+            query = query.Where(a => a.user_id == userId.Value);
+        }
+        if (classSessionId.HasValue)
+        {
+            query = query.Where(a => a.class_session_id == classSessionId.Value);
+        }
 
-        // Bạn có thể thêm `.Include()` nếu muốn eager load các navigation properties
-        // Ví dụ: .Include(a => a.user).Include(a => a.class_session)
-        // để lấy thông tin của user và class_session cùng lúc.
+        return await query
+            .Include(a => a.class_session)
+                .ThenInclude(cs => cs._class)
+            .Include(a => a.user)
+            .Include(a => a.status)
+            .AsSplitQuery()
+            .ToListAsync();
+    }
+    
+    public async Task<IEnumerable<attendance>> GetAttendancesByClassSessionIdAsync(int classSessionId)
+    {
+        return await _dbSet
+            .Where(a => a.class_session_id == classSessionId)
+            .AsNoTracking()
+            .ToListAsync();
+    }
 
+    // ĐÃ SỬA: Thay đổi kiểu tham số thành int? statusId và sử dụng a.status_id
+    public async Task<IEnumerable<attendance>> SearchAttendancesAsync(
+        int? statusId = null, // Đã thay đổi kiểu tham số
+        string? note = null,
+        int? userId = null, 
+        int? classSessionId = null)
+    {
+        IQueryable<attendance> query = _dbSet;
+
+        if (statusId.HasValue) // Sử dụng statusId
+        {
+            query = query.Where(a => a.status_id == statusId.Value); // So sánh với status_id
+        }
+        if (!string.IsNullOrEmpty(note))
+        {
+            query = query.Where(a => EF.Functions.ILike(a.note, $"%{note}%"));
+        }
+        if (userId.HasValue)
+        {
+            query = query.Where(a => a.user_id == userId.Value);
+        }
+        if (classSessionId.HasValue)
+        {
+            query = query.Where(a => a.class_session_id == classSessionId.Value);
+        }
+        
         return await query.ToListAsync();
     }
 }
