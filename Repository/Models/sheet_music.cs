@@ -19,9 +19,7 @@ public partial class sheet_music
 
     public int? favorite_count { get; set; }
 
-    public int? sheet_id { get; set; }
-
-    public virtual sheet? sheet { get; set; }
+    public virtual ICollection<sheet> sheets { get; set; } = new List<sheet>();
 
     public virtual ICollection<user_favorite_sheet> user_favorite_sheets { get; set; } = new List<user_favorite_sheet>();
 

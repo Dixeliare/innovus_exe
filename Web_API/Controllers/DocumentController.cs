@@ -15,6 +15,7 @@ namespace Web_API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Produces("application/json")]
     public class DocumentController : ControllerBase
     {
         private readonly IDocumentService _documentService;

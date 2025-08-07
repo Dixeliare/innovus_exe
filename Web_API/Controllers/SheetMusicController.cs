@@ -14,8 +14,7 @@ using Services.IServices;
 namespace Web_API.Controllers
 {
     [Route("api/[controller]")]
-    [ApiController]
-    public class SheetMusicController : ControllerBase
+    public class SheetMusicController : BaseController
     {
         private readonly ISheetMusicService _sheetMusicService;
 
@@ -47,8 +46,7 @@ namespace Web_API.Controllers
                 createSheetMusicDto.MusicName,
                 createSheetMusicDto.Composer,
                 createSheetMusicDto.SheetQuantity,
-                createSheetMusicDto.FavoriteCount,
-                createSheetMusicDto.SheetId
+                createSheetMusicDto.FavoriteCount
             );
             return CreatedAtAction(nameof(GetSheetMusicById), new { id = createdSheetMusic.SheetMusicId }, createdSheetMusic);
         }
@@ -74,8 +72,7 @@ namespace Web_API.Controllers
                 updateSheetMusicDto.MusicName,
                 updateSheetMusicDto.Composer,
                 updateSheetMusicDto.SheetQuantity,
-                updateSheetMusicDto.FavoriteCount,
-                updateSheetMusicDto.SheetId
+                updateSheetMusicDto.FavoriteCount
             );
             return NoContent();
         }

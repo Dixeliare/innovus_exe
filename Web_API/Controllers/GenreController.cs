@@ -14,8 +14,7 @@ using Services.IServices;
 namespace Web_API.Controllers
 {
     [Route("api/[controller]")]
-    [ApiController]
-    public class GenreController : ControllerBase
+    public class GenreController : BaseController
     {
         private readonly IGenreService _genreService;
         

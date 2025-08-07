@@ -9,7 +9,7 @@ namespace Web_API.BackgroundServices
     {
         private readonly ILogger<StatisticsBackgroundService> _logger;
         private readonly IServiceProvider _serviceProvider;
-        private readonly TimeSpan _period = TimeSpan.FromHours(24); // Chạy mỗi 24 giờ
+        private readonly TimeSpan _period = TimeSpan.FromMinutes(30); // Chạy mỗi 30 phút để realtime hơn
 
         public StatisticsBackgroundService(
             ILogger<StatisticsBackgroundService> logger,

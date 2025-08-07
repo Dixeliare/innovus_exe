@@ -7,6 +7,7 @@ namespace Web_API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Produces("application/json")]
 public class DayOfWeekLookupController : ControllerBase
 {
     private readonly IDayOfWeekLookupService _dayOfWeekLookupService;

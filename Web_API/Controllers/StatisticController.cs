@@ -15,6 +15,7 @@ namespace Web_API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Produces("application/json")]
     public class StatisticController : ControllerBase
     {
         private readonly IStatisticService _statisticService;
@@ -122,6 +123,33 @@ namespace Web_API.Controllers
             catch (Exception ex)
             {
                 return BadRequest(new { message = "Có lỗi xảy ra khi cập nhật thống kê class", error = ex.Message });
+            }
+        }
+
+        // GET: api/Statistic/realtime
+        // Endpoint để lấy thống kê realtime
+        [HttpGet("realtime")]
+        public async Task<ActionResult<StatisticDto>> GetRealtimeStatistics()
+        {
+            try
+            {
+                // Cập nhật thống kê realtime trước khi trả về
+                await _statisticService.UpdateStatisticsAsync();
+                
+                // Lấy thống kê hiện tại
+                var currentStatistic = await _statisticService.GetAllAsync();
+                var todayStatistic = currentStatistic.FirstOrDefault(s => s.Date == DateOnly.FromDateTime(DateTime.Today));
+                
+                if (todayStatistic == null)
+                {
+                    return NotFound(new { message = "Không tìm thấy thống kê cho ngày hôm nay" });
+                }
+                
+                return Ok(todayStatistic);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = "Có lỗi xảy ra khi lấy thống kê realtime", error = ex.Message });
             }
         }
     }

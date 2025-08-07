@@ -29,6 +29,9 @@ public class UserDto
 
     public List<int>? ClassIds { get; set; }
 
+    // Thêm danh sách bài hát yêu thích của user
+    public ICollection<SheetMusicDto>? FavoriteSheetMusics { get; set; }
+
     // Có thể thêm DTO lồng nhau cho các mối quan hệ Many-to-One nếu cần chi tiết
     // public RoleDto? Role { get; set; }
     // public StatisticDto? Statistic { get; set; }

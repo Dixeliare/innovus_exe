@@ -9,5 +9,7 @@ public partial class sheet
 
     public string sheet_url { get; set; } = null!;
 
+    public int? sheet_music_id { get; set; }
+
     public virtual sheet_music? sheet_music { get; set; }
 }

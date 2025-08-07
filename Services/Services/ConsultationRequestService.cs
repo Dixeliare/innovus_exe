@@ -26,10 +26,12 @@ public class ConsultationRequestService : IConsultationRequestService
     // }
 
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IStatisticService _statisticService;
 
-    public ConsultationRequestService(IUnitOfWork unitOfWork)
+    public ConsultationRequestService(IUnitOfWork unitOfWork, IStatisticService statisticService)
     {
         _unitOfWork = unitOfWork;
+        _statisticService = statisticService;
     }
 
     public async Task<IEnumerable<ConsultationRequestDto>> GetAllAsync()
@@ -106,7 +108,8 @@ public class ConsultationRequestService : IConsultationRequestService
             var addedRequest = await _unitOfWork.ConsultationRequests.AddAsync(requestEntity);
             await _unitOfWork.CompleteAsync();
 
-            await UpdateConsultationCountStatistic(DateTime.UtcNow);
+            // Chỉ cập nhật thống kê realtime (không cần UpdateConsultationCountStatistic)
+            await _statisticService.UpdateStatisticsAsync();
 
             return MapToConsultationRequestDto(addedRequest);
         }
@@ -250,6 +253,9 @@ public class ConsultationRequestService : IConsultationRequestService
         {
             await _unitOfWork.ConsultationRequests.UpdateAsync(existingRequest);
             await _unitOfWork.CompleteAsync(); // Lưu thay đổi
+            
+            // Không cần cập nhật thống kê vì UpdateAsync chỉ cập nhật thông tin cơ bản
+            // không ảnh hưởng đến consultation_count
         }
         catch (DbUpdateException dbEx)
         {
@@ -263,37 +269,7 @@ public class ConsultationRequestService : IConsultationRequestService
         }
     }
 
-    private async Task UpdateConsultationCountStatistic(DateTime targetDateTime)
-    {
-        var targetDateOnly = DateOnly.FromDateTime(targetDateTime);
-        var firstDayOfMonth = new DateOnly(targetDateOnly.Year, targetDateOnly.Month, 1);
 
-        var statistic = await _unitOfWork.Statistics.FindOneAsync(s => s.date == firstDayOfMonth);
-
-        if (statistic == null)
-        {
-            statistic = new statistic
-            {
-                date = firstDayOfMonth,
-                new_students = 0,
-                monthly_revenue = 0m,
-                consultation_count = 1,             // 👈 khởi tạo đã +1
-                total_students = 0,
-                consultation_request_count = 1      // 👈 khởi tạo đã +1
-            };
-
-            await _unitOfWork.Statistics.AddAsync(statistic);
-        }
-        else
-        {
-            statistic.consultation_count = (statistic.consultation_count ?? 0) + 1;
-            statistic.consultation_request_count = (statistic.consultation_request_count ?? 0) + 1;
-
-            await _unitOfWork.Statistics.UpdateAsync(statistic);
-        }
-
-        await _unitOfWork.CompleteAsync(); // 💾 lưu thay đổi sau cùng
-    }
 
     public async Task DeleteAsync(int id)
     {
@@ -307,6 +283,9 @@ public class ConsultationRequestService : IConsultationRequestService
         {
             await _unitOfWork.ConsultationRequests.DeleteAsync(id);
             await _unitOfWork.CompleteAsync(); // Lưu thay đổi
+            
+            // Cần cập nhật thống kê vì DeleteAsync ảnh hưởng đến consultation_request_count
+            await _statisticService.UpdateStatisticsAsync();
         }
         catch (DbUpdateException dbEx)
         {
@@ -380,6 +359,9 @@ public class ConsultationRequestService : IConsultationRequestService
         {
             await _unitOfWork.ConsultationRequests.UpdateAsync(existingRequest);
             await _unitOfWork.CompleteAsync(); // Lưu thay đổi
+            
+            // Cập nhật thống kê realtime
+            await _statisticService.UpdateStatisticsAsync();
         }
         catch (DbUpdateException dbEx)
         {

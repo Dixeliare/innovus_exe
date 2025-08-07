@@ -6,6 +6,8 @@ public class GenreDto
 {
     public int GenreId { get; set; }
     public string? GenreName { get; set; }
+    // Thêm danh sách bài hát thuộc thể loại này
+    public ICollection<SheetMusicDto> SheetMusics { get; set; } = new List<SheetMusicDto>();
 }
 
 // DTO dùng làm input khi tạo mới Thể loại (POST request body)

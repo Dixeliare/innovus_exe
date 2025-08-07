@@ -153,7 +153,20 @@ public class GenreService : IGenreService
         return new GenreDto
         {
             GenreId = model.genre_id,
-            GenreName = model.genre_name
+            GenreName = model.genre_name,
+            // Map danh sách bài hát thuộc thể loại này
+            SheetMusics = model.sheet_musics?.Select(sm => new SheetMusicDto
+            {
+                SheetMusicId = sm.sheet_music_id,
+                Number = sm.number,
+                MusicName = sm.music_name,
+                Composer = sm.composer,
+                CoverUrl = sm.cover_url,
+                SheetQuantity = sm.sheet_quantity,
+                FavoriteCount = sm.favorite_count,
+                // Không map Sheets để tránh circular reference
+                Sheets = new List<SheetDto>()
+            }).ToList() ?? new List<SheetMusicDto>()
         };
     }
 }

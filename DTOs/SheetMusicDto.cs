@@ -12,10 +12,8 @@ public class SheetMusicDto
         public string CoverUrl { get; set; } = null!;
         public int? SheetQuantity { get; set; }
         public int? FavoriteCount { get; set; }
-        public int? SheetId { get; set; } // Khóa ngoại sheet_id
-
-        // Có thể thêm DTO lồng nhau cho Sheet nếu muốn trả về chi tiết Sheet liên quan
-        // public SheetDto? Sheet { get; set; }
+        // Quan hệ 1-n: một sheet_music có thể có nhiều sheet
+        public ICollection<SheetDto> Sheets { get; set; } = new List<SheetDto>();
 
         // Đối với Many-to-Many, có thể trả về danh sách IDs hoặc DTOs đơn giản
         // public ICollection<int> GenreIds { get; set; } = new List<int>();
@@ -48,7 +46,7 @@ public class SheetMusicDto
         [Range(0, int.MaxValue, ErrorMessage = "Favorite Count cannot be negative.")]
         public int? FavoriteCount { get; set; } = 0;
 
-        public int? SheetId { get; set; }
+        // Không cần SheetId nữa vì quan hệ đã thay đổi thành 1-n
     }
 
     // DTO dùng làm input khi cập nhật Bản nhạc (PUT request body)
@@ -77,5 +75,5 @@ public class SheetMusicDto
         [Range(0, int.MaxValue, ErrorMessage = "Favorite Count cannot be negative.")]
         public int? FavoriteCount { get; set; }
 
-        public int? SheetId { get; set; }
+        // Không cần SheetId nữa vì quan hệ đã thay đổi thành 1-n
     }

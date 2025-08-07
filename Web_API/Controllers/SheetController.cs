@@ -15,6 +15,7 @@ namespace Web_API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Produces("application/json")]
     public class SheetController : ControllerBase
     {
         private readonly ISheetService _sheetService;

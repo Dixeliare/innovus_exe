@@ -17,11 +17,12 @@ namespace Web_API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Produces("application/json")]
     //[Authorize] // Thêm Authorize nếu bạn muốn bảo vệ endpoint này
     public class AttendanceController : ControllerBase
     {
         private readonly IAttendanceService _attendanceService;
-        
+
         public AttendanceController(IAttendanceService attendanceService) => _attendanceService = attendanceService;
 
         /// <summary>
@@ -39,7 +40,8 @@ namespace Web_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode((int)HttpStatusCode.InternalServerError, new { message = "An error occurred while retrieving attendances.", details = ex.Message });
+                return StatusCode((int)HttpStatusCode.InternalServerError,
+                    new { message = "An error occurred while retrieving attendances.", details = ex.Message });
             }
         }
 
@@ -63,10 +65,14 @@ namespace Web_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode((int)HttpStatusCode.InternalServerError, new { message = $"An error occurred while retrieving attendance with ID {id}.", details = ex.Message });
+                return StatusCode((int)HttpStatusCode.InternalServerError,
+                    new
+                    {
+                        message = $"An error occurred while retrieving attendance with ID {id}.", details = ex.Message
+                    });
             }
         }
-        
+
         /// <summary>
         /// Lấy danh sách điểm danh theo User ID.
         /// </summary>
@@ -87,7 +93,12 @@ namespace Web_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode((int)HttpStatusCode.InternalServerError, new { message = $"An error occurred while retrieving attendances for user ID {userId}.", details = ex.Message });
+                return StatusCode((int)HttpStatusCode.InternalServerError,
+                    new
+                    {
+                        message = $"An error occurred while retrieving attendances for user ID {userId}.",
+                        details = ex.Message
+                    });
             }
         }
 
@@ -111,7 +122,13 @@ namespace Web_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode((int)HttpStatusCode.InternalServerError, new { message = $"An error occurred while retrieving attendances for class session ID {classSessionId}.", details = ex.Message });
+                return StatusCode((int)HttpStatusCode.InternalServerError,
+                    new
+                    {
+                        message =
+                            $"An error occurred while retrieving attendances for class session ID {classSessionId}.",
+                        details = ex.Message
+                    });
             }
         }
 
@@ -125,7 +142,7 @@ namespace Web_API.Controllers
         public async Task<ActionResult<IEnumerable<AttendanceDto>>> SearchAttendancesAsync(
             // ĐÃ SỬA: Thay đổi kiểu của tham số 'status' từ 'bool?' sang 'int?'
             // Đồng thời đổi tên thành statusId để nhất quán với service/repository
-            [FromQuery] int? statusId = null, 
+            [FromQuery] int? statusId = null,
             [FromQuery] string? note = null,
             [FromQuery] int? userId = null,
             [FromQuery] int? classSessionId = null)
@@ -133,13 +150,15 @@ namespace Web_API.Controllers
             try
             {
                 // ĐÃ SỬA: Truyền statusId vào phương thức service
-                var attendances = await _attendanceService.SearchAttendancesAsync(statusId, note, userId, classSessionId);
+                var attendances =
+                    await _attendanceService.SearchAttendancesAsync(statusId, note, userId, classSessionId);
                 return Ok(attendances);
             }
             catch (Exception ex)
             {
                 // Logging the exception is recommended here
-                return StatusCode((int)HttpStatusCode.InternalServerError, new { message = "An error occurred during attendance search.", details = ex.Message });
+                return StatusCode((int)HttpStatusCode.InternalServerError,
+                    new { message = "An error occurred during attendance search.", details = ex.Message });
             }
         }
 
@@ -173,7 +192,8 @@ namespace Web_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode((int)HttpStatusCode.InternalServerError, new { message = $"An error occurred: {ex.Message}" });
+                return StatusCode((int)HttpStatusCode.InternalServerError,
+                    new { message = $"An error occurred: {ex.Message}" });
             }
         }
 
@@ -212,7 +232,8 @@ namespace Web_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode((int)HttpStatusCode.InternalServerError, new { message = $"An error occurred: {ex.Message}" });
+                return StatusCode((int)HttpStatusCode.InternalServerError,
+                    new { message = $"An error occurred: {ex.Message}" });
             }
         }
 
@@ -241,7 +262,8 @@ namespace Web_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode((int)HttpStatusCode.InternalServerError, new { message = $"An error occurred: {ex.Message}" });
+                return StatusCode((int)HttpStatusCode.InternalServerError,
+                    new { message = $"An error occurred: {ex.Message}" });
             }
         }
 
@@ -266,7 +288,8 @@ namespace Web_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "An error occurred while bulk updating attendance.", details = ex.Message });
+                return StatusCode(500,
+                    new { message = "An error occurred while bulk updating attendance.", details = ex.Message });
             }
         }
     }

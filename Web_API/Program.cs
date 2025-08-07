@@ -1,6 +1,8 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -13,6 +15,7 @@ using Services.Configurations;
 using Services.IServices;
 using Services.Services;
 using Web_API.BackgroundServices;
+using Web_API.Controllers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -67,6 +70,7 @@ builder.Services.AddScoped<IConsultationRequestService, ConsultationRequestServi
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddScoped<ISheetMusicService, SheetMusicService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IUserFavoriteSheetService, UserFavoriteSheetService>();
 builder.Services.AddScoped<IStatisticService, StatisticService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<IGenderService, GenderService>();
@@ -87,6 +91,37 @@ builder.Services.AddScoped<IFileStorageService, AzureBlobFileStorageService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+#region Rate limiter config
+builder.Services.AddRateLimiter(options =>
+{
+    // Policy chung cho toàn bộ API
+    options.AddFixedWindowLimiter("FixedPolicy", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 10;              // max 10 request
+        limiterOptions.Window = TimeSpan.FromMinutes(2);  // mỗi 2 phút
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = 2;                 // tối đa 2 request xếp hàng
+    });
+
+    // Policy riêng cho login - nghiêm ngặt hơn
+    options.AddFixedWindowLimiter("LoginPolicy", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 5;               // max 5 login attempts
+        limiterOptions.Window = TimeSpan.FromMinutes(1);  // mỗi phút
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = 1;                 // tối đa 1 request xếp hàng
+    });
+
+    options.OnRejected = async (context, ct) =>
+    {
+        var retryAfter = context.HttpContext.Response.Headers["Retry-After"].FirstOrDefault() ?? "120";
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        context.HttpContext.Response.Headers["Retry-After"] = retryAfter;
+        await context.HttpContext.Response.WriteAsync($"Too many requests. Try again later after {retryAfter} seconds", ct);
+    };
+});
+#endregion 
 
 // builder.Services.AddControllers().AddJsonOptions(options =>
 // {
@@ -160,6 +195,7 @@ builder.Services.AddSwaggerGen(option =>
     });
 });
 
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAllOrigins", policy =>
@@ -181,6 +217,8 @@ if (app.Environment.IsDevelopment() || enableSwagger)
     app.UseSwaggerUI();
 }
 
+app.UseRateLimiter();
+
 app.UseMiddleware<Web_API.Middlewares.ExceptionHandlingMiddleware>();
 
 app.UseAuthentication();
@@ -190,6 +228,17 @@ app.UseHttpsRedirection();
 app.UseCors("AllowAllOrigins");
 
 app.MapControllers();
+
+#region Policy login config
+app.MapPost("/api/User/Login", async (UserController.LoginRequest request, IUserService svc, IConfiguration config) =>
+    {
+        var user = await svc.GetUserAccount(request.UserName, request.Password);
+        var token = UserController.GenerateJSONWebToken(user, config);
+        return Results.Ok(new { token });
+    })
+    .RequireRateLimiting("LoginPolicy");
+#endregion
+
 app.Run();
 
 
