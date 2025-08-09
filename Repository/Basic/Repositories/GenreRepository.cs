@@ -66,8 +66,9 @@ public class GenreRepository : GenericRepository<genre>, IGenreRepository
         }
         // Nếu genreName là null hoặc rỗng, query sẽ không bị lọc và trả về tất cả.
 
-        // Bạn có thể thêm .Include() nếu muốn eager load các navigation properties
-        // Ví dụ: .Include(g => g.sheet_musics)
+        // Include sheet_musics để load các navigation properties
+        query = query.Include(g => g.sheet_musics)
+                    .AsSplitQuery();
 
         return await query.ToListAsync();
     }

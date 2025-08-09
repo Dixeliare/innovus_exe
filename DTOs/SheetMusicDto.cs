@@ -15,9 +15,8 @@ public class SheetMusicDto
         // Quan hệ 1-n: một sheet_music có thể có nhiều sheet
         public ICollection<SheetDto> Sheets { get; set; } = new List<SheetDto>();
 
-        // Đối với Many-to-Many, có thể trả về danh sách IDs hoặc DTOs đơn giản
-        // public ICollection<int> GenreIds { get; set; } = new List<int>();
-        // public ICollection<GenreDto> Genres { get; set; } = new List<GenreDto>();
+        // Quan hệ many-to-many: một sheet_music có thể thuộc nhiều genre
+        public ICollection<GenreBasicDto> Genres { get; set; } = new List<GenreBasicDto>();
     }
 
     // DTO dùng làm input khi tạo mới Bản nhạc (POST request body)
@@ -45,6 +44,9 @@ public class SheetMusicDto
 
         [Range(0, int.MaxValue, ErrorMessage = "Favorite Count cannot be negative.")]
         public int? FavoriteCount { get; set; } = 0;
+
+        // Genre IDs để assign cho sheet music này
+        public List<int>? GenreIds { get; set; } = new List<int>();
 
         // Không cần SheetId nữa vì quan hệ đã thay đổi thành 1-n
     }
@@ -74,6 +76,9 @@ public class SheetMusicDto
 
         [Range(0, int.MaxValue, ErrorMessage = "Favorite Count cannot be negative.")]
         public int? FavoriteCount { get; set; }
+
+        // Genre IDs để assign cho sheet music này
+        public List<int>? GenreIds { get; set; } = new List<int>();
 
         // Không cần SheetId nữa vì quan hệ đã thay đổi thành 1-n
     }
