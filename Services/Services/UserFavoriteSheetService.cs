@@ -1,8 +1,6 @@
 using System.Net;
 using DTOs;
 using Microsoft.EntityFrameworkCore;
-using Repository.Basic.IRepositories;
-using Repository.Basic.Repositories;
 using Repository.Basic.UnitOfWork;
 using Repository.Models;
 using Services.Exceptions;
@@ -12,20 +10,6 @@ namespace Services.Services;
 
 public class UserFavoriteSheetService : IUserFavoriteSheetService
 {
-    // private readonly IUserFavoriteSheetRepository _userFavoriteSheetRepository;
-    // private readonly ISheetMusicRepository _sheetMusicRepository; // Có thể cần để lấy SheetMusic chi tiết
-    // private readonly IUserRepository _userRepository; // Có thể cần để lấy User chi tiết
-    //
-    // public UserFavoriteSheetService(
-    //     IUserFavoriteSheetRepository userFavoriteSheetRepository,
-    //     ISheetMusicRepository sheetMusicRepository, // Inject if needed
-    //     IUserRepository userRepository) // Inject if needed
-    // {
-    //     _userFavoriteSheetRepository = userFavoriteSheetRepository;
-    //     _sheetMusicRepository = sheetMusicRepository;
-    //     _userRepository = userRepository;
-    // }
-    
     private readonly IUnitOfWork _unitOfWork;
 
     public UserFavoriteSheetService(IUnitOfWork unitOfWork)
@@ -33,160 +17,238 @@ public class UserFavoriteSheetService : IUserFavoriteSheetService
         _unitOfWork = unitOfWork;
     }
 
-    // Phương thức thêm bản nhạc yêu thích
-    public async Task<UserFavoriteSheetDto> AddUserFavoriteSheetAsync(CreateUserFavoriteSheetDto createDto)
+    public async Task<IEnumerable<UserFavoriteSheetDto>> GetAllAsync()
     {
-        // 1. Kiểm tra sự tồn tại của User và SheetMusic
-        var userExists = await _unitOfWork.Users.GetByIdAsync(createDto.UserId);
-        if (userExists == null)
+        var favorites = await _unitOfWork.UserFavoriteSheets.GetAllAsync();
+        return favorites.Select(MapToUserFavoriteSheetDto);
+    }
+
+    public async Task<UserFavoriteSheetDto> GetByIdAsync(int userId, int sheetMusicId)
+    {
+        var favorite = await _unitOfWork.UserFavoriteSheets.GetByUserAndSheetMusicIdAsync(userId, sheetMusicId);
+        
+        if (favorite == null)
+        {
+            throw new NotFoundException("UserFavoriteSheet", $"UserId={userId}, SheetMusicId={sheetMusicId}", 0);
+        }
+        
+        return MapToUserFavoriteSheetDto(favorite);
+    }
+
+    public async Task<UserFavoriteSheetListDto> GetUserFavoritesAsync(int userId)
+    {
+        // Kiểm tra user có tồn tại không
+        var user = await _unitOfWork.Users.GetByIdAsync(userId);
+        if (user == null)
+        {
+            throw new NotFoundException("User", "Id", userId);
+        }
+
+        // Lấy tất cả favorite của user
+        var favorites = await _unitOfWork.UserFavoriteSheets.GetUserFavoriteSheetsAsync(userId);
+
+        var favoriteSheetMusics = new List<SheetMusicDto>();
+        foreach (var favorite in favorites)
+        {
+            if (favorite.sheet_music != null)
+            {
+                favoriteSheetMusics.Add(new SheetMusicDto
+                {
+                    SheetMusicId = favorite.sheet_music.sheet_music_id,
+                    Number = favorite.sheet_music.number,
+                    MusicName = favorite.sheet_music.music_name,
+                    Composer = favorite.sheet_music.composer,
+                    CoverUrl = favorite.sheet_music.cover_url,
+                    SheetQuantity = favorite.sheet_music.sheet_quantity,
+                    FavoriteCount = favorite.sheet_music.favorite_count,
+                    Sheets = new List<SheetDto>() // Tránh circular reference
+                });
+            }
+        }
+
+        return new UserFavoriteSheetListDto
+        {
+            UserId = userId,
+            UserName = user.account_name,
+            FavoriteSheetMusics = favoriteSheetMusics
+        };
+    }
+
+    public async Task<UserFavoriteSheetDto> AddAsync(CreateUserFavoriteSheetDto createDto)
+    {
+        // Kiểm tra user có tồn tại không
+        var user = await _unitOfWork.Users.GetByIdAsync(createDto.UserId);
+        if (user == null)
         {
             throw new NotFoundException("User", "Id", createDto.UserId);
         }
 
-        var sheetMusicExists = await _unitOfWork.SheetMusics.GetByIdAsync(createDto.SheetMusicId);
-        if (sheetMusicExists == null)
+        // Kiểm tra sheet music có tồn tại không
+        var sheetMusic = await _unitOfWork.SheetMusics.GetByIdAsync(createDto.SheetMusicId);
+        if (sheetMusic == null)
         {
-            throw new NotFoundException("Sheet Music", "Id", createDto.SheetMusicId);
+            throw new NotFoundException("SheetMusic", "Id", createDto.SheetMusicId);
         }
 
-        // 2. Kiểm tra xem cặp đã tồn tại chưa (logic nghiệp vụ)
-        if (await _unitOfWork.UserFavoriteSheets.IsSheetFavoriteForUserAsync(createDto.UserId, createDto.SheetMusicId))
+        // Kiểm tra đã tồn tại favorite này chưa
+        var existingFavorite = await _unitOfWork.UserFavoriteSheets.GetByUserAndSheetMusicIdAsync(createDto.UserId, createDto.SheetMusicId);
+        
+        if (existingFavorite != null)
         {
-            // Ném ValidationException cho lỗi nghiệp vụ (đã yêu thích rồi)
             throw new ValidationException(new Dictionary<string, string[]>
             {
-                { "Conflict", new string[] { $"Người dùng {createDto.UserId} đã yêu thích bản nhạc {createDto.SheetMusicId} rồi." } }
+                { "UserFavoriteSheet", new string[] { "User đã yêu thích bài hát này rồi." } }
             });
         }
 
-        var entity = new user_favorite_sheet
+        var favoriteEntity = new user_favorite_sheet
         {
             user_id = createDto.UserId,
             sheet_music_id = createDto.SheetMusicId,
-            is_favorite = createDto.IsFavorite ?? true // Mặc định là true nếu không cung cấp
+            is_favorite = createDto.IsFavorite ?? true
         };
 
         try
         {
-            var addedEntity = await _unitOfWork.UserFavoriteSheets.AddAsync(entity);
-            await _unitOfWork.CompleteAsync(); // Lưu thay đổi vào DB
-            return MapToUserFavoriteSheetDto(addedEntity);
-        }
-        catch (DbUpdateException dbEx) // Bắt lỗi từ Entity Framework (ví dụ: trùng khóa chính nếu không kiểm tra ở trên)
-        {
-            // Kiểm tra lỗi trùng lặp từ DB nếu IsSheetFavoriteForUserAsync không đủ
-            if (dbEx.InnerException?.Message?.Contains("duplicate key", StringComparison.OrdinalIgnoreCase) == true)
-            {
-                throw new ValidationException(new Dictionary<string, string[]>
-                {
-                    { "DbError", new string[] { "Dữ liệu đã tồn tại trong cơ sở dữ liệu." } }
-                }, dbEx);
-            }
-            throw new ApiException("Có lỗi xảy ra khi thêm bản nhạc yêu thích vào cơ sở dữ liệu.", dbEx, (int)HttpStatusCode.InternalServerError);
-        }
-        catch (Exception ex) // Bắt các lỗi không mong muốn khác
-        {
-            throw new ApiException("An unexpected error occurred while adding the user favorite sheet.", ex, (int)HttpStatusCode.InternalServerError);
-        }
-    }
-
-    // Update User Favorite Sheet (primarily for is_favorite status)
-    public async Task UpdateUserFavoriteSheetAsync(UpdateUserFavoriteSheetDto updateDto)
-    {
-        var existingEntity = await _unitOfWork.UserFavoriteSheets.GetByIdAsync(updateDto.UserId, updateDto.SheetMusicId);
-
-        if (existingEntity == null)
-        {
-            throw new NotFoundException("User Favorite Sheet", new { UserId = updateDto.UserId, SheetMusicId = updateDto.SheetMusicId });
-        }
-
-        existingEntity.is_favorite = updateDto.IsFavorite;
-
-        try
-        {
-            await _unitOfWork.UserFavoriteSheets.UpdateAsync(existingEntity);
-            await _unitOfWork.CompleteAsync(); // Lưu thay đổi vào DB
+            var addedFavorite = await _unitOfWork.UserFavoriteSheets.AddAsync(favoriteEntity);
+            await _unitOfWork.CompleteAsync();
+            
+            // Cập nhật favorite_count của sheet_music
+            sheetMusic.favorite_count = (sheetMusic.favorite_count ?? 0) + 1;
+            await _unitOfWork.SheetMusics.UpdateAsync(sheetMusic);
+            await _unitOfWork.CompleteAsync();
+            
+            return MapToUserFavoriteSheetDto(addedFavorite);
         }
         catch (DbUpdateException dbEx)
         {
-            throw new ApiException("Có lỗi xảy ra khi cập nhật bản nhạc yêu thích trong cơ sở dữ liệu.", dbEx, (int)HttpStatusCode.InternalServerError);
+            throw new ApiException("Có lỗi xảy ra khi thêm favorite vào cơ sở dữ liệu.", dbEx, (int)HttpStatusCode.InternalServerError);
         }
         catch (Exception ex)
         {
-            throw new ApiException("An unexpected error occurred while updating the user favorite sheet.", ex, (int)HttpStatusCode.InternalServerError);
+            throw new ApiException("An unexpected error occurred while adding the favorite.", ex, (int)HttpStatusCode.InternalServerError);
         }
     }
 
-    // Phương thức xóa bản ghi yêu thích
-    public async Task DeleteUserFavoriteSheetAsync(int userId, int sheetMusicId)
+    public async Task UpdateAsync(UpdateUserFavoriteSheetDto updateDto)
     {
-        var entityToDelete = await _unitOfWork.UserFavoriteSheets.GetByIdAsync(userId, sheetMusicId);
-        if (entityToDelete == null)
+        var existingFavorite = await _unitOfWork.UserFavoriteSheets.GetByUserAndSheetMusicIdAsync(updateDto.UserId, updateDto.SheetMusicId);
+        
+        if (existingFavorite == null)
         {
-            throw new NotFoundException("User Favorite Sheet", new { UserId = userId, SheetMusicId = sheetMusicId });
+            throw new NotFoundException("UserFavoriteSheet", $"UserId={updateDto.UserId}, SheetMusicId={updateDto.SheetMusicId}", 0);
+        }
+
+        // Cập nhật trạng thái favorite
+        if (updateDto.IsFavorite.HasValue)
+        {
+            existingFavorite.is_favorite = updateDto.IsFavorite.Value;
         }
 
         try
         {
-            // Sử dụng DeleteAsync hoặc Delete2ArgumentsAsync của repository
-            // Giả định DeleteAsync trong GenericRepository có thể xóa bằng entity hoặc ID
-            await _unitOfWork.UserFavoriteSheets.Delete2ArgumentsAsync(userId, sheetMusicId);
-            await _unitOfWork.CompleteAsync(); // Lưu thay đổi vào DB
+            await _unitOfWork.UserFavoriteSheets.UpdateAsync(existingFavorite);
+            await _unitOfWork.CompleteAsync();
         }
-        catch (DbUpdateException dbEx) // Ví dụ: lỗi ràng buộc toàn vẹn nếu có
+        catch (DbUpdateException dbEx)
         {
-            throw new ApiException("Không thể xóa bản nhạc yêu thích do lỗi cơ sở dữ liệu.", dbEx, (int)HttpStatusCode.InternalServerError);
+            throw new ApiException("Có lỗi xảy ra khi cập nhật favorite trong cơ sở dữ liệu.", dbEx, (int)HttpStatusCode.InternalServerError);
         }
         catch (Exception ex)
         {
-            throw new ApiException("An unexpected error occurred while deleting the user favorite sheet.", ex, (int)HttpStatusCode.InternalServerError);
+            throw new ApiException("An unexpected error occurred while updating the favorite.", ex, (int)HttpStatusCode.InternalServerError);
         }
     }
 
-    public async Task<UserFavoriteSheetDto?> GetByIdAsync(int userId, int sheetMusicId)
+    public async Task DeleteAsync(int userId, int sheetMusicId)
     {
-        var userFavoriteSheet = await _unitOfWork.UserFavoriteSheets.GetByIdAsync(userId, sheetMusicId);
-        if (userFavoriteSheet == null)
+        var favoriteToDelete = await _unitOfWork.UserFavoriteSheets.GetByUserAndSheetMusicIdAsync(userId, sheetMusicId);
+        
+        if (favoriteToDelete == null)
         {
-            throw new NotFoundException("User Favorite Sheet", new { UserId = userId, SheetMusicId = sheetMusicId });
+            throw new NotFoundException("UserFavoriteSheet", $"UserId={userId}, SheetMusicId={sheetMusicId}", 0);
         }
-        return MapToUserFavoriteSheetDto(userFavoriteSheet);
-    }
 
-    // Lấy một bản ghi user_favorite_sheet cụ thể
-    public async Task<user_favorite_sheet?> GetUserFavoriteSheetEntryAsync(int userId, int sheetMusicId)
-    {
-        return await _unitOfWork.UserFavoriteSheets.GetByUserAndSheetMusicIdAsync(userId, sheetMusicId);
-    }
-
-    // Lấy danh sách các bản nhạc yêu thích của một người dùng
-    public async Task<IEnumerable<sheet_music>> GetFavoriteSheetsByUserAsync(int userId)
-    {
-        var userExists = await _unitOfWork.Users.GetByIdAsync(userId);
-        if (userExists == null)
+        try
         {
-            throw new NotFoundException("User", "Id", userId);
+            await _unitOfWork.UserFavoriteSheets.Delete2ArgumentsAsync(userId, sheetMusicId);
+            await _unitOfWork.CompleteAsync();
+            
+            // Giảm favorite_count của sheet_music
+            var sheetMusic = await _unitOfWork.SheetMusics.GetByIdAsync(sheetMusicId);
+            if (sheetMusic != null && sheetMusic.favorite_count > 0)
+            {
+                sheetMusic.favorite_count = sheetMusic.favorite_count - 1;
+                await _unitOfWork.SheetMusics.UpdateAsync(sheetMusic);
+                await _unitOfWork.CompleteAsync();
+            }
         }
-        var favoriteEntries = await _unitOfWork.UserFavoriteSheets.GetUserFavoriteSheetsAsync(userId);
-        return favoriteEntries.Select(ufs => ufs.sheet_music).Where(sm => sm != null)!;
-    }
-
-    // Lấy danh sách người dùng yêu thích một bản nhạc
-    public async Task<IEnumerable<user>> GetUsersFavoritingSheetAsync(int sheetMusicId)
-    {
-        var sheetMusicExists = await _unitOfWork.SheetMusics.GetByIdAsync(sheetMusicId);
-        if (sheetMusicExists == null)
+        catch (DbUpdateException dbEx)
         {
-            throw new NotFoundException("Sheet Music", "Id", sheetMusicId);
+            throw new ApiException("Có lỗi xảy ra khi xóa favorite khỏi cơ sở dữ liệu.", dbEx, (int)HttpStatusCode.InternalServerError);
         }
-        var favoritingEntries = await _unitOfWork.UserFavoriteSheets.GetUsersWhoFavoritedSheetAsync(sheetMusicId);
-        return favoritingEntries.Select(ufs => ufs.user).Where(u => u != null)!;
+        catch (Exception ex)
+        {
+            throw new ApiException("An unexpected error occurred while deleting the favorite.", ex, (int)HttpStatusCode.InternalServerError);
+        }
     }
 
-    // Kiểm tra xem bản nhạc có được yêu thích bởi người dùng không
-    public async Task<bool> CheckIfSheetIsFavoriteForUserAsync(int userId, int sheetMusicId)
+    public async Task ToggleFavoriteAsync(int userId, int sheetMusicId)
     {
-        return await _unitOfWork.UserFavoriteSheets.IsSheetFavoriteForUserAsync(userId, sheetMusicId);
+        var existingFavorite = await _unitOfWork.UserFavoriteSheets.GetByUserAndSheetMusicIdAsync(userId, sheetMusicId);
+        
+        if (existingFavorite == null)
+        {
+            // Tạo mới favorite
+            await AddAsync(new CreateUserFavoriteSheetDto
+            {
+                UserId = userId,
+                SheetMusicId = sheetMusicId,
+                IsFavorite = true
+            });
+        }
+        else
+        {
+            // Toggle trạng thái
+            existingFavorite.is_favorite = !(existingFavorite.is_favorite ?? false);
+            
+            try
+            {
+                await _unitOfWork.UserFavoriteSheets.UpdateAsync(existingFavorite);
+                await _unitOfWork.CompleteAsync();
+                
+                // Cập nhật favorite_count của sheet_music
+                var sheetMusic = await _unitOfWork.SheetMusics.GetByIdAsync(sheetMusicId);
+                if (sheetMusic != null)
+                {
+                    if (existingFavorite.is_favorite == true)
+                    {
+                        sheetMusic.favorite_count = (sheetMusic.favorite_count ?? 0) + 1;
+                    }
+                    else
+                    {
+                        sheetMusic.favorite_count = Math.Max(0, (sheetMusic.favorite_count ?? 0) - 1);
+                    }
+                    await _unitOfWork.SheetMusics.UpdateAsync(sheetMusic);
+                    await _unitOfWork.CompleteAsync();
+                }
+            }
+            catch (DbUpdateException dbEx)
+            {
+                throw new ApiException("Có lỗi xảy ra khi toggle favorite trong cơ sở dữ liệu.", dbEx, (int)HttpStatusCode.InternalServerError);
+            }
+            catch (Exception ex)
+            {
+                throw new ApiException("An unexpected error occurred while toggling the favorite.", ex, (int)HttpStatusCode.InternalServerError);
+            }
+        }
+    }
+
+    public async Task<bool> IsFavoriteAsync(int userId, int sheetMusicId)
+    {
+        var favorite = await _unitOfWork.UserFavoriteSheets.GetByUserAndSheetMusicIdAsync(userId, sheetMusicId);
+        
+        return favorite?.is_favorite == true;
     }
 
     private UserFavoriteSheetDto MapToUserFavoriteSheetDto(user_favorite_sheet model)
@@ -195,7 +257,31 @@ public class UserFavoriteSheetService : IUserFavoriteSheetService
         {
             UserId = model.user_id,
             SheetMusicId = model.sheet_music_id,
-            IsFavorite = model.is_favorite
+            IsFavorite = model.is_favorite,
+            SheetMusic = model.sheet_music != null ? new SheetMusicDto
+            {
+                SheetMusicId = model.sheet_music.sheet_music_id,
+                Number = model.sheet_music.number,
+                MusicName = model.sheet_music.music_name,
+                Composer = model.sheet_music.composer,
+                CoverUrl = model.sheet_music.cover_url,
+                SheetQuantity = model.sheet_music.sheet_quantity,
+                FavoriteCount = model.sheet_music.favorite_count,
+                Sheets = new List<SheetDto>() // Tránh circular reference
+            } : null,
+            User = model.user != null ? new UserDto
+            {
+                UserId = model.user.user_id,
+                AccountName = model.user.account_name,
+                Username = model.user.username,
+                Email = model.user.email,
+                PhoneNumber = model.user.phone_number,
+                Address = model.user.address,
+                Birthday = model.user.birthday,
+                AvatarUrl = model.user.avatar_url,
+                IsDisabled = model.user.is_disabled,
+                CreateAt = model.user.create_at
+            } : null
         };
     }
 }

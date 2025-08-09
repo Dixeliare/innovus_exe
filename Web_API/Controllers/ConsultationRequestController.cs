@@ -15,8 +15,7 @@ using Services.IServices;
 namespace Web_API.Controllers
 {
     [Route("api/[controller]")]
-    [ApiController]
-    public class ConsultationRequestController : ControllerBase
+    public class ConsultationRequestController : BaseController
     {
         private readonly IConsultationRequestService _consultationRequestService;
         
@@ -70,18 +69,7 @@ namespace Web_API.Controllers
             }
 
             // --- LẤY ID NGƯỜI DÙNG HIỆN TẠI TỪ CLAIMS ---
-            int? currentUserId = null;
-            // Giả sử ID người dùng của bạn được lưu trữ trong claim NameIdentifier
-            var userIdClaim = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier); 
-            if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int parsedUserId))
-            {
-                currentUserId = parsedUserId;
-            }
-            // Tùy chọn: Nếu xác thực là bắt buộc cho hành động này, bạn có thể ném một ngoại lệ ở đây
-            // if (currentUserId == null)
-            // {
-            //     return Unauthorized("Người dùng chưa được xác thực hoặc không thể truy xuất ID người dùng.");
-            // }
+            int? currentUserId = GetCurrentUserIdOrDefault();
             // --- KẾT THÚC LẤY ID NGƯỜI DÙNG HIỆN TẠI ---
 
             await _consultationRequestService.UpdateAsync(updateConsultationRequestDto, currentUserId); // <--- TRUYỀN ID NGƯỜI DÙNG HIỆN TẠI
@@ -99,12 +87,7 @@ namespace Web_API.Controllers
                 });
             }
 
-            int? currentUserId = null;
-            var userIdClaim = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier); 
-            if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int parsedUserId))
-            {
-                currentUserId = parsedUserId;
-            }
+            int? currentUserId = GetCurrentUserIdOrDefault();
             
             // Tùy chọn: Nếu việc cập nhật trạng thái yêu cầu xác thực, bạn có thể kiểm tra ở đây
             // if (!currentUserId.HasValue)

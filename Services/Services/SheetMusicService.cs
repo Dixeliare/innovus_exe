@@ -56,7 +56,7 @@ public class SheetMusicService : ISheetMusicService
 
     // Add Sheet Music với file ảnh bìa
     public async Task<SheetMusicDto> AddAsync(IFormFile coverImageFile, int? number, string? musicName, string composer,
-        int? sheetQuantity, int? favoriteCount, int? sheetId)
+        int? sheetQuantity, int? favoriteCount, List<int>? genreIds = null)
     {
         // Kiểm tra tệp ảnh bìa bắt buộc
         if (coverImageFile == null || coverImageFile.Length == 0)
@@ -67,15 +67,7 @@ public class SheetMusicService : ISheetMusicService
             });
         }
 
-        // Kiểm tra sự tồn tại của khóa ngoại SheetId nếu được cung cấp
-        if (sheetId.HasValue)
-        {
-            var sheetExists = await _unitOfWork.Sheets.GetByIdAsync(sheetId.Value);
-            if (sheetExists == null)
-            {
-                throw new NotFoundException("Sheet", "Id", sheetId.Value);
-            }
-        }
+        // Không cần kiểm tra sheet_id nữa vì quan hệ đã thay đổi thành 1-n
 
         string coverUrl = string.Empty;
         try
@@ -95,15 +87,28 @@ public class SheetMusicService : ISheetMusicService
             composer = composer,
             cover_url = coverUrl, // Gán URL từ Azure Blob
             sheet_quantity = sheetQuantity,
-            favorite_count = favoriteCount ?? 0,
-            sheet_id = sheetId
+            favorite_count = favoriteCount ?? 0
+            // Không cần sheet_id nữa vì quan hệ đã thay đổi thành 1-n
         };
 
         try
         {
             var addedSheetMusic = await _unitOfWork.SheetMusics.AddAsync(sheetMusicEntity);
             await _unitOfWork.CompleteAsync(); // Lưu thay đổi vào DB
-            return MapToSheetMusicDto(addedSheetMusic);
+            
+            // Assign genres nếu có
+            if (genreIds != null && genreIds.Any())
+            {
+                foreach (var genreId in genreIds)
+                {
+                    await _unitOfWork.SheetMusics.AddGenreToSheetMusicAsync(addedSheetMusic.sheet_music_id, genreId);
+                }
+                await _unitOfWork.CompleteAsync();
+            }
+            
+            // Query lại để có đầy đủ navigation properties (genres, sheets)
+            var sheetMusicWithRelations = await _unitOfWork.SheetMusics.GetByIdAsync(addedSheetMusic.sheet_music_id);
+            return MapToSheetMusicDto(sheetMusicWithRelations);
         }
         catch (DbUpdateException dbEx)
         {
@@ -127,7 +132,7 @@ public class SheetMusicService : ISheetMusicService
 
     // UPDATE Sheet Music với file ảnh bìa
     public async Task UpdateAsync(int sheetMusicId, IFormFile? coverImageFile, int? number, string? musicName,
-        string? composer, int? sheetQuantity, int? favoriteCount, int? sheetId)
+        string? composer, int? sheetQuantity, int? favoriteCount, List<int>? genreIds = null)
     {
         var existingSheetMusic = await _unitOfWork.SheetMusics.GetByIdAsync(sheetMusicId);
 
@@ -183,34 +188,31 @@ public class SheetMusicService : ISheetMusicService
             existingSheetMusic.favorite_count = favoriteCount.Value;
         }
 
-        // Cập nhật khóa ngoại SheetId nếu có giá trị mới được cung cấp
-        if (sheetId.HasValue)
-        {
-            // Chỉ cập nhật nếu SheetId thực sự đã thay đổi
-            if (existingSheetMusic.sheet_id != sheetId.Value)
-            {
-                var sheetExists = await _unitOfWork.Sheets.GetByIdAsync(sheetId.Value);
-                if (sheetExists == null)
-                {
-                    // Nếu tệp đã được tải lên, thử dọn dẹp trước khi ném NotFoundException
-                    if (!string.IsNullOrEmpty(newCoverUrl))
-                    {
-                        await _fileStorageService.DeleteFileAsync(newCoverUrl);
-                    }
-                    throw new NotFoundException("Sheet", "Id", sheetId.Value);
-                }
-                existingSheetMusic.sheet_id = sheetId.Value;
-            }
-        }
-        else if (sheetId == null) // Nếu client gửi sheetId = null để xóa liên kết
-        {
-            existingSheetMusic.sheet_id = null;
-        }
+        // Không cần xử lý sheet_id nữa vì quan hệ đã thay đổi thành 1-n
+        // Sheet sẽ được liên kết thông qua sheet_music_id trong bảng sheet
 
         try
         {
             await _unitOfWork.SheetMusics.UpdateAsync(existingSheetMusic);
             await _unitOfWork.CompleteAsync(); // Lưu thay đổi vào DB
+
+            // Cập nhật genres nếu có
+            if (genreIds != null)
+            {
+                // Xóa tất cả genres hiện tại
+                var currentGenres = existingSheetMusic.genres?.ToList() ?? new List<genre>();
+                foreach (var currentGenre in currentGenres)
+                {
+                    await _unitOfWork.SheetMusics.RemoveGenreFromSheetMusicAsync(sheetMusicId, currentGenre.genre_id);
+                }
+                
+                // Thêm genres mới
+                foreach (var genreId in genreIds)
+                {
+                    await _unitOfWork.SheetMusics.AddGenreToSheetMusicAsync(sheetMusicId, genreId);
+                }
+                await _unitOfWork.CompleteAsync();
+            }
 
             // Xóa tệp cũ chỉ sau khi cập nhật DB thành công VÀ có tệp mới được tải lên
             if (!string.IsNullOrEmpty(oldCoverUrl) && !string.IsNullOrEmpty(newCoverUrl) && oldCoverUrl != newCoverUrl)
@@ -350,7 +352,19 @@ public class SheetMusicService : ISheetMusicService
             CoverUrl = model.cover_url,
             SheetQuantity = model.sheet_quantity,
             FavoriteCount = model.favorite_count,
-            SheetId = model.sheet_id
+            // Quan hệ 1-n: map các sheet liên quan
+            Sheets = model.sheets?.Select(s => new SheetDto
+            {
+                SheetId = s.sheet_id,
+                SheetUrl = s.sheet_url,
+                SheetMusicId = s.sheet_music_id ?? 0
+            }).ToList() ?? new List<SheetDto>(),
+            // Quan hệ many-to-many: map các genre
+            Genres = model.genres?.Select(g => new GenreBasicDto
+            {
+                GenreId = g.genre_id,
+                GenreName = g.genre_name
+            }).ToList() ?? new List<GenreBasicDto>()
         };
     }
 }

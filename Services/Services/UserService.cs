@@ -18,14 +18,16 @@ public class UserService : IUserService
     private readonly IFileStorageService _fileStorageService;
     private readonly IClassService _classService;
     private readonly IStatisticService _statisticService;
+    private readonly IUserFavoriteSheetService _userFavoriteSheetService;
     private readonly ILogger<UserService> _logger; // Thêm logger
 
-    public UserService(IUnitOfWork unitOfWork, IFileStorageService fileStorageService, IClassService classService, IStatisticService statisticService, ILogger<UserService> logger)
+    public UserService(IUnitOfWork unitOfWork, IFileStorageService fileStorageService, IClassService classService, IStatisticService statisticService, IUserFavoriteSheetService userFavoriteSheetService, ILogger<UserService> logger)
     {
         _unitOfWork = unitOfWork;
         _fileStorageService = fileStorageService;
         _classService = classService;
         _statisticService = statisticService;
+        _userFavoriteSheetService = userFavoriteSheetService;
         _logger = logger; // Khởi tạo logger
     }
 
@@ -81,7 +83,7 @@ public class UserService : IUserService
              await _unitOfWork.Context.Entry(user).Reference(u => u.gender).LoadAsync();
         }
 
-        return MapToUserDto(user);
+        return await MapToUserDtoAsync(user);
     }
 
     public async Task<UserDto?> GetByUsernameAsync(string username)
@@ -98,7 +100,7 @@ public class UserService : IUserService
             await _unitOfWork.Context.Entry(user).Reference(u => u.gender).LoadAsync();
             await _unitOfWork.Context.Entry(user).Collection(u => u.classes).LoadAsync();
         }
-        return MapToUserDto(user);
+        return await MapToUserDtoAsync(user);
     }
 
 
@@ -377,7 +379,53 @@ public class UserService : IUserService
             }
         }
 
-        return users.Select(u => MapToUserDto(u));
+        var userDtos = new List<UserDto>();
+        foreach (var user in users)
+        {
+            userDtos.Add(await MapToUserDtoAsync(user));
+        }
+        return userDtos;
+    }
+
+    private async Task<UserDto> MapToUserDtoAsync(user model)
+    {
+        // Lấy danh sách bài hát yêu thích của user
+        var userFavorites = await _userFavoriteSheetService.GetUserFavoritesAsync(model.user_id);
+        
+        return new UserDto
+        {
+            UserId = model.user_id,
+            Username = model.username,
+            AccountName = model.account_name,
+            Address = model.address,
+            PhoneNumber = model.phone_number,
+            IsDisabled = model.is_disabled,
+            CreateAt = model.create_at,
+            AvatarUrl = model.avatar_url,
+            Birthday = model.birthday,
+            RoleId = model.role_id,
+            StatisticId = model.statistic_id,
+            Role = model.role != null
+                ? new RoleDto
+                {
+                    RoleId = model.role.role_id,
+                    RoleName = model.role.role_name
+                }
+                : null,
+            Email = model.email,
+            GenderId = model.gender_id,
+            Gender = model.gender != null
+                ? new GenderDto
+                {
+                    GenderId = model.gender.gender_id,
+                    GenderName = model.gender.gender_name
+                }
+                : null,
+            // Đảm bảo model.classes được eager load khi lấy user để ánh xạ ClassIds
+            ClassIds = model.classes?.Select(c => c.class_id).ToList(),
+            // Thêm danh sách bài hát yêu thích
+            FavoriteSheetMusics = userFavorites.FavoriteSheetMusics
+        };
     }
 
     private UserDto MapToUserDto(user model)
@@ -412,7 +460,9 @@ public class UserService : IUserService
                 }
                 : null,
             // Đảm bảo model.classes được eager load khi lấy user để ánh xạ ClassIds
-            ClassIds = model.classes?.Select(c => c.class_id).ToList()
+            ClassIds = model.classes?.Select(c => c.class_id).ToList(),
+            // Không có favorite trong sync version
+            FavoriteSheetMusics = null
         };
     }
 
@@ -561,7 +611,7 @@ public class UserService : IUserService
             // Cập nhật thống kê khi thêm user mới
             await _statisticService.UpdateStatisticsOnUserChangeAsync();
 
-            return MapToUserDto(addedUserWithDetails ?? addedUser);
+            return await MapToUserDtoAsync(addedUserWithDetails ?? addedUser);
         }
         catch (DbUpdateException dbEx)
         {

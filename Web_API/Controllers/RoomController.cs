@@ -9,6 +9,7 @@ namespace Web_API.Controllers;
 // GET
 [Route("api/[controller]")]
 [ApiController]
+[Produces("application/json")]
 // [Authorize(Roles = "1,2")] // Example: Only Admin, Manager can manage rooms
 public class RoomController : ControllerBase
 {

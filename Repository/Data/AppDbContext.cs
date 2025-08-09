@@ -347,6 +347,11 @@ public partial class AppDbContext : DbContext
             entity.HasKey(e => e.sheet_id).HasName("sheet_pkey");
 
             entity.ToTable("sheet");
+
+            entity.HasOne(d => d.sheet_music).WithMany(p => p.sheets)
+                .HasForeignKey(d => d.sheet_music_id)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_sheet_to_sheet_music");
         });
 
         modelBuilder.Entity<sheet_music>(entity =>
@@ -355,16 +360,9 @@ public partial class AppDbContext : DbContext
 
             entity.ToTable("sheet_music");
 
-            entity.HasIndex(e => e.sheet_id, "sheet_music_sheet_id_key").IsUnique();
-
             entity.Property(e => e.composer).HasMaxLength(255);
             entity.Property(e => e.favorite_count).HasDefaultValue(0);
             entity.Property(e => e.music_name).HasMaxLength(255);
-
-            entity.HasOne(d => d.sheet).WithOne(p => p.sheet_music)
-                .HasForeignKey<sheet_music>(d => d.sheet_id)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_sheet_music_sheet");
 
             entity.HasMany(d => d.genres).WithMany(p => p.sheet_musics)
                 .UsingEntity<Dictionary<string, object>>(

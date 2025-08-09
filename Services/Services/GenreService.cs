@@ -61,7 +61,10 @@ public class GenreService : IGenreService
         {
             var addedGenre = await _unitOfWork.Genres.AddAsync(genreEntity);
             await _unitOfWork.CompleteAsync(); // Lưu thay đổi
-            return MapToGenreDto(addedGenre);
+            
+            // Query lại để có đầy đủ navigation properties (sheet_musics)
+            var genreWithRelations = await _unitOfWork.Genres.GetByIdAsync(addedGenre.genre_id);
+            return MapToGenreDto(genreWithRelations);
         }
         catch (DbUpdateException dbEx)
         {
@@ -153,7 +156,21 @@ public class GenreService : IGenreService
         return new GenreDto
         {
             GenreId = model.genre_id,
-            GenreName = model.genre_name
+            GenreName = model.genre_name,
+            // Map danh sách bài hát thuộc thể loại này
+            SheetMusics = model.sheet_musics?.Select(sm => new SheetMusicDto
+            {
+                SheetMusicId = sm.sheet_music_id,
+                Number = sm.number,
+                MusicName = sm.music_name,
+                Composer = sm.composer,
+                CoverUrl = sm.cover_url,
+                SheetQuantity = sm.sheet_quantity,
+                FavoriteCount = sm.favorite_count,
+                // Không map Sheets và Genres để tránh circular reference
+                Sheets = new List<SheetDto>(),
+                Genres = new List<GenreBasicDto>()
+            }).ToList() ?? new List<SheetMusicDto>()
         };
     }
 }

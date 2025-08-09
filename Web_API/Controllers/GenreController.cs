@@ -14,8 +14,7 @@ using Services.IServices;
 namespace Web_API.Controllers
 {
     [Route("api/[controller]")]
-    [ApiController]
-    public class GenreController : ControllerBase
+    public class GenreController : BaseController
     {
         private readonly IGenreService _genreService;
         
@@ -54,9 +53,7 @@ namespace Web_API.Controllers
 
         // PUT: api/Genres/{id}
         [HttpPut("{id}")]
-        // PUT: api/Genres/{id}
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateGenre(int id, [FromBody] UpdateGenreDto updateGenreDto)
+        public async Task<ActionResult<GenreDto>> UpdateGenre(int id, [FromBody] UpdateGenreDto updateGenreDto)
         {
             if (id != updateGenreDto.GenreId)
             {
@@ -68,7 +65,10 @@ namespace Web_API.Controllers
 
             // Không có try-catch ở đây. Service sẽ ném NotFoundException/ValidationException/ApiException nếu có lỗi.
             await _genreService.UpdateAsync(updateGenreDto);
-            return NoContent();
+            
+            // Trả về data đã cập nhật với đầy đủ sheet musics
+            var updatedGenre = await _genreService.GetByIdAsync(id);
+            return Ok(updatedGenre);
         }
 
         // DELETE: api/Genres/{id}

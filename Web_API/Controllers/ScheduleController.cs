@@ -17,6 +17,7 @@ namespace Web_API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Produces("application/json")]
     public class ScheduleController : ControllerBase
     {
         private readonly IScheduleService _scheduleService; // Removed '?' to enforce non-null

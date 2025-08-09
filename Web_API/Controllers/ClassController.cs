@@ -16,11 +16,10 @@ using Microsoft.AspNetCore.Authorization; // Thêm cho Authorize
 namespace Web_API.Controllers
 {
     [Route("api/[controller]")]
-    [ApiController]
-    public class ClassController : ControllerBase
+    public class ClassController : BaseController
     {
         private readonly IClassService _classService;
-        
+
         public ClassController(IClassService classService) => _classService = classService;
 
         [HttpGet]
@@ -98,7 +97,7 @@ namespace Web_API.Controllers
             await _classService.DeleteAsync(id);
             return NoContent();
         }
-        
+
         [HttpGet("{id}/with-users")]
         [ProducesResponseType(typeof(ClassDto), (int)HttpStatusCode.OK)]
         [ProducesResponseType((int)HttpStatusCode.NotFound)]
@@ -108,7 +107,7 @@ namespace Web_API.Controllers
             var cls = await _classService.GetClassWithUsersByIdAsync(id);
             return Ok(cls);
         }
-        
+
         [HttpGet("available-users")]
         [ProducesResponseType(typeof(IEnumerable<UserDto>), (int)HttpStatusCode.OK)]
         [ProducesResponseType((int)HttpStatusCode.NotFound)] // If Student or Teacher roles are not found
@@ -135,6 +134,7 @@ namespace Web_API.Controllers
                     { "ClassId", new string[] { "ID lớp học trong URL không khớp với ID trong body." } }
                 });
             }
+
             await _classService.AssignUsersToClassAsync(classId, dto.UserIds);
             return NoContent();
         }
@@ -155,6 +155,7 @@ namespace Web_API.Controllers
                     { "ClassId", new string[] { "ID lớp học trong URL không khớp với ID trong body." } }
                 });
             }
+
             await _classService.AddUsersToClassAsync(classId, dto.UserIds);
             return NoContent();
         }
@@ -174,6 +175,7 @@ namespace Web_API.Controllers
                     { "ClassId", new string[] { "ID lớp học trong URL không khớp với ID trong body." } }
                 });
             }
+
             await _classService.RemoveUsersFromClassAsync(classId, dto.UserIds);
             return NoContent();
         }

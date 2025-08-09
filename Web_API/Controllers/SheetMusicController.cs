@@ -14,8 +14,7 @@ using Services.IServices;
 namespace Web_API.Controllers
 {
     [Route("api/[controller]")]
-    [ApiController]
-    public class SheetMusicController : ControllerBase
+    public class SheetMusicController : BaseController
     {
         private readonly ISheetMusicService _sheetMusicService;
 
@@ -48,7 +47,7 @@ namespace Web_API.Controllers
                 createSheetMusicDto.Composer,
                 createSheetMusicDto.SheetQuantity,
                 createSheetMusicDto.FavoriteCount,
-                createSheetMusicDto.SheetId
+                createSheetMusicDto.GenreIds
             );
             return CreatedAtAction(nameof(GetSheetMusicById), new { id = createdSheetMusic.SheetMusicId }, createdSheetMusic);
         }
@@ -56,7 +55,7 @@ namespace Web_API.Controllers
         // PUT: api/SheetMusics/{id}
         [HttpPut("{id}")]
         // Nhận file từ Form-data
-        public async Task<IActionResult> UpdateSheetMusic(int id, [FromForm] UpdateSheetMusicDto updateSheetMusicDto)
+        public async Task<ActionResult<SheetMusicDto>> UpdateSheetMusic(int id, [FromForm] UpdateSheetMusicDto updateSheetMusicDto)
         {
             if (id != updateSheetMusicDto.SheetMusicId)
             {
@@ -75,9 +74,12 @@ namespace Web_API.Controllers
                 updateSheetMusicDto.Composer,
                 updateSheetMusicDto.SheetQuantity,
                 updateSheetMusicDto.FavoriteCount,
-                updateSheetMusicDto.SheetId
+                updateSheetMusicDto.GenreIds
             );
-            return NoContent();
+            
+            // Trả về data đã cập nhật với đầy đủ genres
+            var updatedSheetMusic = await _sheetMusicService.GetByIdAsync(id);
+            return Ok(updatedSheetMusic);
         }
 
         // DELETE: api/SheetMusics/{id}
@@ -103,19 +105,25 @@ namespace Web_API.Controllers
         }
 
         [HttpPost("{sheetMusicId}/genres/{genreId}")]
-        public async Task<IActionResult> AddGenreToSheetMusic(int sheetMusicId, int genreId)
+        public async Task<ActionResult<SheetMusicDto>> AddGenreToSheetMusic(int sheetMusicId, int genreId)
         {
             // Không có try-catch ở đây
             await _sheetMusicService.AddGenreToSheetMusicAsync(sheetMusicId, genreId);
-            return NoContent();
+            
+            // Trả về sheet music đã cập nhật với genres
+            var updatedSheetMusic = await _sheetMusicService.GetByIdAsync(sheetMusicId);
+            return Ok(updatedSheetMusic);
         }
 
         [HttpDelete("{sheetMusicId}/genres/{genreId}")]
-        public async Task<IActionResult> RemoveGenreFromSheetMusic(int sheetMusicId, int genreId)
+        public async Task<ActionResult<SheetMusicDto>> RemoveGenreFromSheetMusic(int sheetMusicId, int genreId)
         {
             // Không có try-catch ở đây
             await _sheetMusicService.RemoveGenreFromSheetMusicAsync(sheetMusicId, genreId);
-            return NoContent();
+            
+            // Trả về sheet music đã cập nhật với genres
+            var updatedSheetMusic = await _sheetMusicService.GetByIdAsync(sheetMusicId);
+            return Ok(updatedSheetMusic);
         }
     }
 }

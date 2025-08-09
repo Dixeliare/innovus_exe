@@ -15,12 +15,14 @@ public class OpeningScheduleService : IOpeningScheduleService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IClassSessionService _classSessionService;
+    private readonly IStatisticService _statisticService;
     private readonly ILogger<OpeningScheduleService> _logger;
 
-    public OpeningScheduleService(IUnitOfWork unitOfWork, IClassSessionService classSessionService, ILogger<OpeningScheduleService> logger)
+    public OpeningScheduleService(IUnitOfWork unitOfWork, IClassSessionService classSessionService, IStatisticService statisticService, ILogger<OpeningScheduleService> logger)
     {
         _unitOfWork = unitOfWork;
         _classSessionService = classSessionService;
+        _statisticService = statisticService;
         _logger = logger;
     }
 
@@ -197,6 +199,9 @@ public class OpeningScheduleService : IOpeningScheduleService
 
                 // Commit transaction nếu mọi thứ thành công
                 await transaction.CommitAsync();
+
+                // Cập nhật thống kê sau khi tạo class thành công
+                await _statisticService.UpdateStatisticsOnClassChangeAsync();
 
                 // Fetch the schedule again to ensure all navigation properties are loaded for mapping
                 var finalSchedule = await _unitOfWork.OpeningSchedules.GetByIdAsync(addedSchedule.opening_schedule_id);
@@ -413,6 +418,9 @@ public class OpeningScheduleService : IOpeningScheduleService
                     updateOpeningScheduleDto.DefaultRoomId,
                     updateOpeningScheduleDto.TimeSlotIds
                 );
+                
+                // Cập nhật thống kê sau khi update class
+                await _statisticService.UpdateStatisticsOnClassChangeAsync();
             }
             // --- KẾT THÚC ---
         }
@@ -495,6 +503,9 @@ public class OpeningScheduleService : IOpeningScheduleService
                 
                 // 6. Commit transaction
                 await transaction.CommitAsync();
+                
+                // Cập nhật thống kê sau khi xóa class
+                await _statisticService.UpdateStatisticsOnClassChangeAsync();
                 
                 _logger.LogInformation($"Đã xóa thành công opening schedule với ID: {id}");
             }

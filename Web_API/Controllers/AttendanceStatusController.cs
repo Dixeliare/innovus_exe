@@ -5,9 +5,11 @@ namespace Web_API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Produces("application/json")]
     public class AttendanceStatusController : ControllerBase
     {
         private readonly IAttendanceStatusService _service;
+
         public AttendanceStatusController(IAttendanceStatusService service)
         {
             _service = service;
@@ -27,4 +29,4 @@ namespace Web_API.Controllers
             return NoContent();
         }
     }
-} 
+}

@@ -17,6 +17,7 @@ namespace Web_API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Produces("application/json")]
     //[Authorize] // Áp dụng cho toàn bộ controller
     public class ClassSessionController : ControllerBase
     {
@@ -279,7 +280,11 @@ namespace Web_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "An error occurred while retrieving users in class session.", details = ex.Message });
+                return StatusCode(500,
+                    new
+                    {
+                        message = "An error occurred while retrieving users in class session.", details = ex.Message
+                    });
             }
         }
     }

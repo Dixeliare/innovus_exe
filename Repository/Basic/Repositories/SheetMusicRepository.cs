@@ -16,7 +16,7 @@ public class SheetMusicRepository : GenericRepository<sheet_music>, ISheetMusicR
     public async Task<IEnumerable<sheet_music>> GetAllAsync()
     {
         return await _dbSet
-            .Include(s => s.sheet)
+            .Include(s => s.sheets)
             .Include(u => u.user_favorite_sheets)
             .Include(g => g.genres)
             .AsSplitQuery()
@@ -26,7 +26,7 @@ public class SheetMusicRepository : GenericRepository<sheet_music>, ISheetMusicR
     public async Task<sheet_music> GetByIdAsync(int id)
     {
         return await _dbSet
-            .Include(s => s.sheet)
+            .Include(s => s.sheets)
             .Include(u => u.user_favorite_sheets)
             .Include(g => g.genres)
             .AsSplitQuery()
@@ -66,7 +66,7 @@ public class SheetMusicRepository : GenericRepository<sheet_music>, ISheetMusicR
             IQueryable<sheet_music> query = _dbSet;
 
             // Luôn bao gồm các navigation property bạn muốn trả về cùng kết quả
-            query = query.Include(sm => sm.sheet)
+            query = query.Include(sm => sm.sheets)
                          .Include(sm => sm.genres);
 
             // Xây dựng danh sách các biểu thức điều kiện (predicates)

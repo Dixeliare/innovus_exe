@@ -10,6 +10,7 @@ using DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Repository.Data;
@@ -20,11 +21,11 @@ using Services.IServices;
 namespace Web_API.Controllers
 {
     [Route("api/[controller]")]
-    [ApiController]
-    public class UserController : ControllerBase
+    [EnableRateLimiting("FixedPolicy")] // Áp dụng rate limiting cho toàn bộ controller
+    public class UserController : BaseController
     {
         private readonly IUserService _userService;
-        private readonly IConfiguration _config;
+        private readonly IConfiguration _config;  // Đổi lại thành readonly
 
         public UserController(IUserService userService, IConfiguration config)
         {
@@ -33,6 +34,7 @@ namespace Web_API.Controllers
         }
 
         [HttpPost("Login")]
+        [EnableRateLimiting("LoginPolicy")]
         // Không cần thay đổi ở đây, vì login request chỉ cần username và password
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
@@ -41,13 +43,13 @@ namespace Web_API.Controllers
             var user = await _userService.GetUserAccount(request.UserName, request.Password);
 
             // Đoạn code này chỉ chạy nếu user được trả về thành công (không ném Exception)
-            var token = GenerateJSONWebToken(user);
+            var token = GenerateJSONWebToken(user, _config);
             return Ok(new { token });
         }
 
-        private string GenerateJSONWebToken(user systemUserAccount)
+        public static string GenerateJSONWebToken(user systemUserAccount, IConfiguration config) // Thêm IConfiguration parameter
         {
-            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
+            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Key"]));
             var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
             var claims = new List<Claim>
@@ -60,8 +62,8 @@ namespace Web_API.Controllers
                 claims.Add(new(ClaimTypes.Role, systemUserAccount.role.role_id.ToString())); // Lấy role_id từ navigation property
             }
 
-            var token = new JwtSecurityToken(_config["Jwt:Issuer"]
-                , _config["Jwt:Audience"]
+            var token = new JwtSecurityToken(config["Jwt:Issuer"]
+                , config["Jwt:Audience"]
                 , claims
                 , expires: DateTime.UtcNow.AddMinutes(120)    //Now => UtcNow
                 , signingCredentials: credentials
@@ -113,35 +115,59 @@ namespace Web_API.Controllers
         [ProducesResponseType((int)HttpStatusCode.InternalServerError)] // Xử lý lỗi server
         public async Task<ActionResult<UserDto>> GetUserProfile()
         {
-            // Lấy User ID từ Claims trong JWT token
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-            if (userIdClaim == null || !int.TryParse(userIdClaim, out int userId))
-            {
-                // Điều này không nên xảy ra nếu JWT được tạo đúng cách và chứa User ID,
-                // nhưng là một biện pháp phòng ngừa để xử lý các token không hợp lệ.
-                return Unauthorized(new { message = "Không tìm thấy User ID trong token hoặc định dạng không hợp lệ." });
-            }
-
             try
             {
+                var userId = GetCurrentUserId();
                 var userProfile = await _userService.GetByIdAsync(userId);
                 if (userProfile == null)
                 {
-                    // Trường hợp này có thể xảy ra nếu người dùng đã bị xóa khỏi DB
-                    // nhưng token của họ vẫn còn hiệu lực.
                     return NotFound(new { message = $"Không tìm thấy hồ sơ người dùng với ID '{userId}'." });
                 }
                 return Ok(userProfile);
             }
+            catch (UnauthorizedAppException)
+            {
+                return Unauthorized(new { message = "Không tìm thấy User ID trong token hoặc định dạng không hợp lệ." });
+            }
             catch (NotFoundException ex)
             {
-                // Bắt NotFoundException từ service nếu có, trả về 404
                 return NotFound(new { message = ex.Message });
             }
             catch (Exception ex)
             {
-                // Xử lý các lỗi không mong muốn khác xảy ra trong quá trình truy xuất dữ liệu
+                return StatusCode((int)HttpStatusCode.InternalServerError, new { message = "Đã xảy ra lỗi khi truy xuất hồ sơ người dùng.", details = ex.Message });
+            }
+        }
+
+        // API MỚI: Lấy profile của người dùng hiện tại với danh sách favorite
+        [HttpGet("my-profile")]
+        [Authorize] // Yêu cầu xác thực để truy cập endpoint này
+        [ProducesResponseType(typeof(UserDto), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
+        [ProducesResponseType((int)HttpStatusCode.NotFound)]
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        public async Task<ActionResult<UserDto>> GetMyProfile()
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+                var userProfile = await _userService.GetByIdAsync(userId);
+                if (userProfile == null)
+                {
+                    return NotFound(new { message = $"Không tìm thấy hồ sơ người dùng với ID '{userId}'." });
+                }
+                return Ok(userProfile);
+            }
+            catch (UnauthorizedAppException)
+            {
+                return Unauthorized(new { message = "Không tìm thấy User ID trong token hoặc định dạng không hợp lệ." });
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
                 return StatusCode((int)HttpStatusCode.InternalServerError, new { message = "Đã xảy ra lỗi khi truy xuất hồ sơ người dùng.", details = ex.Message });
             }
         }
@@ -264,17 +290,15 @@ namespace Web_API.Controllers
             [FromQuery] DateOnly? startDate = null,
             [FromQuery] DateOnly? endDate = null)
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-            if (userIdClaim == null || !int.TryParse(userIdClaim, out int userId))
-            {
-                return Unauthorized(new { message = "Không tìm thấy User ID trong token hoặc định dạng không hợp lệ." });
-            }
-
             try
             {
+                var userId = GetCurrentUserId();
                 var schedule = await _userService.GetPersonalScheduleAsync(userId, startDate, endDate);
                 return Ok(schedule);
+            }
+            catch (UnauthorizedAppException)
+            {
+                return Unauthorized(new { message = "Không tìm thấy User ID trong token hoặc định dạng không hợp lệ." });
             }
             catch (NotFoundException ex)
             {

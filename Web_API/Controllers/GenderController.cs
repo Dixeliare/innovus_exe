@@ -8,6 +8,7 @@ namespace Web_API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Produces("application/json")]
     public class GenderController : ControllerBase
     {
         private readonly IGenderService _genderService;
