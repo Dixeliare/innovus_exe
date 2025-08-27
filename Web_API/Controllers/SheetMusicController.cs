@@ -17,8 +17,18 @@ namespace Web_API.Controllers
     public class SheetMusicController : BaseController
     {
         private readonly ISheetMusicService _sheetMusicService;
+        private readonly ISheetService _sheetService;
+        private readonly IFileStorageService _fileStorageService;
 
-        public SheetMusicController(ISheetMusicService sheetMusicService) => _sheetMusicService = sheetMusicService;
+        public SheetMusicController(
+            ISheetMusicService sheetMusicService, 
+            ISheetService sheetService,
+            IFileStorageService fileStorageService)
+        {
+            _sheetMusicService = sheetMusicService;
+            _sheetService = sheetService;
+            _fileStorageService = fileStorageService;
+        }
 
         [HttpGet]
         public async Task<ActionResult<IEnumerable<SheetMusicDto>>> GetAllAsync() // Đổi kiểu trả về thành SheetMusicDto
@@ -124,6 +134,124 @@ namespace Web_API.Controllers
             // Trả về sheet music đã cập nhật với genres
             var updatedSheetMusic = await _sheetMusicService.GetByIdAsync(sheetMusicId);
             return Ok(updatedSheetMusic);
+        }
+
+        // DOWNLOAD: api/SheetMusic/{id}/download-all-sheets
+        [HttpGet("{id}/download-all-sheets")]
+        public async Task<IActionResult> DownloadAllSheets(int id)
+        {
+            try
+            {
+                // Lấy thông tin sheet music
+                var sheetMusic = await _sheetMusicService.GetByIdAsync(id);
+                if (sheetMusic == null)
+                {
+                    return NotFound(new { message = "Không tìm thấy bản nhạc" });
+                }
+
+                // Lấy tất cả sheets thuộc về bản nhạc này
+                var sheets = await _sheetService.GetBySheetMusicIdAsync(id);
+                if (!sheets.Any())
+                {
+                    return BadRequest(new { message = "Bản nhạc này không có sheet nào để download" });
+                }
+
+                // Tạo ZIP file chứa tất cả sheets
+                var memoryStream = new MemoryStream();
+                using (var archive = new System.IO.Compression.ZipArchive(memoryStream, System.IO.Compression.ZipArchiveMode.Create, true))
+                {
+                    foreach (var sheet in sheets)
+                    {
+                        try
+                        {
+                            // Download file từ Azure Blob
+                            var fileStream = await _fileStorageService.DownloadFileAsync(sheet.SheetUrl);
+                            
+                            // Lấy tên file từ URL
+                            var sheetFileName = Path.GetFileName(sheet.SheetUrl.Split('?')[0]);
+                            
+                            // Tạo entry trong ZIP
+                            var zipEntry = archive.CreateEntry(sheetFileName);
+                            using var entryStream = zipEntry.Open();
+                            await fileStream.CopyToAsync(entryStream);
+                        }
+                        catch (Exception ex)
+                        {
+                            // Log lỗi nhưng tiếp tục với các file khác
+                            Console.WriteLine($"Lỗi khi download sheet {sheet.SheetId}: {ex.Message}");
+                        }
+                    }
+                }
+
+                memoryStream.Position = 0;
+                var fileName = $"{sheetMusic.MusicName}_{sheetMusic.Composer}_all_sheets.zip";
+                
+                // Trả về file và để ASP.NET Core tự động dispose memoryStream
+                return File(memoryStream, "application/zip", fileName);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Có lỗi xảy ra khi download tất cả sheets", error = ex.Message });
+            }
+        }
+
+        // GET DOWNLOAD URL: api/SheetMusic/{id}/download-all-sheets-url
+        [HttpGet("{id}/download-all-sheets-url")]
+        public async Task<IActionResult> GetDownloadAllSheetsUrl(int id, [FromQuery] int? expiryHours = 24)
+        {
+            try
+            {
+                // Lấy thông tin sheet music
+                var sheetMusic = await _sheetMusicService.GetByIdAsync(id);
+                if (sheetMusic == null)
+                {
+                    return NotFound(new { message = "Không tìm thấy bản nhạc" });
+                }
+
+                // Lấy tất cả sheets thuộc về bản nhạc này
+                var sheets = await _sheetService.GetBySheetMusicIdAsync(id);
+                if (!sheets.Any())
+                {
+                    return BadRequest(new { message = "Bản nhạc này không có sheet nào để download" });
+                }
+
+                var expiry = expiryHours.HasValue ? TimeSpan.FromHours(expiryHours.Value) : TimeSpan.FromHours(24);
+                
+                // Tạo danh sách download URLs cho từng sheet
+                var downloadUrls = new List<object>();
+                foreach (var sheet in sheets)
+                {
+                    try
+                    {
+                        var downloadUrl = await _fileStorageService.GetDownloadUrlAsync(sheet.SheetUrl, expiry);
+                        downloadUrls.Add(new
+                        {
+                            sheetId = sheet.SheetId,
+                            downloadUrl = downloadUrl,
+                            fileName = Path.GetFileName(sheet.SheetUrl.Split('?')[0])
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Lỗi khi tạo download URL cho sheet {sheet.SheetId}: {ex.Message}");
+                    }
+                }
+
+                return Ok(new
+                {
+                    sheetMusicId = id,
+                    musicName = sheetMusic.MusicName,
+                    composer = sheetMusic.Composer,
+                    totalSheets = downloadUrls.Count,
+                    expiryHours = expiryHours ?? 24,
+                    expiresAt = DateTime.UtcNow.Add(expiry),
+                    downloadUrls = downloadUrls
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Có lỗi xảy ra khi tạo download URLs", error = ex.Message });
+            }
         }
     }
 }

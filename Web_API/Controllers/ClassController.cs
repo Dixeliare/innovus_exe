@@ -24,7 +24,6 @@ namespace Web_API.Controllers
 
         [HttpGet]
         [ProducesResponseType(typeof(IEnumerable<ClassDto>), (int)HttpStatusCode.OK)]
-        // [Authorize(Roles = "1,2,3")] // Example: Admin, Manager, Teacher can view classes
         public async Task<ActionResult<IEnumerable<ClassDto>>> GetAllAsync()
         {
             var classes = await _classService.GetAllAsync();
@@ -34,7 +33,6 @@ namespace Web_API.Controllers
         [HttpGet("{id}")]
         [ProducesResponseType(typeof(ClassDto), (int)HttpStatusCode.OK)]
         [ProducesResponseType((int)HttpStatusCode.NotFound)]
-        // [Authorize(Roles = "1,2,3")] // Example: Admin, Manager, Teacher can view a class by ID
         public async Task<ActionResult<ClassDto>> GetById(int id)
         {
             var cls = await _classService.GetByIdAsync(id);
@@ -43,7 +41,6 @@ namespace Web_API.Controllers
 
         [HttpGet("search_by_instrument_id_or_class_code")]
         [ProducesResponseType(typeof(IEnumerable<ClassDto>), (int)HttpStatusCode.OK)]
-        // [Authorize(Roles = "1,2,3")] // Example: Admin, Manager, Teacher can search classes
         public async Task<ActionResult<IEnumerable<ClassDto>>> SearchAsync(
             [FromQuery] int? instrumentId = null,
             [FromQuery] string? classCode = null)
@@ -58,7 +55,6 @@ namespace Web_API.Controllers
         [ProducesResponseType((int)HttpStatusCode.NotFound)] // For invalid InstrumentId
         [ProducesResponseType((int)HttpStatusCode.Conflict)] // For duplicate ClassCode
         [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
-        // [Authorize(Roles = "1,2")] // Example: Only Admin, Manager can create classes
         public async Task<ActionResult<ClassDto>> Add([FromBody] CreateClassDto createClassDto)
         {
             var newClass = await _classService.AddAsync(createClassDto);
@@ -71,7 +67,6 @@ namespace Web_API.Controllers
         [ProducesResponseType((int)HttpStatusCode.BadRequest)] // For ID mismatch or validation errors
         [ProducesResponseType((int)HttpStatusCode.Conflict)] // For duplicate ClassCode after update
         [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
-        // [Authorize(Roles = "1,2")] // Example: Only Admin, Manager can update classes
         public async Task<IActionResult> Update(int id, [FromBody] UpdateClassDto updateClassDto)
         {
             if (id != updateClassDto.ClassId)
@@ -91,7 +86,6 @@ namespace Web_API.Controllers
         [ProducesResponseType((int)HttpStatusCode.NotFound)]
         [ProducesResponseType((int)HttpStatusCode.Conflict)] // If related sessions or users exist
         [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
-        // [Authorize(Roles = "1,2")] // Example: Only Admin, Manager can delete classes
         public async Task<IActionResult> DeleteAsync(int id)
         {
             await _classService.DeleteAsync(id);
