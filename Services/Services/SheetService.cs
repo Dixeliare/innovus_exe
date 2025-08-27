@@ -228,6 +228,14 @@ public class SheetService : ISheetService
         }
     }
 
+    // Lấy tất cả sheets theo sheetMusicId
+    public async Task<IEnumerable<SheetDto>> GetBySheetMusicIdAsync(int sheetMusicId)
+    {
+        var sheets = await _unitOfWork.Sheets.GetAllAsync();
+        var filteredSheets = sheets.Where(s => s.sheet_music?.sheet_music_id == sheetMusicId);
+        return filteredSheets.Select(MapToSheetDto);
+    }
+
     private SheetDto MapToSheetDto(sheet model)
     {
         return new SheetDto

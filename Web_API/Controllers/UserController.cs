@@ -78,7 +78,6 @@ namespace Web_API.Controllers
 
         [HttpGet]
         [ProducesResponseType(typeof(IEnumerable<UserDto>), (int)HttpStatusCode.OK)]
-        //[Authorize(Roles = "1,2")] // Cho phép cả role 1 và 2 xem danh sách users
         public async Task<ActionResult<IEnumerable<UserDto>>> GetAllAsync()
         {
             var users = await _userService.GetAllAsync();
@@ -88,7 +87,6 @@ namespace Web_API.Controllers
         [HttpGet("{id}")]
         [ProducesResponseType(typeof(UserDto), (int)HttpStatusCode.OK)]
         [ProducesResponseType((int)HttpStatusCode.NotFound)]
-        //[Authorize(Roles = "1,2")] // Cho phép cả role 1 và 2 xem user theo ID
         public async Task<ActionResult<UserDto>> GetUserById(int id)
         {
             var user = await _userService.GetByIdAsync(id);
@@ -99,7 +97,6 @@ namespace Web_API.Controllers
         [HttpGet("username/{username}")]
         [ProducesResponseType(typeof(UserDto), (int)HttpStatusCode.OK)]
         [ProducesResponseType((int)HttpStatusCode.NotFound)]
-        //[Authorize(Roles = "1,2")] // Cho phép cả role 1 và 2 xem user theo username
         public async Task<ActionResult<UserDto>> GetUserByUsername(string username)
         {
             var user = await _userService.GetByUsernameAsync(username);
@@ -175,7 +172,6 @@ namespace Web_API.Controllers
 
         // POST: api/Users
         [HttpPost]
-        //[Authorize(Roles = "1")] // Chỉ role 1 được tạo user mới
         [Consumes("multipart/form-data")] // Quan trọng để nhận file
         [ProducesResponseType(typeof(UserDto), (int)HttpStatusCode.Created)]
         [ProducesResponseType((int)HttpStatusCode.BadRequest)]

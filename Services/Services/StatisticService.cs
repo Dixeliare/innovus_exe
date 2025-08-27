@@ -61,12 +61,43 @@ public class StatisticService : IStatisticService
         return MapToStatisticDto(statistic);
     }
 
+    // GET Statistic by Month (mới)
+    public async Task<StatisticDto?> GetByMonthAsync(int year, int month)
+    {
+        var monthStart = new DateOnly(year, month, 1);
+        var statistic = await _unitOfWork.Statistics.FindOneAsync(s => s.date == monthStart);
+        if (statistic == null)
+        {
+            throw new NotFoundException("Statistic", $"Month {month}/{year}", 0);
+        }
+        return MapToStatisticDto(statistic);
+    }
+
+    // GET Current Month Statistic (mới)
+    public async Task<StatisticDto?> GetCurrentMonthAsync()
+    {
+        var currentMonthDate = new DateOnly(DateTime.Today.Year, DateTime.Today.Month, 1);
+        var statistic = await _unitOfWork.Statistics.FindOneAsync(s => s.date == currentMonthDate);
+        if (statistic == null)
+        {
+            // Tạo mới nếu chưa có
+            await UpdateStatisticsAsync();
+            statistic = await _unitOfWork.Statistics.FindOneAsync(s => s.date == currentMonthDate);
+        }
+        return MapToStatisticDto(statistic);
+    }
+
     // CREATE Statistic
     public async Task<StatisticDto> AddAsync(CreateStatisticDto createStatisticDto)
     {
+        // Luôn tạo theo tháng (ngày 1) thay vì theo date từ DTO
+        var monthStart = createStatisticDto.Date.HasValue 
+            ? new DateOnly(createStatisticDto.Date.Value.Year, createStatisticDto.Date.Value.Month, 1)
+            : new DateOnly(DateTime.Today.Year, DateTime.Today.Month, 1);
+            
         var statisticEntity = new statistic
         {
-            date = createStatisticDto.Date,
+            date = monthStart, // Luôn là ngày 1 của tháng
             new_students = createStatisticDto.NewStudents ?? 0,
             monthly_revenue = createStatisticDto.MonthlyRevenue ?? 0m,
             consultation_count = createStatisticDto.ConsultationCount ?? 0,
@@ -120,29 +151,30 @@ public class StatisticService : IStatisticService
         }
     }
     
-    // Method để tự động cập nhật thống kê
-    public async Task UpdateStatisticsAsync()
-    {
-        try
+            // Method để tự động cập nhật thống kê
+        public async Task UpdateStatisticsAsync()
         {
-            // Lấy thống kê hiện tại hoặc tạo mới nếu chưa có
-            var currentStatistic = await _unitOfWork.Statistics.FindOneAsync(s => s.date == DateOnly.FromDateTime(DateTime.Today));
-            
-            if (currentStatistic == null)
+            try
             {
-                currentStatistic = new statistic
+                // Lấy thống kê của tháng hiện tại (mỗi tháng 1 bản ghi)
+                var currentMonth = new DateOnly(DateTime.Today.Year, DateTime.Today.Month, 1); // Ngày 1 của tháng
+                var currentStatistic = await _unitOfWork.Statistics.FindOneAsync(s => s.date == currentMonth);
+                
+                if (currentStatistic == null)
                 {
-                    date = DateOnly.FromDateTime(DateTime.Today),
-                    new_students = 0,
-                    monthly_revenue = 0m,
-                    consultation_count = 0,
-                    total_students = 0,
-                    consultation_request_count = 0,
-                    total_guitar_class = 0,
-                    total_piano_class = 0
-                };
-                await _unitOfWork.Statistics.AddAsync(currentStatistic);
-            }
+                    currentStatistic = new statistic
+                    {
+                        date = currentMonth, // Ngày 1 của tháng
+                        new_students = 0,
+                        monthly_revenue = 0m,
+                        consultation_count = 0,
+                        total_students = 0,
+                        consultation_request_count = 0,
+                        total_guitar_class = 0,
+                        total_piano_class = 0
+                    };
+                    await _unitOfWork.Statistics.AddAsync(currentStatistic);
+                }
             
             // Cập nhật total_students (đếm user có role student và không bị disable)
             var allUsers = await _unitOfWork.Users.GetAllAsync();
@@ -152,13 +184,13 @@ public class StatisticService : IStatisticService
             currentStatistic.total_students = totalStudents;
             
             // Cập nhật new_students (đếm user mới tạo trong tháng hiện tại)
-            var currentMonth = DateTime.Today.Month;
+            var currentMonthNumber = DateTime.Today.Month;
             var currentYear = DateTime.Today.Year;
             var newStudents = allUsers.Count(u => 
                 u.role?.role_name?.ToLower().Contains("student") == true && 
                 !u.is_disabled.GetValueOrDefault() &&
                 u.create_at.HasValue &&
-                u.create_at.Value.Month == currentMonth &&
+                u.create_at.Value.Month == currentMonthNumber &&
                 u.create_at.Value.Year == currentYear);
             currentStatistic.new_students = newStudents;
             

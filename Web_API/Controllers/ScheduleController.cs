@@ -26,7 +26,6 @@ namespace Web_API.Controllers
 
         [HttpGet]
         [ProducesResponseType(typeof(IEnumerable<ScheduleDto>), (int)HttpStatusCode.OK)]
-        // [Authorize(Roles = "1,2,3")] // Example: Admin, Manager, Teacher can view schedules
         public async Task<ActionResult<IEnumerable<ScheduleDto>>> GetAllAsync()
         {
             var schedules = await _scheduleService.GetAllAsync();
@@ -35,7 +34,6 @@ namespace Web_API.Controllers
 
         [HttpGet("search_id_or_note")]
         [ProducesResponseType(typeof(IEnumerable<ScheduleDto>), (int)HttpStatusCode.OK)]
-        // [Authorize(Roles = "1,2,3")] // Example: Admin, Manager, Teacher can search schedules
         public async Task<ActionResult<IEnumerable<ScheduleDto>>> SearchByIdOrNote([FromQuery] int? id, [FromQuery] string? note)
         {
             var schedules = await _scheduleService.SearchByIdOrNoteAsync(id, note);
@@ -44,7 +42,6 @@ namespace Web_API.Controllers
 
         [HttpGet("search_month_or_year")]
         [ProducesResponseType(typeof(IEnumerable<ScheduleDto>), (int)HttpStatusCode.OK)]
-        // [Authorize(Roles = "1,2,3")] // Example: Admin, Manager, Teacher can search schedules
         public async Task<ActionResult<IEnumerable<ScheduleDto>>> SearchByMonthYearAsync([FromQuery]int month, [FromQuery] int year)
         {
             // DÒNG BỊ LỖI ĐƯỢC SỬA Ở ĐÂY:
@@ -55,7 +52,6 @@ namespace Web_API.Controllers
         [HttpGet("{id}")]
         [ProducesResponseType(typeof(ScheduleDto), (int)HttpStatusCode.OK)]
         [ProducesResponseType((int)HttpStatusCode.NotFound)]
-        // [Authorize(Roles = "1,2,3")] // Example: Admin, Manager, Teacher can get a schedule by ID
         public async Task<ActionResult<ScheduleDto>> GetScheduleById(int id)
         {
             var schedule = await _scheduleService.GetByIDAsync(id);
@@ -69,7 +65,6 @@ namespace Web_API.Controllers
         [ProducesResponseType((int)HttpStatusCode.BadRequest)]
         [ProducesResponseType((int)HttpStatusCode.Conflict)] // If MonthYear already exists
         [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
-        // [Authorize(Roles = "1,2")] // Example: Only Admin, Manager can create schedules
         public async Task<ActionResult<ScheduleDto>> CreateSchedule([FromBody] CreateScheduleDto createScheduleDto)
         {
             var createdSchedule = await _scheduleService.AddAsync(createScheduleDto);
@@ -83,7 +78,6 @@ namespace Web_API.Controllers
         [ProducesResponseType((int)HttpStatusCode.BadRequest)] // For ID mismatch or validation errors
         [ProducesResponseType((int)HttpStatusCode.Conflict)] // If MonthYear update causes a conflict
         [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
-        // [Authorize(Roles = "1,2")] // Example: Only Admin, Manager can update schedules
         public async Task<IActionResult> UpdateSchedule(int id, [FromBody] UpdateScheduleDto updateScheduleDto)
         {
             if (id != updateScheduleDto.ScheduleId)

@@ -18,7 +18,6 @@ namespace Web_API.Controllers
     [Route("api/[controller]")]
     [ApiController]
     [Produces("application/json")]
-    //[Authorize] // Thêm Authorize nếu bạn muốn bảo vệ endpoint này
     public class AttendanceController : ControllerBase
     {
         private readonly IAttendanceService _attendanceService;

@@ -21,4 +21,7 @@ public interface ISheetService
     Task UpdateAsync(int sheetId, IFormFile? sheetFile, int? sheetMusicId); // Hoặc UpdateSheetDto nếu bạn muốn giữ DTO
 
     Task DeleteAsync(int id);
+    
+    // Lấy tất cả sheets theo sheetMusicId
+    Task<IEnumerable<SheetDto>> GetBySheetMusicIdAsync(int sheetMusicId);
 }

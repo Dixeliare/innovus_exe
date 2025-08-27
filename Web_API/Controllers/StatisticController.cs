@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -39,6 +40,36 @@ namespace Web_API.Controllers
         {
             var statistic = await _statisticService.GetByIdAsync(id);
             return Ok(statistic);
+        }
+
+        // GET: api/Statistic/month/2025/8
+        [HttpGet("month/{year}/{month}")]
+        public async Task<ActionResult<StatisticDto>> GetStatisticByMonth(int year, int month)
+        {
+            try
+            {
+                var statistic = await _statisticService.GetByMonthAsync(year, month);
+                return Ok(statistic);
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+        }
+
+        // GET: api/Statistic/current-month
+        [HttpGet("current-month")]
+        public async Task<ActionResult<StatisticDto>> GetCurrentMonthStatistic()
+        {
+            try
+            {
+                var statistic = await _statisticService.GetCurrentMonthAsync();
+                return Ok(statistic);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Có lỗi xảy ra khi lấy thống kê tháng hiện tại", error = ex.Message });
+            }
         }
 
         // PUT: api/Statistic/5
@@ -127,7 +158,7 @@ namespace Web_API.Controllers
         }
 
         // GET: api/Statistic/realtime
-        // Endpoint để lấy thống kê realtime
+        // Endpoint để lấy thống kê realtime của tháng hiện tại
         [HttpGet("realtime")]
         public async Task<ActionResult<StatisticDto>> GetRealtimeStatistics()
         {
@@ -136,16 +167,15 @@ namespace Web_API.Controllers
                 // Cập nhật thống kê realtime trước khi trả về
                 await _statisticService.UpdateStatisticsAsync();
                 
-                // Lấy thống kê hiện tại
-                var currentStatistic = await _statisticService.GetAllAsync();
-                var todayStatistic = currentStatistic.FirstOrDefault(s => s.Date == DateOnly.FromDateTime(DateTime.Today));
+                // Lấy thống kê tháng hiện tại
+                var currentMonthStatistic = await _statisticService.GetCurrentMonthAsync();
                 
-                if (todayStatistic == null)
+                if (currentMonthStatistic == null)
                 {
-                    return NotFound(new { message = "Không tìm thấy thống kê cho ngày hôm nay" });
+                    return NotFound(new { message = "Không tìm thấy thống kê cho tháng hiện tại" });
                 }
                 
-                return Ok(todayStatistic);
+                return Ok(currentMonthStatistic);
             }
             catch (Exception ex)
             {

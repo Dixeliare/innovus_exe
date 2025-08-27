@@ -17,7 +17,20 @@ using Services.Services;
 using Web_API.BackgroundServices;
 using Web_API.Controllers;
 
+
 var builder = WebApplication.CreateBuilder(args);
+
+// Load Azure-specific configuration if needed
+var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+if (environment == "Production" || environment == "Azure")
+{
+    builder.Configuration.AddJsonFile("appsettings.Azure.json", optional: true, reloadOnChange: true);
+    
+    // Override JWT configuration for Azure environment
+    var azureDomain = Environment.GetEnvironmentVariable("AZURE_DOMAIN") ?? "https://innovus-api-f8ajdzdzhda0hxge.japanwest-01.azurewebsites.net";
+    builder.Configuration["Jwt:Issuer"] = azureDomain;
+    builder.Configuration["Jwt:Audience"] = azureDomain;
+}
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -161,38 +174,28 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidAudience = builder.Configuration["Jwt:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])),
-            // ClockSkew = TimeSpan.Zero
+            ClockSkew = TimeSpan.FromMinutes(5) // Cho phép sai lệch 5 phút để tránh vấn đề timezone
         };
     });
 
 builder.Services.AddSwaggerGen(option =>
 {
-    ////JWT Config
     option.DescribeAllParametersInCamelCase();
-    option.ResolveConflictingActions(conf => conf.First());     // duplicate API name if any, ex: Get() & Get(string id)
+    option.ResolveConflictingActions(conf => conf.First());
+    
+    // JWT Security Definition
     option.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
-        Description = "Please enter a valid token",
+        Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
         Name = "Authorization",
-        Type = SecuritySchemeType.Http,
+        Type = SecuritySchemeType.ApiKey,
         BearerFormat = "JWT",
         Scheme = "Bearer"
     });
-    option.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type=ReferenceType.SecurityScheme,
-                    Id="Bearer"
-                }
-            },
-            new string[]{}
-        }
-    });
+    
+    // Không yêu cầu authentication cho tất cả API
+    // Chỉ những API có [Authorize] mới cần token
 });
 
 
