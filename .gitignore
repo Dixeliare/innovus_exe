@@ -70,5 +70,5 @@ _ReSharper.Caches/
 /packages/
 
 # Docker related
-**/Dockerfile
+# **/Dockerfile
 **/.dockerignore
