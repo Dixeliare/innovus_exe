@@ -1,6 +1,6 @@
 # Innovus_exe
 
-A .NET 8 Web API solution for scheduling, attendance, and lesson resources. The solution contains a Web_API project (ASP.NET Core), Services (business logic), Repository (data access), DTOs, and SQL scripts for DB initialization and seed data.
+A .NET 8 Web API solution for a piano learning center, covering class scheduling, attendance, student consultation requests, learning resources (sheet music library), room/instrument management, and reporting. The solution contains a Web_API project (ASP.NET Core), Services (business logic), Repository (data access), DTOs, and SQL scripts for DB initialization and seed data.
 
 ## Tech
 - .NET 8 (Microsoft.NET.Sdk / ASP.NET Core)
@@ -74,36 +74,32 @@ Notes: Do NOT hardcode secrets. Use environment variables or a secure secret sto
 - Swagger is enabled by config `EnableSwagger` or in Development
 
 ## API surface (controllers)
-See Web_API/Controllers for available endpoints, examples include:
-- UserController (login)
-- ScheduleController, WeekController, ClassSessionController
-- AttendanceController, AttendanceStatusController
-- SheetController, SheetMusicController, DocumentController
-- GenreController, InstrumentController, RoomController, TimeslotController
-- ConsultationTopicController, ConsultationRequestController, StatisticController
+24 controllers under `Web_API/Controllers`, grouped by domain:
+- **Scheduling & attendance:** Schedule, Week, Day, DayOfWeekLookup, Timeslot, OpeningSchedule, ClassSession, Attendance, AttendanceStatus
+- **Classes & users:** Class, User, Role, Gender
+- **Consultation:** ConsultationRequest, ConsultationTopic
+- **Learning resources:** Sheet, SheetMusic, UserFavoriteSheet, Document, Genre, Instrument
+- **Facilities:** Room
+- **Reporting:** Statistic
 
-Use Swagger to explore request/response shapes and required DTOs.
+Use Swagger to explore exact request/response shapes and required DTOs for each endpoint.
 
 ## Security & Secrets
-- Remove secrets from appsettings.json before publishing or commit a version that contains only placeholders.
+- Remove secrets from appsettings.json before publishing, or commit a version that contains only placeholders.
 - Generate a strong Jwt__Key (at least 32+ bytes) and store it securely.
 
 ## Development notes
-- The solution was developed with JetBrains Rider; it includes a .sln file and multiple csproj projects
+- Developed solo with JetBrains Rider; includes a .sln file and multiple csproj projects (Web_API, Services, Repository, DTOs, Tests).
 - If deploying to Azure, set `ASPNETCORE_ENVIRONMENT=Production` or `Azure` and provide Azure-specific environment variables (AZURE_DOMAIN, AzureBlobStorage settings). Program.cs reads `appsettings.Azure.json` optionally when in Production/Azure.
 
-## Troubleshooting
-- If the API can't connect to DB, verify ConnectionStrings__DefaultConnection and PostgreSQL is reachable
-- If swagger is not visible, ensure `EnableSwagger` is true or run in Development
-- Review logs for EF migrations or initialization errors
+## Testing
+- `Tests` project (MSTest + Moq) covers the schedule creation/update logic in `ScheduleService`: validation, duplicate-month-year conflict handling, and cascading week generation/deletion.
+- Run with: `dotnet test` (from repo root or the `Tests` folder).
 
-## Contributing
-- Open an issue or PR describing the change
-- Follow existing code patterns: Repository → Services → Web_API controllers
+## Troubleshooting
+- API can't connect to DB → verify `ConnectionStrings__DefaultConnection` and that PostgreSQL is reachable.
+- Swagger not visible → ensure `EnableSwagger` is true, or run in Development.
+- EF migration/initialization errors → check the application logs.
 
 ## License
-- No license file included. Add LICENSE at repo root if you intend to open-source this project.
-
----
-
-If you want, next step can be: (1) sanitize appsettings.json to remove secrets, (2) add a sample appsettings.Development.json.example with placeholders, or (3) add a simple README badge and CI instructions. Let me know which to do next.
+No license specified.
