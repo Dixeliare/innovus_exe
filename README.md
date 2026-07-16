@@ -8,7 +8,7 @@ A .NET 8 Web API solution for a piano learning center, covering class scheduling
 - PostgreSQL (Docker Compose)
 - JWT authentication
 - Swagger (OpenAPI)
-- Azure Blob Storage (optional for file storage)
+- Deployed to Azure App Service, with Azure Blob Storage for file storage
 - Rate limiting and hosted background services
 
 ## Projects (solution)
@@ -90,7 +90,7 @@ Use Swagger to explore exact request/response shapes and required DTOs for each 
 
 ## Development notes
 - Developed solo with JetBrains Rider; includes a .sln file and multiple csproj projects (Web_API, Services, Repository, DTOs, Tests).
-- If deploying to Azure, set `ASPNETCORE_ENVIRONMENT=Production` or `Azure` and provide Azure-specific environment variables (AZURE_DOMAIN, AzureBlobStorage settings). Program.cs reads `appsettings.Azure.json` optionally when in Production/Azure.
+- Deployed to Azure App Service (`appsettings.Azure.json` sets `ASPNETCORE_ENVIRONMENT=Azure` config, JWT issuer/audience pointed at the live Azure domain). Program.cs reads this file when `ASPNETCORE_ENVIRONMENT` is `Production` or `Azure`.
 
 ## Testing
 - `Tests` project (MSTest + Moq) covers the schedule creation/update logic in `ScheduleService`: validation, duplicate-month-year conflict handling, and cascading week generation/deletion.
